@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
 })
 
 /**
- * Displays all the users in KivAppB
+ * Displays all the users in Underboss
  * @param {Object} props - the properties
  * @param {string} props.authToken the authentication token
  */
