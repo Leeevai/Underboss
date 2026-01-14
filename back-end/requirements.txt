@@ -1,0 +1,9 @@
+# web framework
+FlaskSimpleAuth[cors] >= 35.6
+ProxyPatternPool >= 11.0
+bcrypt
+# Postgres database
+anodb >= 15.0
+psycopg
+# data structures
+pydantic

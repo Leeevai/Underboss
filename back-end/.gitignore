@@ -1,0 +1,12 @@
+*.pid
+*.log
+*.wsgi
+test_users.csv
+version.py
+.postgres
+assets/index.html
+.mypy_cache
+.pytest_cache
+__pycache__
+venv
+.coverage
