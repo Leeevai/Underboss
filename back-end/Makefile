@@ -132,7 +132,7 @@ clean: full-stop
 	[ -f app.log ] && echo -e "# REMOVING app.log! RESTART \"make log\"…" >> app.log
 	$(RM) app.log app.pid $(F.gen) $(F.csv) .coverage *~
 	$(RM) -r __pycache__ .pytype .pytest_cache .postgres htmlcov .ruff_cache
-	dropdb $(DB) || exit 0
+	psql $(DB) < /dev/null >& /dev/null && dropdb $(DB) || exit 0
 
 .PHONY: clean.dev
 clean.dev: clean
