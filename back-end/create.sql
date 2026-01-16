@@ -256,3 +256,15 @@ CREATE TABLE IF NOT EXISTS "CHAT_PARTICIPANT" (
     "joined_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     "left_at" TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS "CHAT_MESSAGE" (
+    "chat_message_id" BIGSERIAL PRIMARY KEY,
+    "chat_thread_id" FOREIGN KEY REFERENCES "CHAT_THREAD"("chat_thread_id") NOT NULL,
+    "sender_user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL,
+    "message_type" TEXT DEFAULT "text" NOT NULL,
+    "content" TEXT NOT NULL,
+    "attachement_url" TEXT,
+    "is_read" BOOLEAN DEFAULT FALSE NOT NULL,
+    "read_at" TIMESTAMP,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
