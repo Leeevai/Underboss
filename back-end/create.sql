@@ -1,7 +1,7 @@
 
 
 CREATE TABLE IF NOT EXISTS "ROLE"(
-  "role_id" SERIAL8 PRIMARY KEY,
+  "role_id" SERIAL PRIMARY KEY,
   "name" string UNIQUE NOT NULL,
   "description" string DEFAULT "No description provided."
 );
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS "PAPS" (
 );
 
 CREATE TABLE IF NOT EXISTS "SPAP" (
-  "spap_id" SERIAL PRIMARY KEY,
+  "spap_id" BIGSERIAL PRIMARY KEY,
   "paps_id" FOREIGN KEY REFERENCES "PAPS"("paps_id") NOT NULL,
   "applicant_user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL,
   "title" TEXT NOT NULL,
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS "SPAP" (
   );
 
 CREATE TABLE IF NOT EXISTS "PAPS_CATEGORY"(
-    "paps_category_id" SERIAL PRIMARY KEY,
+    "paps_category_id" BIGSERIAL PRIMARY KEY,
     "paps_id" FOREIGN KEY REFERENCES "PAPS"("paps_id") NOT NULL,
     "category_id" FOREIGN KEY REFERENCES "CATEGORY"("category_id") NOT NULL,
     UNIQUE("paps_id", "category_id")
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS "PAPS_CATEGORY"(
 
 CREATE TABLE IF NOT EXISTS "PAPS_MEDIA"
 (
-    "paps_media_id" SERIAL PRIMARY KEY,
+    "paps_media_id" BIGSERIAL PRIMARY KEY,
     "paps_id" FOREIGN KEY REFERENCES "PAPS"("paps_id") NOT NULL,
     "media_url" TEXT NOT NULL,
     "media_type" TEXT DEFAULT "image" NOT NULL,
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS "PAPS_MEDIA"
 );
 
 CREATE TABLE IF NOT EXISTS "PAPS_SCHEDULE"(
-    "paps_schedule_id" SERIAL PRIMARY KEY,
+    "paps_schedule_id" BIGSERIAL PRIMARY KEY,
     "paps_id" FOREIGN KEY REFERENCES "PAPS"("paps_id") NOT NULL,
     "is_recurring" BOOLEAN DEFAULT FALSE NOT NULL,
     "recurrence_rule" TEXT,
@@ -171,7 +171,7 @@ CREATE TABLE IF NOT EXISTS "PAPS_SCHEDULE"(
 
 
 CREATE TABLE IF NOT EXISTS "USER_EXPERIENCE" (
-    "experience_id" SERIAL PRIMARY KEY,
+    "experience_id" BIGSERIAL PRIMARY KEY,
     "user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL,
     "title" TEXT,
     "description" TEXT,
@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS "USER_EXPERIENCE" (
 );
 
 CREATE TABLE IF NOT EXISTS "COMMENT" (
-    "comment_id" SERIAL PRIMARY KEY,
+    "comment_id" BIGSERIAL PRIMARY KEY,
     "user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL,
     "paps_id" FOREIGN KEY REFERENCES "PAPS"("paps_id") NOT NULL,
     "parent_comment_id" FOREIGN KEY REFERENCES "COMMENT"("comment_id"),
@@ -194,7 +194,7 @@ CREATE TABLE IF NOT EXISTS "COMMENT" (
 
 CREATE TABLE IF NOT EXISTS "PAPS_CATEGORY"
 (
-    "paps_category_id" SERIAL PRIMARY KEY,
+    "paps_category_id" BIGSERIAL PRIMARY KEY,
     "paps_id" FOREIGN KEY REFERENCES "PAPS"("paps_id") NOT NULL,
     "category_id" FOREIGN KEY REFERENCES "CATEGORY"("category_id") NOT NULL,
     UNIQUE("paps_id", "category_id")
@@ -202,7 +202,7 @@ CREATE TABLE IF NOT EXISTS "PAPS_CATEGORY"
 
 CREATE TABLE IF NOT EXISTS "SPAP_MEDIA"
 (
-    "spap_media_id" SERIAL PRIMARY KEY,
+    "spap_media_id" BIGSERIAL PRIMARY KEY,
     "spap_id" FOREIGN KEY REFERENCES "SPAP"("spap_id") NOT NULL,
     "media_url" TEXT NOT NULL,
     "media_type" TEXT DEFAULT "image" NOT NULL,
@@ -211,7 +211,7 @@ CREATE TABLE IF NOT EXISTS "SPAP_MEDIA"
 );
 
 CREATE TABLE IF NOT EXISTS "ASAP" (
-    "asap_id" SERIAL PRIMARY KEY,
+    "asap_id" BIGSERIAL PRIMARY KEY,
     "paps_id" FOREIGN KEY REFERENCES "PAPS"("paps_id") NOT NULL,
     "spap_id" FOREIGN KEY REFERENCES "SPAP"("spap_id") NOT NULL,
     "title" TEXT NOT NULL,
@@ -230,7 +230,7 @@ CREATE TABLE IF NOT EXISTS "ASAP" (
 );
 
 CREATE TABLE IF NOT EXISTS "RATING" (
-    "rating_id" SERIAL PRIMARY KEY,
+    "rating_id" BIGSERIAL PRIMARY KEY,
     "asap_id" FOREIGN KEY REFERENCES "ASAP"("asap_id") NOT NULL,
     "worker_user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL,
     "rater_user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL,
@@ -238,3 +238,4 @@ CREATE TABLE IF NOT EXISTS "RATING" (
     "review_text" TEXT,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
