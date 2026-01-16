@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS "USER_PROFILE" (
     "longitude" DECIMAL(9,6),
     "timezone" TEXT DEFAULT "",
     "date_of_birth" DATE DEFAULT CURRENT_TIMESTAMP,
-    "gender" TEXT DEFAULT "",
+    "gender" TEXT DEFAULT "M",
     "rating_average" DECIMAL(2,3) DEFAULT NULL,
     "rating_count" INTEGER DEFAULT 0,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -83,3 +83,14 @@ CREATE TABLE IF NOT EXISTS "PAPS_CATEGORY"(
     "category_id" FOREIGN KEY REFERENCES "CATEGORY"("category_id") NOT NULL,
     UNIQUE("paps_id", "category_id")
 );
+
+CREATE TABLE IF NOT EXISTS "PAPS_MEDIA"
+(
+    "paps_media_id" SERIAL PRIMARY KEY,
+    "paps_id" FOREIGN KEY REFERENCES "PAPS"("paps_id") NOT NULL,
+    "media_url" TEXT NOT NULL,
+    "media_type" TEXT DEFAULT "image" NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "sort_order" INTEGER DEFAULT 0
+);
+
