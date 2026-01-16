@@ -123,4 +123,60 @@ CREATE TABLE IF NOT EXISTS "PAPS_SCHEDULE"(
     "next_run_at" TIMESTAMP,
     "last_run_at" TIMESTAMP,
     "timezone" TEXT DEFAULT "UTC" NOT NULL
+);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TABLE IF NOT EXISTS "USER_EXPERIENCE" (
+    "experience_id" SERIAL PRIMARY KEY,
+    "user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL,
+    "title" TEXT,
+    "description" TEXT,
+    "started_at" TIMESTAMP,
+    "ended_at" TIMESTAMP,
+    "created_at" TIMESTAMP,
+    "updated_at" TIMESTAMP,
 )
