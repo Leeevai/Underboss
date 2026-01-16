@@ -55,3 +55,24 @@ CREATE TABLE IF NOT EXISTS "USER_INTEREST"(
     UNIQUE("user_id", "category_id")
 );
 
+CREATE TABLE IF NOT EXISTS "PAPS" (
+    "paps_id" BIGSERIAL PRIMARY KEY,
+    "owner_user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL UNIQUE,
+    "title" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "subtitle" TEXT DEFAULT "",
+    "location_text" TEXT NOT NULL,
+    "latitude" DECIMAL(9,6),
+    "longitude" DECIMAL(9,6),
+    "timezone" TEXT DEFAULT "",
+    "estimated_duration_minutes" INTEGER DEFAULT 60,
+    "payement_amount" DECIMAL(10,2) DEFAULT 0.00 NOT NULL,
+    "payemend_currency" TEXT DEFAULT "USD" NOT NULL,
+    "payement_type" TEXT DEFAULT "transfer" NOT NULL, 
+    "max_assignees" INTEGER DEFAULT 1 NOT NULL,
+    "status" TEXT DEFAULT "open" NOT NULL,
+    "published_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '15 minutes',
+    "expires_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '10 days',
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
