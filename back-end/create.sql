@@ -179,4 +179,15 @@ CREATE TABLE IF NOT EXISTS "USER_EXPERIENCE" (
     "ended_at" TIMESTAMP,
     "created_at" TIMESTAMP,
     "updated_at" TIMESTAMP,
-)
+);
+
+CREATE TABLE IF NOT EXISTS "COMMENT" (
+    "comment_id" SERIAL PRIMARY KEY,
+    "user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL,
+    "paps_id" FOREIGN KEY REFERENCES "PAPS"("paps_id") NOT NULL,
+    "parent_comment_id" FOREIGN KEY REFERENCES "COMMENT"("comment_id"),
+    "content" TEXT NOT NULL,
+    "is_deleted" BOOLEAN DEFAULT FALSE NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
