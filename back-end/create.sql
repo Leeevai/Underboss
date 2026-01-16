@@ -199,3 +199,13 @@ CREATE TABLE IF NOT EXISTS "PAPS_CATEGORY"
     "category_id" FOREIGN KEY REFERENCES "CATEGORY"("category_id") NOT NULL,
     UNIQUE("paps_id", "category_id")
 );
+
+CREATE TABLE IF NOT EXISTS "SPAP_MEDIA"
+(
+    "spap_media_id" SERIAL PRIMARY KEY,
+    "spap_id" FOREIGN KEY REFERENCES "SPAP"("spap_id") NOT NULL,
+    "media_url" TEXT NOT NULL,
+    "media_type" TEXT DEFAULT "image" NOT NULL,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "sort_order" INTEGER DEFAULT 0
+);
