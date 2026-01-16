@@ -293,3 +293,13 @@ CREATE TABLE IF NOT EXISTS "ASAP_MEDIA"
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "sort_order" INTEGER DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS "ASAP_ASSIGNEE" (
+    "asap_assignee_id" BIGSERIAL PRIMARY KEY,
+    "asap_id" FOREIGN KEY REFERENCES "ASAP"("asap_id") NOT NULL,
+    "user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL,
+    UNIQUE("asap_id", "user_id"),
+    "role" TEXT NOT NULL,
+    "assigned_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "unassigned_at" TIMESTAMP
+);
