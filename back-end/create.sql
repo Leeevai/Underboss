@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS "USER_PROFILE" (
     "location_text" TEXT DEFAULT "",
     "latitude" DECIMAL(9,6),
     "longitude" DECIMAL(9,6),
-    "timezone" TEXT DEFAULT "",
+    "timezone" TEXT DEFAULT "UTC",
     "date_of_birth" DATE DEFAULT CURRENT_TIMESTAMP,
     "gender" TEXT DEFAULT "M",
     "rating_average" DECIMAL(2,3) DEFAULT NULL,
@@ -60,11 +60,11 @@ CREATE TABLE IF NOT EXISTS "PAPS" (
     "owner_user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL UNIQUE,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
-    "subtitle" TEXT DEFAULT "",
+    "subtitle" TEXT DEFAULT NULL,
     "location_text" TEXT NOT NULL,
     "latitude" DECIMAL(9,6),
     "longitude" DECIMAL(9,6),
-    "timezone" TEXT DEFAULT "",
+    "timezone" TEXT DEFAULT "UTC",
     "estimated_duration_minutes" INTEGER DEFAULT 60,
     "payement_amount" DECIMAL(10,2) DEFAULT 0.00 NOT NULL,
     "payemend_currency" TEXT DEFAULT "USD" NOT NULL,
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS "SPAP" (
   "location_text" TEXT NOT NULL,
   "latitude" DECIMAL(9,6),
   "longitude" DECIMAL(9,6),
-  "timezone" TEXT DEFAULT "" NOT NULL,
+  "timezone" TEXT DEFAULT "UTC" NOT NULL,
   "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
@@ -208,4 +208,23 @@ CREATE TABLE IF NOT EXISTS "SPAP_MEDIA"
     "media_type" TEXT DEFAULT "image" NOT NULL,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "sort_order" INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS "ASAP" (
+    "asap_id" SERIAL PRIMARY KEY,
+    "paps_id" FOREIGN KEY REFERENCES "PAPS"("paps_id") NOT NULL,
+    "spap_id" FOREIGN KEY REFERENCES "SPAP"("spap_id") NOT NULL,
+    "title" TEXT NOT NULL,
+    "subtitle" TEXT DEFAULT NULL,
+    "status" TEXT DEFAULT "open" NOT NULL,
+    "is_group_attachement" BOOLEAN DEFAULT FALSE NOT NULL,
+    "location_text" TEXT NOT NULL,
+    "latitude" DECIMAL(9,6),
+    "longitude" DECIMAL(9,6),
+    "timezone" TEXT DEFAULT "UTC" NOT NULL,
+    "started_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "due_at" TIMESTAMP,
+    "completed_at" TIMESTAMP,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 );
