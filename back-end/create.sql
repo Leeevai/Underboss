@@ -94,3 +94,16 @@ CREATE TABLE IF NOT EXISTS "PAPS_MEDIA"
     "sort_order" INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS "PAPS_SCHEDULE"(
+    "paps_schedule_id" SERIAL PRIMARY KEY,
+    "paps_id" FOREIGN KEY REFERENCES "PAPS"("paps_id") NOT NULL,
+    "is_recurring" BOOLEAN DEFAULT FALSE NOT NULL,
+    "recurrence_rule" TEXT,
+    "recurrence_interval" INTEGER,
+    "recurrence_days_of_week" TEXT,
+    "start_datetime" TIMESTAMP NOT NULL,
+    "end_datetime" TIMESTAMP NOT NULL,
+    "next_run_at" TIMESTAMP,
+    "last_run_at" TIMESTAMP,
+    "timezone" TEXT DEFAULT "UTC" NOT NULL
+)
