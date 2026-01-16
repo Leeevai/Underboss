@@ -268,3 +268,17 @@ CREATE TABLE IF NOT EXISTS "CHAT_MESSAGE" (
     "read_at" TIMESTAMP,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS "PAYEMENT" (
+    "payment_id" BIGSERIAL PRIMARY KEY,
+    "asap_id" FOREIGN KEY REFERENCES "ASAP"("asap_id") NOT NULL,
+    "payer_user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL,
+    "payee_user_id" FOREIGN KEY REFERENCES "USER"("user_id") NOT NULL,
+    "amount" DECIMAL(10,2) DEFAULT 0.00 NOT NULL,
+    "payemend_currency" TEXT DEFAULT "USD" NOT NULL,
+    "method" TEXT DEFAULT "transfer" NOT NULL, 
+    "status" TEXT DEFAULT "open" NOT NULL,
+    "external_reference" TEXT,
+    "paid_at" TIMESTAMP,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+);
