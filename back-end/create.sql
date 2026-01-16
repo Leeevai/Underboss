@@ -388,3 +388,103 @@ CREATE TABLE IF NOT EXISTS "PAYMENT" (
     CONSTRAINT "payment_paid_at_when_completed" CHECK (("status" != 'completed') OR ("paid_at" IS NOT NULL))
 );
 
+-- ============================================================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================================================
+
+-- User indexes
+CREATE INDEX IF NOT EXISTS "idx_user_email" ON "USER"("email");
+CREATE INDEX IF NOT EXISTS "idx_user_username" ON "USER"("username");
+CREATE INDEX IF NOT EXISTS "idx_user_role_id" ON "USER"("role_id");
+CREATE INDEX IF NOT EXISTS "idx_user_is_active" ON "USER"("is_active");
+
+-- User profile indexes
+CREATE INDEX IF NOT EXISTS "idx_user_profile_user_id" ON "USER_PROFILE"("user_id");
+CREATE INDEX IF NOT EXISTS "idx_user_profile_location" ON "USER_PROFILE"("latitude", "longitude") WHERE "latitude" IS NOT NULL;
+
+-- User experience indexes
+CREATE INDEX IF NOT EXISTS "idx_user_experience_user_id" ON "USER_EXPERIENCE"("user_id");
+
+-- User interest indexes
+CREATE INDEX IF NOT EXISTS "idx_user_interest_user_id" ON "USER_INTEREST"("user_id");
+CREATE INDEX IF NOT EXISTS "idx_user_interest_category_id" ON "USER_INTEREST"("category_id");
+
+-- Category indexes
+CREATE INDEX IF NOT EXISTS "idx_category_slug" ON "CATEGORY"("slug");
+
+-- PAPS indexes
+CREATE INDEX IF NOT EXISTS "idx_paps_owner_user_id" ON "PAPS"("owner_user_id");
+CREATE INDEX IF NOT EXISTS "idx_paps_status" ON "PAPS"("status");
+CREATE INDEX IF NOT EXISTS "idx_paps_published_at" ON "PAPS"("published_at");
+CREATE INDEX IF NOT EXISTS "idx_paps_expires_at" ON "PAPS"("expires_at");
+CREATE INDEX IF NOT EXISTS "idx_paps_location" ON "PAPS"("latitude", "longitude") WHERE "latitude" IS NOT NULL;
+CREATE INDEX IF NOT EXISTS "idx_paps_created_at" ON "PAPS"("created_at");
+
+-- PAPS category indexes
+CREATE INDEX IF NOT EXISTS "idx_paps_category_paps_id" ON "PAPS_CATEGORY"("paps_id");
+CREATE INDEX IF NOT EXISTS "idx_paps_category_category_id" ON "PAPS_CATEGORY"("category_id");
+
+-- PAPS media indexes
+CREATE INDEX IF NOT EXISTS "idx_paps_media_paps_id" ON "PAPS_MEDIA"("paps_id");
+CREATE INDEX IF NOT EXISTS "idx_paps_media_sort_order" ON "PAPS_MEDIA"("paps_id", "sort_order");
+
+-- PAPS schedule indexes
+CREATE INDEX IF NOT EXISTS "idx_paps_schedule_paps_id" ON "PAPS_SCHEDULE"("paps_id");
+CREATE INDEX IF NOT EXISTS "idx_paps_schedule_next_run_at" ON "PAPS_SCHEDULE"("next_run_at") WHERE "next_run_at" IS NOT NULL;
+
+-- Comment indexes
+CREATE INDEX IF NOT EXISTS "idx_comment_paps_id" ON "COMMENT"("paps_id");
+CREATE INDEX IF NOT EXISTS "idx_comment_user_id" ON "COMMENT"("user_id");
+CREATE INDEX IF NOT EXISTS "idx_comment_parent_comment_id" ON "COMMENT"("parent_comment_id") WHERE "parent_comment_id" IS NOT NULL;
+CREATE INDEX IF NOT EXISTS "idx_comment_is_deleted" ON "COMMENT"("is_deleted");
+
+-- SPAP indexes
+CREATE INDEX IF NOT EXISTS "idx_spap_paps_id" ON "SPAP"("paps_id");
+CREATE INDEX IF NOT EXISTS "idx_spap_applicant_user_id" ON "SPAP"("applicant_user_id");
+CREATE INDEX IF NOT EXISTS "idx_spap_status" ON "SPAP"("status");
+CREATE INDEX IF NOT EXISTS "idx_spap_created_at" ON "SPAP"("created_at");
+
+-- SPAP media indexes
+CREATE INDEX IF NOT EXISTS "idx_spap_media_spap_id" ON "SPAP_MEDIA"("spap_id");
+
+-- ASAP indexes
+CREATE INDEX IF NOT EXISTS "idx_asap_paps_id" ON "ASAP"("paps_id");
+CREATE INDEX IF NOT EXISTS "idx_asap_spap_id" ON "ASAP"("spap_id");
+CREATE INDEX IF NOT EXISTS "idx_asap_status" ON "ASAP"("status");
+CREATE INDEX IF NOT EXISTS "idx_asap_started_at" ON "ASAP"("started_at");
+CREATE INDEX IF NOT EXISTS "idx_asap_due_at" ON "ASAP"("due_at");
+CREATE INDEX IF NOT EXISTS "idx_asap_completed_at" ON "ASAP"("completed_at");
+
+-- ASAP assignee indexes
+CREATE INDEX IF NOT EXISTS "idx_asap_assignee_asap_id" ON "ASAP_ASSIGNEE"("asap_id");
+CREATE INDEX IF NOT EXISTS "idx_asap_assignee_user_id" ON "ASAP_ASSIGNEE"("user_id");
+
+-- ASAP media indexes
+CREATE INDEX IF NOT EXISTS "idx_asap_media_asap_id" ON "ASAP_MEDIA"("asap_id");
+
+-- Rating indexes
+CREATE INDEX IF NOT EXISTS "idx_rating_asap_id" ON "RATING"("asap_id");
+CREATE INDEX IF NOT EXISTS "idx_rating_worker_user_id" ON "RATING"("worker_user_id");
+CREATE INDEX IF NOT EXISTS "idx_rating_rater_user_id" ON "RATING"("rater_user_id");
+CREATE INDEX IF NOT EXISTS "idx_rating_created_at" ON "RATING"("created_at");
+
+-- Chat thread indexes
+CREATE INDEX IF NOT EXISTS "idx_chat_thread_spap_id" ON "CHAT_THREAD"("spap_id");
+CREATE INDEX IF NOT EXISTS "idx_chat_thread_asap_id" ON "CHAT_THREAD"("asap_id") WHERE "asap_id" IS NOT NULL;
+
+-- Chat participant indexes
+CREATE INDEX IF NOT EXISTS "idx_chat_participant_thread_id" ON "CHAT_PARTICIPANT"("chat_thread_id");
+CREATE INDEX IF NOT EXISTS "idx_chat_participant_user_id" ON "CHAT_PARTICIPANT"("user_id");
+
+-- Chat message indexes
+CREATE INDEX IF NOT EXISTS "idx_chat_message_thread_id" ON "CHAT_MESSAGE"("chat_thread_id");
+CREATE INDEX IF NOT EXISTS "idx_chat_message_sender_user_id" ON "CHAT_MESSAGE"("sender_user_id");
+CREATE INDEX IF NOT EXISTS "idx_chat_message_created_at" ON "CHAT_MESSAGE"("created_at");
+CREATE INDEX IF NOT EXISTS "idx_chat_message_is_read" ON "CHAT_MESSAGE"("is_read") WHERE NOT "is_read";
+
+-- Payment indexes
+CREATE INDEX IF NOT EXISTS "idx_payment_asap_id" ON "PAYMENT"("asap_id");
+CREATE INDEX IF NOT EXISTS "idx_payment_payer_user_id" ON "PAYMENT"("payer_user_id");
+CREATE INDEX IF NOT EXISTS "idx_payment_payee_user_id" ON "PAYMENT"("payee_user_id");
+CREATE INDEX IF NOT EXISTS "idx_payment_status" ON "PAYMENT"("status");
+CREATE INDEX IF NOT EXISTS "idx_payment_created_at" ON "PAYMENT"("created_at");
