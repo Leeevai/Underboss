@@ -22,3 +22,20 @@ CREATE TABLE IF NOT EXISTS "User" (
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS "USER_PROFILE" (
+    "profile_id" SERIAL PRIMARY KEY,
+    "user_id" FOREIGN KEY REFERENCES "User"("user_id") UNIQUE NOT NULL,
+    "bio" TEXT DEFAULT "",
+    "avatar_image_url" TEXT DEFAULT "",
+    "location_text" TEXT DEFAULT "",
+    "latitude" DECIMAL(9,6),
+    "longitude" DECIMAL(9,6),
+    "timezone" TEXT DEFAULT "",
+    "date_of_birth" DATE DEFAULT CURRENT_TIMESTAMP,
+    "gender" TEXT DEFAULT "",
+    "rating_average" DECIMAL(2,3) DEFAULT NULL,
+    "rating_count" INTEGER DEFAULT 0,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
