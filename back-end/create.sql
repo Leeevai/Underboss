@@ -22,3 +22,10 @@ CREATE TABLE IF NOT EXISTS "User" (
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS "Category"(
+    "category_id" SERIAL PRIMARY KEY,
+    "name" UNIQUE TEXT NOT NULL,
+    "description" TEXT DEFAULT "No description provided."
+    "slug" TEXT UNIQUE NOT NULL
+)
