@@ -11,7 +11,40 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--
+-- 1. UTILITY FUNCTION: UPDATED_AT AUTOMATION
+-- Defined first so it is available for all tables
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. UTILITY FUNCTION: DISTANCE CALCULATION
+-- Haversine formula
+CREATE OR REPLACE FUNCTION calculate_distance(
+    lat1 DECIMAL, lng1 DECIMAL, 
+    lat2 DECIMAL, lng2 DECIMAL
+) RETURNS DECIMAL AS $$
+DECLARE
+    r DECIMAL := 6371; -- Earth radius in kilometers
+    dlat DECIMAL;
+    dlng DECIMAL;
+    a DECIMAL;
+    c DECIMAL;
+BEGIN
+    dlat := RADIANS(lat2 - lat1);
+    dlng := RADIANS(lng2 - lng1);
+    
+    a := SIN(dlat/2) * SIN(dlat/2) + 
+         COS(RADIANS(lat1)) * COS(RADIANS(lat2)) * SIN(dlng/2) * SIN(dlng/2);
+    
+    c := 2 * ATAN2(SQRT(a), SQRT(1-a));
+    
+    RETURN r * c;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
 
 -- ============================================
 -- 1. USER MANAGEMENT
