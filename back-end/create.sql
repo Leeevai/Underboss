@@ -650,3 +650,211 @@ CREATE TABLE CHAT_MESSAGE (
         deleted_at IS NULL OR deleted_at >= sent_at
     )
 );
+
+-- ============================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================
+
+-- User indexes
+CREATE INDEX idx_user_email ON "USER"(email);
+CREATE INDEX idx_user_phone ON "USER"(phone) WHERE phone IS NOT NULL;
+CREATE INDEX idx_user_role ON "USER"(role_id);
+CREATE INDEX idx_user_active ON "USER"(is_active) WHERE is_active = TRUE;
+
+-- Paps indexes
+CREATE INDEX idx_paps_owner ON PAPS(owner_id);
+CREATE INDEX idx_paps_status ON PAPS(status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_paps_published ON PAPS(publish_at) WHERE status = 'published';
+CREATE INDEX idx_paps_created ON PAPS(created_at DESC);
+CREATE INDEX idx_paps_location_lat_lng ON PAPS(location_lat, location_lng) WHERE location_lat IS NOT NULL;
+
+-- Spap indexes
+CREATE INDEX idx_spap_paps ON SPAP(paps_id);
+CREATE INDEX idx_spap_applicant ON SPAP(applicant_id);
+CREATE INDEX idx_spap_status ON SPAP(status);
+CREATE INDEX idx_spap_applied ON SPAP(applied_at DESC);
+
+-- Asap indexes
+CREATE INDEX idx_asap_paps ON ASAP(paps_id);
+CREATE INDEX idx_asap_spap ON ASAP(accepted_spap_id);
+CREATE INDEX idx_asap_status ON ASAP(status);
+CREATE INDEX idx_asap_assigned ON ASAP(assigned_at DESC);
+
+-- Payment indexes
+CREATE INDEX idx_payment_asap ON payment(asap_id);
+CREATE INDEX idx_payment_payer ON payment(payer_id);
+CREATE INDEX idx_payment_payee ON payment(payee_id);
+CREATE INDEX idx_payment_status ON payment(status);
+CREATE INDEX idx_payment_transaction ON payment(transaction_id) WHERE transaction_id IS NOT NULL;
+
+-- Rating indexes
+CREATE INDEX idx_rating_asap ON rating(asap_id);
+CREATE INDEX idx_rating_rater ON rating(rater_id);
+CREATE INDEX idx_rating_rated ON rating(rated_id);
+
+-- Chat indexes
+CREATE INDEX idx_CHAT_THREAD_paps ON CHAT_THREAD(paps_id) WHERE paps_id IS NOT NULL;
+CREATE INDEX idx_CHAT_THREAD_spap ON CHAT_THREAD(spap_id) WHERE spap_id IS NOT NULL;
+CREATE INDEX idx_CHAT_THREAD_asap ON CHAT_THREAD(asap_id) WHERE asap_id IS NOT NULL;
+CREATE INDEX idx_CHAT_MESSAGE_thread ON CHAT_MESSAGE(thread_id, sent_at DESC);
+CREATE INDEX idx_CHAT_MESSAGE_sender ON CHAT_MESSAGE(sender_id);
+
+-- Category indexes
+CREATE INDEX idx_category_parent ON CATEGORY(parent_id) WHERE parent_id IS NOT NULL;
+CREATE INDEX idx_category_active ON CATEGORY(is_active) WHERE is_active = TRUE;
+
+-- Comment indexes
+CREATE INDEX idx_comment_paps ON comment(paps_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_comment_user ON comment(user_id);
+CREATE INDEX idx_comment_parent ON comment(parent_id) WHERE parent_id IS NOT NULL;
+
+-- ============================================
+-- ADDITIONAL BUSINESS LOGIC CONSTRAINTS
+-- ============================================
+
+-- Ensure only one primary CATEGORY per paps
+CREATE UNIQUE INDEX idx_PAPS_CATEGORY_primary 
+    ON PAPS_CATEGORY(paps_id) 
+    WHERE is_primary = TRUE;
+
+-- Ensure only one lead assignee per asap
+CREATE UNIQUE INDEX idx_ASAP_ASSIGNEE_lead 
+    ON ASAP_ASSIGNEE(asap_id) 
+    WHERE ROLE = 'lead';
+
+-- ============================================
+-- VIEWS FOR COMMON QUERIES
+-- ============================================
+
+-- Active published PAPS with owner info
+CREATE VIEW v_active_paps AS
+SELECT 
+    p.*,
+    u.email as owner_email,
+    up.display_name as owner_name,
+    up.avatar_url as owner_avatar,
+    COUNT(DISTINCT s.id) as application_count,
+    COUNT(DISTINCT a.id) as assignment_count
+FROM PAPS p
+JOIN "user" u ON p.owner_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+LEFT JOIN SPAP s ON p.id = s.paps_id AND s.status = 'pending'
+LEFT JOIN ASAP a ON p.id = a.paps_id
+WHERE p.status = 'published' 
+    AND p.deleted_at IS NULL
+    AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP)
+GROUP BY p.id, u.email, up.display_name, up.avatar_url;
+
+-- User ratings summary
+CREATE VIEW v_user_ratings AS
+SELECT 
+    rated_id as user_id,
+    COUNT(*) as total_ratings,
+    ROUND(AVG(score), 2) as average_score,
+    COUNT(CASE WHEN score = 5 THEN 1 END) as five_star_count,
+    COUNT(CASE WHEN score = 4 THEN 1 END) as four_star_count,
+    COUNT(CASE WHEN score = 3 THEN 1 END) as three_star_count,
+    COUNT(CASE WHEN score = 2 THEN 1 END) as two_star_count,
+    COUNT(CASE WHEN score = 1 THEN 1 END) as one_star_count
+FROM RATING
+GROUP BY rated_id;
+
+-- User application statistics
+CREATE VIEW v_user_application_stats AS
+SELECT 
+    applicant_id as user_id,
+    COUNT(*) as total_applications,
+    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count,
+    COUNT(CASE WHEN status = 'accepted' THEN 1 END) as accepted_count,
+    COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected_count,
+    COUNT(CASE WHEN status = 'withdrawn' THEN 1 END) as withdrawn_count,
+    ROUND(
+        COUNT(CASE WHEN status = 'accepted' THEN 1 END)::DECIMAL / 
+        NULLIF(COUNT(*), 0) * 100, 
+        2
+    ) as acceptance_rate
+FROM SPAP
+GROUP BY applicant_id;
+
+-- User job posting statistics
+CREATE VIEW v_user_posting_stats AS
+SELECT 
+    owner_id as user_id,
+    COUNT(*) as total_postings,
+    COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_count,
+    COUNT(CASE WHEN status = 'published' THEN 1 END) as published_count,
+    COUNT(CASE WHEN status = 'closed' THEN 1 END) as closed_count,
+    COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_count
+FROM PAPS
+WHERE deleted_at IS NULL
+GROUP BY owner_id;
+
+-- Active assignments with details
+CREATE VIEW v_active_assignments AS
+SELECT 
+    a.id as asap_id,
+    a.status,
+    a.assigned_at,
+    a.started_at,
+    p.id as paps_id,
+    p.title as job_title,
+    p.payment_amount,
+    p.payment_currency,
+    u_owner.id as owner_id,
+    u_owner.email as owner_email,
+    up_owner.display_name as owner_name,
+    s.applicant_id as assignee_id,
+    u_assignee.email as assignee_email,
+    up_assignee.display_name as assignee_name
+FROM ASAP a
+JOIN PAPS p ON a.paps_id = p.id
+JOIN SPAP s ON a.accepted_spap_id = s.id
+JOIN "user" u_owner ON p.owner_id = u_owner.id
+LEFT JOIN USER_PROFILE up_owner ON u_owner.id = up_owner.user_id
+JOIN "user" u_assignee ON s.applicant_id = u_assignee.id
+LEFT JOIN USER_PROFILE up_assignee ON u_assignee.id = up_assignee.user_id
+WHERE a.status IN ('assigned', 'in_progress');
+
+-- ============================================
+-- SEED DATA
+-- ============================================
+
+INSERT INTO ROLE (name, description) VALUES
+    ('worker', 'User who applies to and completes jobs'),
+    ('poster', 'User who creates and posts job opportunities'),
+    ('admin', 'System administrator with full access'),
+    ('moderator', 'User who can moderate content and resolve disputes')
+ON CONFLICT (name) DO NOTHING;
+
+-- ============================================
+-- COMMENTS
+-- ============================================
+
+COMMENT ON TABLE "user" IS 'Core user authentication and account information';
+COMMENT ON TABLE USER_PROFILE IS 'Extended user profile information with location and preferences';
+COMMENT ON TABLE USER_EXPERIENCE IS 'Work history and experience for users';
+COMMENT ON TABLE CATEGORY IS 'Hierarchical categories for jobs and user interests';
+COMMENT ON TABLE USER_INTEREST IS 'User skills and interests linked to categories with proficiency levels';
+COMMENT ON FUNCTION calculate_distance IS 'Calculate distance in kilometers between two lat/lng points using Haversine formula';
+
+-- ============================================
+-- DATABASE SETUP COMPLETE
+-- ============================================
+
+DO $$
+DECLARE
+    table_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO table_count
+    FROM information_schema.tables
+    WHERE table_schema = 'public' 
+    AND table_type = 'BASE TABLE';
+    
+    RAISE NOTICE 'Underboss database setup complete!';
+    RAISE NOTICE 'Total tables created: %', table_count;
+    RAISE NOTICE 'UUID extension: enabled';
+    RAISE NOTICE 'Triggers: created for updated_at automation';
+    RAISE NOTICE 'Views: created for common queries';
+    RAISE NOTICE 'Indexes: optimized for performance';
+    RAISE NOTICE 'Constraints: enforced for data integrity';
+END $$;
