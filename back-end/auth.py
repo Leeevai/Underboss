@@ -14,15 +14,13 @@ def current_auth(_: str, user: fsa.CurrentUser) -> model.CurrentAuth:
     ad = db.get_all_auth_data(login=user)
     return model.CurrentAuth(**ad)
 
-# authentication helper function
 def get_user_pass(login: str) -> str|None:
     res = db.get_auth_login(login=login)
     return res["password"] if res else None
 
-# group authorization helper function for "ADMIN"
 def user_is_admin(login: str) -> bool:
     res = db.get_auth_login(login=login)
-    return res["isadmin"] if res else False
+    return res["is_admin"] if res else False  
 
 # TODO add other authorization hooks here, and register them in init_app
 
