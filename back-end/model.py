@@ -30,4 +30,4 @@ class Auth:
 
 @pydantic.dataclasses.dataclass
 class CurrentAuth(Auth):
-    aid: int
+    aid: str  # UUID as text in new schema
