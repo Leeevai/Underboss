@@ -1,490 +1,619 @@
--- ============================================================================
--- COMPLETE DATABASE SCHEMA WITH CONSTRAINTS
--- ============================================================================
+-- ============================================
+-- UNDERBOSS DATABASE SCHEMA
+-- Status: FIXED & OPTIMIZED
+-- PostgreSQL 14+
+-- ============================================
 
--- ============================================================================
--- CORE ENTITIES: ROLES & USERS
--- ============================================================================
+-- ============================================
+-- 0. EXTENSIONS & GLOBAL FUNCTIONS
+-- ============================================
 
-CREATE TABLE IF NOT EXISTS "ROLE" (
-    "role_id" SERIAL PRIMARY KEY,
-    "name" TEXT UNIQUE NOT NULL,
-    "description" TEXT DEFAULT 'No description provided.',
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "role_name_not_empty" CHECK (LENGTH(TRIM("name")) > 0),
-    CONSTRAINT "role_name_valid" CHECK ("name" IN ('admin', 'user'))
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-
+
+-- ============================================
+-- 1. USER MANAGEMENT
+-- ============================================
+
+CREATE TABLE ROLE (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT role_name_check CHECK (name IN ('worker', 'poster', 'admin', 'moderator'))
 );
 
-CREATE TABLE IF NOT EXISTS "USER" (
-    "user_id" SERIAL PRIMARY KEY,
-    "username" TEXT UNIQUE NOT NULL,
-    "email" TEXT UNIQUE NOT NULL,
-    "phone_number" TEXT UNIQUE NOT NULL,
-    "password_hash" TEXT NOT NULL,
-    "password_salt" TEXT NOT NULL,
-    "first_name" TEXT NOT NULL,
-    "last_name" TEXT NOT NULL,
-    "role_id" INTEGER NOT NULL REFERENCES "ROLE"("role_id") ON DELETE RESTRICT,
-    "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
-    "last_login" TIMESTAMP,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "user_username_not_empty" CHECK (LENGTH(TRIM("username")) > 0),
-    CONSTRAINT "user_username_length" CHECK (LENGTH("username") >= 3 AND LENGTH("username") <= 50),
-    CONSTRAINT "user_email_format" CHECK ("email" ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
-    CONSTRAINT "user_phone_format" CHECK ("phone_number" ~ '^\+?[0-9]{10,15}$'),
-    CONSTRAINT "user_first_name_not_empty" CHECK (LENGTH(TRIM("first_name")) > 0),
-    CONSTRAINT "user_last_name_not_empty" CHECK (LENGTH(TRIM("last_name")) > 0),
-    CONSTRAINT "user_password_hash_not_empty" CHECK (LENGTH("password_hash") > 0),
-    CONSTRAINT "user_password_salt_not_empty" CHECK (LENGTH("password_salt") > 0)
+CREATE TABLE "USER" (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    phone VARCHAR(20) UNIQUE,
+    role_id UUID NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    
+    CONSTRAINT user_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
+    CONSTRAINT user_phone_format CHECK (phone IS NULL OR phone ~ '^\+?[1-9]\d{1,14}$'),
+    CONSTRAINT user_role_fk FOREIGN KEY (role_id) REFERENCES ROLE(id) ON DELETE RESTRICT,
+    CONSTRAINT user_last_login_check CHECK (last_login IS NULL OR last_login >= created_at)
 );
 
-CREATE TABLE IF NOT EXISTS "USER_PROFILE" (
-    "profile_id" SERIAL PRIMARY KEY,
-    "user_id" INTEGER UNIQUE NOT NULL REFERENCES "USER"("user_id") ON DELETE CASCADE,
-    "bio" TEXT DEFAULT '',
-    "avatar_image_url" TEXT DEFAULT '',
-    "location_text" TEXT DEFAULT '',
-    "latitude" DECIMAL(9,6),
-    "longitude" DECIMAL(9,6),
-    "timezone" TEXT DEFAULT 'UTC',
-    "date_of_birth" DATE,
-    "gender" TEXT DEFAULT 'M',
-    "rating_average" DECIMAL(3,2) DEFAULT NULL,
-    "rating_count" INTEGER DEFAULT 0,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "profile_latitude_range" CHECK ("latitude" IS NULL OR ("latitude" >= -90 AND "latitude" <= 90)),
-    CONSTRAINT "profile_longitude_range" CHECK ("longitude" IS NULL OR ("longitude" >= -180 AND "longitude" <= 180)),
-    CONSTRAINT "profile_coordinates_pair" CHECK (("latitude" IS NULL AND "longitude" IS NULL) OR ("latitude" IS NOT NULL AND "longitude" IS NOT NULL)),
-    CONSTRAINT "profile_timezone_not_empty" CHECK (LENGTH(TRIM("timezone")) > 0),
-    CONSTRAINT "profile_gender_valid" CHECK ("gender" IN ('M', 'F', 'O', 'N')),
-    CONSTRAINT "profile_rating_range" CHECK ("rating_average" IS NULL OR ("rating_average" >= 0 AND "rating_average" <= 5)),
-    CONSTRAINT "profile_rating_count_positive" CHECK ("rating_count" >= 0),
-    CONSTRAINT "profile_dob_reasonable" CHECK ("date_of_birth" IS NULL OR "date_of_birth" >= '1900-01-01'),
-    CONSTRAINT "profile_bio_length" CHECK (LENGTH("bio") <= 5000)
+CREATE TRIGGER update_user_updated_at 
+    BEFORE UPDATE ON "USER"
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE USER_PROFILE (
+    user_id UUID PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    display_name VARCHAR(100),
+    bio TEXT,
+    avatar_url VARCHAR(500),
+    date_of_birth DATE,
+    location_address TEXT,
+    location_lat DECIMAL(10, 8),
+    location_lng DECIMAL(11, 8),
+    timezone VARCHAR(50) DEFAULT 'UTC',
+    preferred_language VARCHAR(10) DEFAULT 'en',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT USER_PROFILE_user_fk FOREIGN KEY (user_id) REFERENCES "USER"(id) ON DELETE CASCADE,
+    CONSTRAINT USER_PROFILE_lat_check CHECK (location_lat IS NULL OR (location_lat >= -90 AND location_lat <= 90)),
+    CONSTRAINT USER_PROFILE_lng_check CHECK (location_lng IS NULL OR (location_lng >= -180 AND location_lng <= 180)),
+    CONSTRAINT USER_PROFILE_dob_check CHECK (date_of_birth IS NULL OR date_of_birth <= CURRENT_DATE - INTERVAL '13 years'),
+    CONSTRAINT USER_PROFILE_location_consistency CHECK (
+        (location_lat IS NULL AND location_lng IS NULL AND location_address IS NULL) OR
+        (location_lat IS NOT NULL AND location_lng IS NOT NULL)
+    ),
+    CONSTRAINT USER_PROFILE_display_name_check CHECK (display_name IS NULL OR LENGTH(TRIM(display_name)) >= 2)
 );
 
-CREATE TABLE IF NOT EXISTS "USER_EXPERIENCE" (
-    "experience_id" BIGSERIAL PRIMARY KEY,
-    "user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE CASCADE,
-    "title" TEXT NOT NULL,
-    "description" TEXT,
-    "started_at" TIMESTAMP,
-    "ended_at" TIMESTAMP,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "experience_title_not_empty" CHECK (LENGTH(TRIM("title")) > 0),
-    CONSTRAINT "experience_dates_valid" CHECK ("ended_at" IS NULL OR "started_at" IS NULL OR "ended_at" >= "started_at")
+CREATE TRIGGER update_USER_PROFILE_updated_at 
+    BEFORE UPDATE ON USER_PROFILE
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE USER_EXPERIENCE (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    company VARCHAR(200),
+    description TEXT,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    is_current BOOLEAN NOT NULL DEFAULT FALSE,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT USER_EXPERIENCE_user_fk FOREIGN KEY (user_id) REFERENCES "USER"(id) ON DELETE CASCADE,
+    CONSTRAINT USER_EXPERIENCE_dates_check CHECK (end_date IS NULL OR end_date >= start_date),
+    CONSTRAINT USER_EXPERIENCE_current_check CHECK (
+        (is_current = TRUE AND end_date IS NULL) OR 
+        (is_current = FALSE)
+    ),
+    CONSTRAINT USER_EXPERIENCE_title_check CHECK (LENGTH(TRIM(title)) >= 2)
 );
 
--- ============================================================================
--- CATEGORIES & INTERESTS
--- ============================================================================
+-- ============================================
+-- 2. CATEGORIES & INTERESTS
+-- ============================================
 
-CREATE TABLE IF NOT EXISTS "CATEGORY" (
-    "category_id" SERIAL PRIMARY KEY,
-    "name" TEXT UNIQUE NOT NULL,
-    "description" TEXT DEFAULT 'No description provided.',
-    "slug" TEXT UNIQUE NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "category_name_not_empty" CHECK (LENGTH(TRIM("name")) > 0),
-    CONSTRAINT "category_slug_not_empty" CHECK (LENGTH(TRIM("slug")) > 0),
-    CONSTRAINT "category_slug_format" CHECK ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$')
+CREATE TABLE CATEGORY (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL UNIQUE,
+    slug VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT,
+    parent_id UUID,
+    icon_url VARCHAR(500),
+    display_order INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT category_parent_fk FOREIGN KEY (parent_id) REFERENCES CATEGORY(id) ON DELETE SET NULL,
+    CONSTRAINT category_not_self_parent CHECK (parent_id IS NULL OR parent_id != id),
+    CONSTRAINT category_slug_format CHECK (slug ~ '^[a-z0-9-]+$'),
+    CONSTRAINT category_name_check CHECK (LENGTH(TRIM(name)) >= 2)
 );
 
-CREATE TABLE IF NOT EXISTS "USER_INTEREST" (
-    "user_interest_id" SERIAL PRIMARY KEY,
-    "user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE CASCADE,
-    "category_id" INTEGER NOT NULL REFERENCES "CATEGORY"("category_id") ON DELETE CASCADE,
-    "weight" DECIMAL(3,2) DEFAULT 1.0,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "user_interest_unique" UNIQUE("user_id", "category_id"),
-    CONSTRAINT "user_interest_weight_positive" CHECK ("weight" > 0 AND "weight" <= 10)
+CREATE TABLE USER_INTEREST (
+    user_id UUID NOT NULL,
+    category_id UUID NOT NULL,
+    proficiency_level INTEGER NOT NULL DEFAULT 1,
+    added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    PRIMARY KEY (user_id, category_id),
+    CONSTRAINT USER_INTEREST_user_fk FOREIGN KEY (user_id) REFERENCES "USER"(id) ON DELETE CASCADE,
+    CONSTRAINT USER_INTEREST_category_fk FOREIGN KEY (category_id) REFERENCES CATEGORY(id) ON DELETE CASCADE,
+    CONSTRAINT USER_INTEREST_proficiency_check CHECK (proficiency_level BETWEEN 1 AND 5)
 );
 
--- ============================================================================
--- PAPS (JOB POSTS)
--- ============================================================================
+-- ============================================
+-- 3. PAPS (JOB POSTS)
+-- ============================================
 
-CREATE TABLE IF NOT EXISTS "PAPS" (
-    "paps_id" BIGSERIAL PRIMARY KEY,
-    "owner_user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE RESTRICT,
-    "title" TEXT NOT NULL,
-    "description" TEXT NOT NULL,
-    "subtitle" TEXT DEFAULT NULL,
-    "location_text" TEXT NOT NULL,
-    "latitude" DECIMAL(9,6),
-    "longitude" DECIMAL(9,6),
-    "timezone" TEXT DEFAULT 'UTC',
-    "estimated_duration_minutes" INTEGER DEFAULT 60,
-    "payment_amount" DECIMAL(10,2) DEFAULT 0.00 NOT NULL,
-    "payment_currency" TEXT DEFAULT 'USD' NOT NULL,
-    "payment_type" TEXT DEFAULT 'transfer' NOT NULL,
-    "max_assignees" INTEGER DEFAULT 1 NOT NULL,
-    "status" TEXT DEFAULT 'draft' NOT NULL,
-    "published_at" TIMESTAMP,
-    "expires_at" TIMESTAMP,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "paps_title_not_empty" CHECK (LENGTH(TRIM("title")) > 0),
-    CONSTRAINT "paps_title_length" CHECK (LENGTH("title") <= 200),
-    CONSTRAINT "paps_description_not_empty" CHECK (LENGTH(TRIM("description")) > 0),
-    CONSTRAINT "paps_location_not_empty" CHECK (LENGTH(TRIM("location_text")) > 0),
-    CONSTRAINT "paps_latitude_range" CHECK ("latitude" IS NULL OR ("latitude" >= -90 AND "latitude" <= 90)),
-    CONSTRAINT "paps_longitude_range" CHECK ("longitude" IS NULL OR ("longitude" >= -180 AND "longitude" <= 180)),
-    CONSTRAINT "paps_coordinates_pair" CHECK (("latitude" IS NULL AND "longitude" IS NULL) OR ("latitude" IS NOT NULL AND "longitude" IS NOT NULL)),
-    CONSTRAINT "paps_timezone_not_empty" CHECK (LENGTH(TRIM("timezone")) > 0),
-    CONSTRAINT "paps_duration_positive" CHECK ("estimated_duration_minutes" > 0),
-    CONSTRAINT "paps_payment_non_negative" CHECK ("payment_amount" >= 0),
-    CONSTRAINT "paps_currency_valid" CHECK ("payment_currency" IN ('USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY')),
-    CONSTRAINT "paps_payment_type_valid" CHECK ("payment_type" IN ('transfer', 'cash', 'check', 'crypto', 'other')),
-    CONSTRAINT "paps_max_assignees_positive" CHECK ("max_assignees" >= 1),
-    CONSTRAINT "paps_status_valid" CHECK ("status" IN ('draft', 'open', 'closed', 'cancelled', 'expired')),
-    CONSTRAINT "paps_published_before_expires" CHECK ("expires_at" IS NULL OR "published_at" IS NULL OR "expires_at" > "published_at"),
-    CONSTRAINT "paps_owner_unique_active" UNIQUE("owner_user_id", "paps_id")
+CREATE TABLE PAPS (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    owner_id UUID NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    subtitle VARCHAR(300),
+    description TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'draft',
+    location_address TEXT,
+    location_lat DECIMAL(10, 8),
+    location_lng DECIMAL(11, 8),
+    location_timezone VARCHAR(50),
+    start_datetime TIMESTAMP,
+    end_datetime TIMESTAMP,
+    estimated_duration_minutes INTEGER,
+    payment_amount DECIMAL(10, 2) NOT NULL,
+    payment_currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+    payment_type VARCHAR(20) NOT NULL DEFAULT 'fixed',
+    max_applicants INTEGER NOT NULL DEFAULT 10,
+    max_assignees INTEGER NOT NULL DEFAULT 1,
+    is_public BOOLEAN NOT NULL DEFAULT TRUE,
+    publish_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    
+    CONSTRAINT paps_owner_fk FOREIGN KEY (owner_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT paps_status_check CHECK (status IN ('draft', 'published', 'closed', 'cancelled')),
+    CONSTRAINT paps_payment_type_check CHECK (PAYMENT_type IN ('fixed', 'hourly', 'negotiable')),
+    CONSTRAINT paps_payment_amount_check CHECK (PAYMENT_amount >= 0),
+    CONSTRAINT paps_max_applicants_check CHECK (max_applicants > 0 AND max_applicants <= 100),
+    CONSTRAINT paps_max_assignees_check CHECK (max_assignees > 0 AND max_assignees <= max_applicants),
+    CONSTRAINT paps_title_check CHECK (LENGTH(TRIM(title)) >= 5),
+    CONSTRAINT paps_description_check CHECK (LENGTH(TRIM(description)) >= 20),
+    CONSTRAINT paps_dates_check CHECK (end_datetime IS NULL OR end_datetime > start_datetime),
+    CONSTRAINT paps_duration_check CHECK (estimated_duration_minutes IS NULL OR estimated_duration_minutes > 0),
+    CONSTRAINT paps_location_consistency CHECK (
+        (location_lat IS NULL AND location_lng IS NULL) OR
+        (location_lat IS NOT NULL AND location_lng IS NOT NULL)
+    ),
+    CONSTRAINT paps_lat_check CHECK (location_lat IS NULL OR (location_lat >= -90 AND location_lat <= 90)),
+    CONSTRAINT paps_lng_check CHECK (location_lng IS NULL OR (location_lng >= -180 AND location_lng <= 180)),
+    CONSTRAINT paps_publish_check CHECK (
+        status != 'published' OR 
+        (publish_at IS NOT NULL AND start_datetime IS NOT NULL)
+    ),
+    CONSTRAINT paps_expires_check CHECK (expires_at IS NULL OR expires_at > created_at),
+    CONSTRAINT paps_deleted_check CHECK (deleted_at IS NULL OR deleted_at >= created_at)
 );
 
-CREATE TABLE IF NOT EXISTS "PAPS_CATEGORY" (
-    "paps_category_id" BIGSERIAL PRIMARY KEY,
-    "paps_id" BIGINT NOT NULL REFERENCES "PAPS"("paps_id") ON DELETE CASCADE,
-    "category_id" INTEGER NOT NULL REFERENCES "CATEGORY"("category_id") ON DELETE CASCADE,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "paps_category_unique" UNIQUE("paps_id", "category_id")
+CREATE TRIGGER update_paps_updated_at 
+    BEFORE UPDATE ON PAPS
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE PAPS_MEDIA (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    paps_id UUID NOT NULL,
+    media_type VARCHAR(20) NOT NULL,
+    media_url VARCHAR(500) NOT NULL,
+    thumbnail_url VARCHAR(500),
+    file_size_bytes INTEGER,
+    mime_type VARCHAR(100),
+    display_order INTEGER NOT NULL DEFAULT 0,
+    uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT PAPS_MEDIA_paps_fk FOREIGN KEY (paps_id) REFERENCES PAPS(id) ON DELETE CASCADE,
+    CONSTRAINT PAPS_MEDIA_type_check CHECK (media_type IN ('image', 'video', 'document')),
+    CONSTRAINT PAPS_MEDIA_file_size_check CHECK (file_size_bytes IS NULL OR file_size_bytes > 0),
+    CONSTRAINT PAPS_MEDIA_url_check CHECK (media_url ~* '^https?://')
 );
 
-CREATE TABLE IF NOT EXISTS "PAPS_MEDIA" (
-    "paps_media_id" BIGSERIAL PRIMARY KEY,
-    "paps_id" BIGINT NOT NULL REFERENCES "PAPS"("paps_id") ON DELETE CASCADE,
-    "media_url" TEXT NOT NULL,
-    "media_type" TEXT DEFAULT 'image' NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "sort_order" INTEGER DEFAULT 0,
-    CONSTRAINT "paps_media_url_not_empty" CHECK (LENGTH(TRIM("media_url")) > 0),
-    CONSTRAINT "paps_media_type_valid" CHECK ("media_type" IN ('image', 'video', 'document')),
-    CONSTRAINT "paps_media_sort_order_non_negative" CHECK ("sort_order" >= 0)
+CREATE TABLE PAPS_CATEGORY (
+    paps_id UUID NOT NULL,
+    category_id UUID NOT NULL,
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+    assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    PRIMARY KEY (paps_id, category_id),
+    CONSTRAINT PAPS_CATEGORY_paps_fk FOREIGN KEY (paps_id) REFERENCES PAPS(id) ON DELETE CASCADE,
+    CONSTRAINT PAPS_CATEGORY_category_fk FOREIGN KEY (category_id) REFERENCES CATEGORY(id) ON DELETE RESTRICT
 );
 
-CREATE TABLE IF NOT EXISTS "PAPS_SCHEDULE" (
-    "paps_schedule_id" BIGSERIAL PRIMARY KEY,
-    "paps_id" BIGINT NOT NULL REFERENCES "PAPS"("paps_id") ON DELETE CASCADE,
-    "is_recurring" BOOLEAN DEFAULT FALSE NOT NULL,
-    "recurrence_rule" TEXT,
-    "recurrence_interval" INTEGER,
-    "recurrence_days_of_week" TEXT,
-    "start_datetime" TIMESTAMP NOT NULL,
-    "end_datetime" TIMESTAMP,
-    "next_run_at" TIMESTAMP,
-    "last_run_at" TIMESTAMP,
-    "timezone" TEXT DEFAULT 'UTC' NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "schedule_end_after_start" CHECK ("end_datetime" IS NULL OR "end_datetime" > "start_datetime"),
-    CONSTRAINT "schedule_recurrence_rule_valid" CHECK ("recurrence_rule" IS NULL OR "recurrence_rule" IN ('DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', 'CRON')),
-    CONSTRAINT "schedule_recurrence_interval_positive" CHECK ("recurrence_interval" IS NULL OR "recurrence_interval" > 0),
-    CONSTRAINT "schedule_recurrence_days_format" CHECK ("recurrence_days_of_week" IS NULL OR "recurrence_days_of_week" ~ '^(MON|TUE|WED|THU|FRI|SAT|SUN)(,(MON|TUE|WED|THU|FRI|SAT|SUN))*$'),
-    CONSTRAINT "schedule_recurring_has_rule" CHECK (NOT "is_recurring" OR "recurrence_rule" IS NOT NULL),
-    CONSTRAINT "schedule_timezone_not_empty" CHECK (LENGTH(TRIM("timezone")) > 0)
+CREATE TABLE PAPS_SCHEDULE (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    paps_id UUID NOT NULL UNIQUE,
+    recurrence_rule TEXT NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE,
+    default_start_time TIME,
+    default_duration_minutes INTEGER,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    last_run_at TIMESTAMP,
+    next_run_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT PAPS_SCHEDULE_paps_fk FOREIGN KEY (paps_id) REFERENCES PAPS(id) ON DELETE CASCADE,
+    CONSTRAINT PAPS_SCHEDULE_dates_check CHECK (end_date IS NULL OR end_date >= start_date),
+    CONSTRAINT PAPS_SCHEDULE_duration_check CHECK (default_duration_minutes IS NULL OR default_duration_minutes > 0),
+    CONSTRAINT PAPS_SCHEDULE_next_run_check CHECK (
+        next_run_at IS NULL OR 
+        (is_active = TRUE AND next_run_at >= start_date)
+    ),
+    CONSTRAINT PAPS_SCHEDULE_last_run_check CHECK (
+        last_run_at IS NULL OR 
+        last_run_at >= start_date
+    )
 );
 
--- ============================================================================
--- COMMENTS
--- ============================================================================
+CREATE TRIGGER update_PAPS_SCHEDULE_updated_at 
+    BEFORE UPDATE ON PAPS_SCHEDULE
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TABLE IF NOT EXISTS "COMMENT" (
-    "comment_id" BIGSERIAL PRIMARY KEY,
-    "user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE CASCADE,
-    "paps_id" BIGINT NOT NULL REFERENCES "PAPS"("paps_id") ON DELETE CASCADE,
-    "parent_comment_id" BIGINT DEFAULT NULL REFERENCES "COMMENT"("comment_id") ON DELETE CASCADE,
-    "content" TEXT NOT NULL,
-    "is_deleted" BOOLEAN DEFAULT FALSE NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "comment_content_not_empty" CHECK (LENGTH(TRIM("content")) > 0),
-    CONSTRAINT "comment_content_length" CHECK (LENGTH("content") <= 5000),
-    CONSTRAINT "comment_no_self_parent" CHECK ("parent_comment_id" IS NULL OR "parent_comment_id" != "comment_id")
+-- ============================================
+-- 4. COMMENTS
+-- ============================================
+
+CREATE TABLE COMMENT (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    paps_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    parent_id UUID,
+    content TEXT NOT NULL,
+    is_edited BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    
+    CONSTRAINT comment_paps_fk FOREIGN KEY (paps_id) REFERENCES PAPS(id) ON DELETE CASCADE,
+    CONSTRAINT comment_user_fk FOREIGN KEY (user_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT comment_parent_fk FOREIGN KEY (parent_id) REFERENCES COMMENT(id) ON DELETE CASCADE,
+    CONSTRAINT comment_not_self_parent CHECK (parent_id IS NULL OR parent_id != id),
+    CONSTRAINT comment_content_check CHECK (LENGTH(TRIM(content)) >= 1),
+    CONSTRAINT comment_deleted_check CHECK (deleted_at IS NULL OR deleted_at >= created_at),
+    CONSTRAINT comment_edited_check CHECK (
+        is_edited = FALSE OR 
+        (is_edited = TRUE AND updated_at > created_at)
+    )
 );
 
--- ============================================================================
--- SPAP (APPLICATIONS)
--- ============================================================================
+CREATE TRIGGER update_comment_updated_at 
+    BEFORE UPDATE ON COMMENT
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TABLE IF NOT EXISTS "SPAP" (
-    "spap_id" BIGSERIAL PRIMARY KEY,
-    "paps_id" BIGINT NOT NULL REFERENCES "PAPS"("paps_id") ON DELETE RESTRICT,
-    "applicant_user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE RESTRICT,
-    "title" TEXT NOT NULL,
-    "subtitle" TEXT DEFAULT NULL,
-    "message" TEXT NOT NULL,
-    "proposed_payment_amount" DECIMAL(10,2) DEFAULT NULL,
-    "status" TEXT DEFAULT 'pending' NOT NULL,
-    "location_text" TEXT NOT NULL,
-    "latitude" DECIMAL(9,6),
-    "longitude" DECIMAL(9,6),
-    "timezone" TEXT DEFAULT 'UTC' NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "spap_title_not_empty" CHECK (LENGTH(TRIM("title")) > 0),
-    CONSTRAINT "spap_message_not_empty" CHECK (LENGTH(TRIM("message")) > 0),
-    CONSTRAINT "spap_location_not_empty" CHECK (LENGTH(TRIM("location_text")) > 0),
-    CONSTRAINT "spap_latitude_range" CHECK ("latitude" IS NULL OR ("latitude" >= -90 AND "latitude" <= 90)),
-    CONSTRAINT "spap_longitude_range" CHECK ("longitude" IS NULL OR ("longitude" >= -180 AND "longitude" <= 180)),
-    CONSTRAINT "spap_coordinates_pair" CHECK (("latitude" IS NULL AND "longitude" IS NULL) OR ("latitude" IS NOT NULL AND "longitude" IS NOT NULL)),
-    CONSTRAINT "spap_timezone_not_empty" CHECK (LENGTH(TRIM("timezone")) > 0),
-    CONSTRAINT "spap_proposed_payment_non_negative" CHECK ("proposed_payment_amount" IS NULL OR "proposed_payment_amount" >= 0),
-    CONSTRAINT "spap_status_valid" CHECK ("status" IN ('pending', 'withdrawn', 'rejected', 'accepted')),
-    CONSTRAINT "spap_unique_per_user_paps" UNIQUE("paps_id", "applicant_user_id")
+-- ============================================
+-- 5. SPAP (JOB APPLICATIONS)
+-- ============================================
+
+CREATE TABLE SPAP (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    paps_id UUID NOT NULL,
+    applicant_id UUID NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    applicant_message TEXT,
+    proposed_payment_amount DECIMAL(10, 2),
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at TIMESTAMP,
+    accepted_at TIMESTAMP,
+    rejected_at TIMESTAMP,
+    
+    CONSTRAINT spap_paps_fk FOREIGN KEY (paps_id) REFERENCES PAPS(id) ON DELETE RESTRICT,
+    CONSTRAINT spap_applicant_fk FOREIGN KEY (applicant_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT spap_status_check CHECK (status IN ('pending', 'accepted', 'rejected', 'withdrawn')),
+    CONSTRAINT spap_unique_application UNIQUE (paps_id, applicant_id),
+    CONSTRAINT spap_proposed_payment_check CHECK (proposed_payment_amount IS NULL OR proposed_payment_amount >= 0),
+    
+    -- Status-based timestamp constraints
+    CONSTRAINT spap_pending_check CHECK (
+        status != 'pending' OR 
+        (reviewed_at IS NULL AND accepted_at IS NULL AND rejected_at IS NULL)
+    ),
+    CONSTRAINT spap_accepted_check CHECK (
+        status != 'accepted' OR 
+        (accepted_at IS NOT NULL AND rejected_at IS NULL AND reviewed_at IS NOT NULL)
+    ),
+    CONSTRAINT spap_rejected_check CHECK (
+        status != 'rejected' OR 
+        (rejected_at IS NOT NULL AND accepted_at IS NULL AND reviewed_at IS NOT NULL)
+    ),
+    CONSTRAINT spap_withdrawn_check CHECK (
+        status != 'withdrawn' OR 
+        (accepted_at IS NULL AND rejected_at IS NULL)
+    ),
+    
+    -- Timestamp ordering
+    CONSTRAINT spap_reviewed_after_applied CHECK (reviewed_at IS NULL OR reviewed_at >= applied_at),
+    CONSTRAINT spap_accepted_after_reviewed CHECK (accepted_at IS NULL OR accepted_at >= reviewed_at),
+    CONSTRAINT spap_rejected_after_reviewed CHECK (rejected_at IS NULL OR rejected_at >= reviewed_at),
+    
+    -- Mutual exclusivity
+    CONSTRAINT spap_not_both_accepted_rejected CHECK (
+        NOT (accepted_at IS NOT NULL AND rejected_at IS NOT NULL)
+    )
 );
 
-CREATE TABLE IF NOT EXISTS "SPAP_MEDIA" (
-    "spap_media_id" BIGSERIAL PRIMARY KEY,
-    "spap_id" BIGINT NOT NULL REFERENCES "SPAP"("spap_id") ON DELETE CASCADE,
-    "media_url" TEXT NOT NULL,
-    "media_type" TEXT DEFAULT 'image' NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "sort_order" INTEGER DEFAULT 0,
-    CONSTRAINT "spap_media_url_not_empty" CHECK (LENGTH(TRIM("media_url")) > 0),
-    CONSTRAINT "spap_media_type_valid" CHECK ("media_type" IN ('image', 'video', 'document')),
-    CONSTRAINT "spap_media_sort_order_non_negative" CHECK ("sort_order" >= 0)
+CREATE TABLE SPAP_MEDIA (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    spap_id UUID NOT NULL,
+    media_type VARCHAR(20) NOT NULL,
+    media_url VARCHAR(500) NOT NULL,
+    thumbnail_url VARCHAR(500),
+    caption TEXT,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT SPAP_MEDIA_spap_fk FOREIGN KEY (spap_id) REFERENCES SPAP(id) ON DELETE CASCADE,
+    CONSTRAINT SPAP_MEDIA_type_check CHECK (media_type IN ('image', 'video', 'document', 'certificate')),
+    CONSTRAINT SPAP_MEDIA_url_check CHECK (media_url ~* '^https?://')
 );
 
--- ============================================================================
--- ASAP (ASSIGNED JOBS)
--- ============================================================================
+-- ============================================
+-- 6. ASAP (ASSIGNED JOBS)
+-- ============================================
 
-CREATE TABLE IF NOT EXISTS "ASAP" (
-    "asap_id" BIGSERIAL PRIMARY KEY,
-    "paps_id" BIGINT NOT NULL REFERENCES "PAPS"("paps_id") ON DELETE RESTRICT,
-    "spap_id" BIGINT NOT NULL REFERENCES "SPAP"("spap_id") ON DELETE RESTRICT,
-    "title" TEXT NOT NULL,
-    "subtitle" TEXT DEFAULT NULL,
-    "status" TEXT DEFAULT 'pending' NOT NULL,
-    "is_group_assignment" BOOLEAN DEFAULT FALSE NOT NULL,
-    "location_text" TEXT NOT NULL,
-    "latitude" DECIMAL(9,6),
-    "longitude" DECIMAL(9,6),
-    "timezone" TEXT DEFAULT 'UTC' NOT NULL,
-    "started_at" TIMESTAMP,
-    "due_at" TIMESTAMP,
-    "completed_at" TIMESTAMP,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "asap_title_not_empty" CHECK (LENGTH(TRIM("title")) > 0),
-    CONSTRAINT "asap_location_not_empty" CHECK (LENGTH(TRIM("location_text")) > 0),
-    CONSTRAINT "asap_latitude_range" CHECK ("latitude" IS NULL OR ("latitude" >= -90 AND "latitude" <= 90)),
-    CONSTRAINT "asap_longitude_range" CHECK ("longitude" IS NULL OR ("longitude" >= -180 AND "longitude" <= 180)),
-    CONSTRAINT "asap_coordinates_pair" CHECK (("latitude" IS NULL AND "longitude" IS NULL) OR ("latitude" IS NOT NULL AND "longitude" IS NOT NULL)),
-    CONSTRAINT "asap_timezone_not_empty" CHECK (LENGTH(TRIM("timezone")) > 0),
-    CONSTRAINT "asap_status_valid" CHECK ("status" IN ('pending', 'in_progress', 'completed', 'cancelled', 'disputed')),
-    CONSTRAINT "asap_due_after_start" CHECK ("due_at" IS NULL OR "started_at" IS NULL OR "due_at" > "started_at"),
-    CONSTRAINT "asap_completed_after_start" CHECK ("completed_at" IS NULL OR "started_at" IS NULL OR "completed_at" >= "started_at"),
-    CONSTRAINT "asap_unique_spap" UNIQUE("spap_id")
+CREATE TABLE ASAP (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    paps_id UUID NOT NULL,
+    accepted_spap_id UUID NOT NULL UNIQUE,
+    status VARCHAR(20) NOT NULL DEFAULT 'assigned',
+    assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    cancelled_at TIMESTAMP,
+    completion_notes TEXT,
+    cancellation_reason TEXT,
+    is_group_assignment BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT asap_paps_fk FOREIGN KEY (paps_id) REFERENCES PAPS(id) ON DELETE RESTRICT,
+    CONSTRAINT asap_spap_fk FOREIGN KEY (accepted_spap_id) REFERENCES SPAP(id) ON DELETE RESTRICT,
+    CONSTRAINT asap_status_check CHECK (status IN ('assigned', 'in_progress', 'completed', 'cancelled', 'disputed')),
+    
+    -- Status-based timestamp constraints
+    CONSTRAINT asap_assigned_check CHECK (
+        status != 'assigned' OR 
+        (started_at IS NULL AND completed_at IS NULL AND cancelled_at IS NULL)
+    ),
+    CONSTRAINT asap_in_progress_check CHECK (
+        status != 'in_progress' OR 
+        (started_at IS NOT NULL AND completed_at IS NULL AND cancelled_at IS NULL)
+    ),
+    CONSTRAINT asap_completed_check CHECK (
+        status != 'completed' OR 
+        (started_at IS NOT NULL AND completed_at IS NOT NULL AND cancelled_at IS NULL AND completion_notes IS NOT NULL)
+    ),
+    CONSTRAINT asap_cancelled_check CHECK (
+        status != 'cancelled' OR 
+        (cancelled_at IS NOT NULL AND completed_at IS NULL AND cancellation_reason IS NOT NULL)
+    ),
+    
+    -- Timestamp ordering
+    CONSTRAINT asap_started_after_assigned CHECK (started_at IS NULL OR started_at >= assigned_at),
+    CONSTRAINT asap_completed_after_started CHECK (completed_at IS NULL OR (started_at IS NOT NULL AND completed_at >= started_at)),
+    CONSTRAINT asap_cancelled_after_assigned CHECK (cancelled_at IS NULL OR cancelled_at >= assigned_at),
+    
+    -- Mutual exclusivity
+    CONSTRAINT asap_not_both_completed_cancelled CHECK (
+        NOT (completed_at IS NOT NULL AND cancelled_at IS NOT NULL)
+    ),
+    
+    -- Notes requirements
+    CONSTRAINT asap_completion_notes_check CHECK (
+        status != 'completed' OR LENGTH(TRIM(completion_notes)) >= 10
+    ),
+    CONSTRAINT asap_cancellation_reason_check CHECK (
+        status != 'cancelled' OR LENGTH(TRIM(cancellation_reason)) >= 10
+    )
 );
 
-CREATE TABLE IF NOT EXISTS "ASAP_ASSIGNEE" (
-    "asap_assignee_id" BIGSERIAL PRIMARY KEY,
-    "asap_id" BIGINT NOT NULL REFERENCES "ASAP"("asap_id") ON DELETE CASCADE,
-    "user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE RESTRICT,
-    "role" TEXT NOT NULL,
-    "assigned_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "unassigned_at" TIMESTAMP,
-    CONSTRAINT "asap_assignee_unique" UNIQUE("asap_id", "user_id"),
-    CONSTRAINT "asap_assignee_role_valid" CHECK ("role" IN ('worker', 'co-worker', 'supervisor', 'observer')),
-    CONSTRAINT "asap_assignee_dates_valid" CHECK ("unassigned_at" IS NULL OR "unassigned_at" >= "assigned_at")
+CREATE TRIGGER update_asap_updated_at 
+    BEFORE UPDATE ON ASAP
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE ASAP_ASSIGNEE (
+    asap_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    ROLE VARCHAR(20) NOT NULL DEFAULT 'member',
+    assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    
+    PRIMARY KEY (asap_id, user_id),
+    CONSTRAINT ASAP_ASSIGNEE_asap_fk FOREIGN KEY (asap_id) REFERENCES ASAP(id) ON DELETE CASCADE,
+    CONSTRAINT ASAP_ASSIGNEE_user_fk FOREIGN KEY (user_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT ASAP_ASSIGNEE_role_check CHECK (ROLE IN ('lead', 'member'))
 );
 
-CREATE TABLE IF NOT EXISTS "ASAP_MEDIA" (
-    "asap_media_id" BIGSERIAL PRIMARY KEY,
-    "asap_id" BIGINT NOT NULL REFERENCES "ASAP"("asap_id") ON DELETE CASCADE,
-    "media_url" TEXT NOT NULL,
-    "media_type" TEXT DEFAULT 'image' NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "sort_order" INTEGER DEFAULT 0,
-    CONSTRAINT "asap_media_url_not_empty" CHECK (LENGTH(TRIM("media_url")) > 0),
-    CONSTRAINT "asap_media_type_valid" CHECK ("media_type" IN ('image', 'video', 'document')),
-    CONSTRAINT "asap_media_sort_order_non_negative" CHECK ("sort_order" >= 0)
+CREATE TABLE ASAP_MEDIA (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    asap_id UUID NOT NULL,
+    uploaded_by UUID NOT NULL,
+    media_type VARCHAR(20) NOT NULL,
+    media_url VARCHAR(500) NOT NULL,
+    thumbnail_url VARCHAR(500),
+    description TEXT,
+    is_completion_proof BOOLEAN NOT NULL DEFAULT FALSE,
+    uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT ASAP_MEDIA_asap_fk FOREIGN KEY (asap_id) REFERENCES ASAP(id) ON DELETE CASCADE,
+    CONSTRAINT ASAP_MEDIA_uploader_fk FOREIGN KEY (uploaded_by) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT ASAP_MEDIA_type_check CHECK (media_type IN ('image', 'video', 'document')),
+    CONSTRAINT ASAP_MEDIA_url_check CHECK (media_url ~* '^https?://')
 );
 
--- ============================================================================
--- RATINGS & REVIEWS
--- ============================================================================
+-- ============================================
+-- 7. PAYMENT & RATING
+-- ============================================
 
-CREATE TABLE IF NOT EXISTS "RATING" (
-    "rating_id" BIGSERIAL PRIMARY KEY,
-    "asap_id" BIGINT NOT NULL REFERENCES "ASAP"("asap_id") ON DELETE RESTRICT,
-    "worker_user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE RESTRICT,
-    "rater_user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE RESTRICT,
-    "score" INTEGER NOT NULL,
-    "review_text" TEXT,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "rating_score_range" CHECK ("score" >= 1 AND "score" <= 5),
-    CONSTRAINT "rating_no_self_rate" CHECK ("worker_user_id" != "rater_user_id"),
-    CONSTRAINT "rating_review_length" CHECK ("review_text" IS NULL OR LENGTH("review_text") <= 2000),
-    CONSTRAINT "rating_unique_per_asap_worker_rater" UNIQUE("asap_id", "worker_user_id", "rater_user_id")
+CREATE TABLE PAYMENT (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    asap_id UUID NOT NULL UNIQUE,
+    payer_id UUID NOT NULL,
+    payee_id UUID NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    payment_method VARCHAR(20),
+    transaction_id VARCHAR(255) UNIQUE,
+    gateway_response TEXT,
+    notes TEXT,
+    paid_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT payment_asap_fk FOREIGN KEY (asap_id) REFERENCES ASAP(id) ON DELETE RESTRICT,
+    CONSTRAINT payment_payer_fk FOREIGN KEY (payer_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT payment_payee_fk FOREIGN KEY (payee_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT payment_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded')),
+    CONSTRAINT payment_method_check CHECK (PAYMENT_method IS NULL OR payment_method IN ('card', 'bank', 'wallet', 'cash')),
+    CONSTRAINT payment_amount_check CHECK (amount > 0),
+    CONSTRAINT payment_different_users CHECK (payer_id != payee_id),
+    
+    -- Status-based constraints
+    CONSTRAINT payment_completed_check CHECK (
+        status != 'completed' OR 
+        (paid_at IS NOT NULL AND transaction_id IS NOT NULL)
+    ),
+    CONSTRAINT payment_failed_check CHECK (
+        status != 'failed' OR 
+        gateway_response IS NOT NULL
+    ),
+    CONSTRAINT payment_paid_after_created CHECK (
+        paid_at IS NULL OR paid_at >= created_at
+    )
 );
 
--- ============================================================================
--- CHAT SYSTEM
--- ============================================================================
+CREATE TRIGGER update_payment_updated_at 
+    BEFORE UPDATE ON PAYMENT
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TABLE IF NOT EXISTS "CHAT_THREAD" (
-    "chat_thread_id" BIGSERIAL PRIMARY KEY,
-    "asap_id" BIGINT DEFAULT NULL REFERENCES "ASAP"("asap_id") ON DELETE SET NULL,
-    "spap_id" BIGINT NOT NULL REFERENCES "SPAP"("spap_id") ON DELETE CASCADE,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "chat_thread_unique_spap" UNIQUE("spap_id")
+CREATE TABLE RATING (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    asap_id UUID NOT NULL,
+    rater_id UUID NOT NULL,
+    rated_id UUID NOT NULL,
+    score INTEGER NOT NULL,
+    COMMENT TEXT,
+    rating_type VARCHAR(30) NOT NULL DEFAULT 'overall',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT rating_asap_fk FOREIGN KEY (asap_id) REFERENCES ASAP(id) ON DELETE RESTRICT,
+    CONSTRAINT rating_rater_fk FOREIGN KEY (rater_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT rating_rated_fk FOREIGN KEY (rated_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT rating_unique_rating UNIQUE (asap_id, rater_id, rated_id, rating_type),
+    CONSTRAINT rating_score_check CHECK (score BETWEEN 1 AND 5),
+    CONSTRAINT rating_type_check CHECK (RATING_type IN ('skill', 'communication', 'professionalism', 'overall')),
+    CONSTRAINT rating_different_users CHECK (rater_id != rated_id),
+    CONSTRAINT rating_comment_check CHECK (COMMENT IS NULL OR LENGTH(TRIM(COMMENT)) >= 10)
 );
 
-CREATE TABLE IF NOT EXISTS "CHAT_PARTICIPANT" (
-    "chat_participant_id" BIGSERIAL PRIMARY KEY,
-    "chat_thread_id" BIGINT NOT NULL REFERENCES "CHAT_THREAD"("chat_thread_id") ON DELETE CASCADE,
-    "user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE CASCADE,
-    "joined_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "left_at" TIMESTAMP,
-    CONSTRAINT "chat_participant_unique" UNIQUE("chat_thread_id", "user_id"),
-    CONSTRAINT "chat_participant_dates_valid" CHECK ("left_at" IS NULL OR "left_at" >= "joined_at")
+CREATE TRIGGER update_rating_updated_at 
+    BEFORE UPDATE ON RATING
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
+-- 8. CHAT SYSTEM
+-- ============================================
+
+CREATE TABLE CHAT_THREAD (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    paps_id UUID,
+    spap_id UUID,
+    asap_id UUID,
+    thread_type VARCHAR(30) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT CHAT_THREAD_paps_fk FOREIGN KEY (paps_id) REFERENCES PAPS(id) ON DELETE SET NULL,
+    CONSTRAINT CHAT_THREAD_spap_fk FOREIGN KEY (spap_id) REFERENCES SPAP(id) ON DELETE SET NULL,
+    CONSTRAINT CHAT_THREAD_asap_fk FOREIGN KEY (asap_id) REFERENCES ASAP(id) ON DELETE SET NULL,
+    CONSTRAINT CHAT_THREAD_type_check CHECK (thread_type IN ('paps_inquiry', 'spap_discussion', 'asap_coordination')),
+    CONSTRAINT CHAT_THREAD_status_check CHECK (status IN ('active', 'archived', 'deleted')),
+    
+    -- At least one context reference required
+    CONSTRAINT CHAT_THREAD_context_check CHECK (
+        paps_id IS NOT NULL OR spap_id IS NOT NULL OR asap_id IS NOT NULL
+    ),
+    
+    -- Type-based context validation
+    CONSTRAINT CHAT_THREAD_paps_inquiry_check CHECK (
+        thread_type != 'paps_inquiry' OR paps_id IS NOT NULL
+    ),
+    CONSTRAINT CHAT_THREAD_spap_discussion_check CHECK (
+        thread_type != 'spap_discussion' OR (paps_id IS NOT NULL AND spap_id IS NOT NULL)
+    ),
+    CONSTRAINT CHAT_THREAD_asap_coordination_check CHECK (
+        thread_type != 'asap_coordination' OR (paps_id IS NOT NULL AND asap_id IS NOT NULL)
+    )
 );
 
-CREATE TABLE IF NOT EXISTS "CHAT_MESSAGE" (
-    "chat_message_id" BIGSERIAL PRIMARY KEY,
-    "chat_thread_id" BIGINT NOT NULL REFERENCES "CHAT_THREAD"("chat_thread_id") ON DELETE CASCADE,
-    "sender_user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE SET NULL,
-    "message_type" TEXT DEFAULT 'text' NOT NULL,
-    "content" TEXT NOT NULL,
-    "attachment_url" TEXT,
-    "is_read" BOOLEAN DEFAULT FALSE NOT NULL,
-    "read_at" TIMESTAMP,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "chat_message_content_not_empty" CHECK (LENGTH(TRIM("content")) > 0),
-    CONSTRAINT "chat_message_type_valid" CHECK ("message_type" IN ('text', 'image', 'video', 'document', 'system')),
-    CONSTRAINT "chat_message_read_at_valid" CHECK (NOT "is_read" OR "read_at" IS NOT NULL)
+CREATE TRIGGER update_CHAT_THREAD_updated_at 
+    BEFORE UPDATE ON CHAT_THREAD
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE CHAT_PARTICIPANT (
+    thread_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    ROLE VARCHAR(20) NOT NULL,
+    joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_read_at TIMESTAMP,
+    is_muted BOOLEAN NOT NULL DEFAULT FALSE,
+    notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    
+    PRIMARY KEY (thread_id, user_id),
+    CONSTRAINT CHAT_PARTICIPANT_thread_fk FOREIGN KEY (thread_id) REFERENCES CHAT_THREAD(id) ON DELETE CASCADE,
+    CONSTRAINT CHAT_PARTICIPANT_user_fk FOREIGN KEY (user_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT CHAT_PARTICIPANT_role_check CHECK (ROLE IN ('owner', 'applicant', 'assignee', 'observer')),
+    CONSTRAINT CHAT_PARTICIPANT_last_read_check CHECK (last_read_at IS NULL OR last_read_at >= joined_at)
 );
 
--- ============================================================================
--- PAYMENTS
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS "PAYMENT" (
-    "payment_id" BIGSERIAL PRIMARY KEY,
-    "asap_id" BIGINT NOT NULL REFERENCES "ASAP"("asap_id") ON DELETE RESTRICT,
-    "payer_user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE RESTRICT,
-    "payee_user_id" INTEGER NOT NULL REFERENCES "USER"("user_id") ON DELETE RESTRICT,
-    "amount" DECIMAL(10,2) DEFAULT 0.00 NOT NULL,
-    "payment_currency" TEXT DEFAULT 'USD' NOT NULL,
-    "method" TEXT DEFAULT 'transfer' NOT NULL,
-    "status" TEXT DEFAULT 'pending' NOT NULL,
-    "external_reference" TEXT,
-    "paid_at" TIMESTAMP,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "payment_amount_positive" CHECK ("amount" > 0),
-    CONSTRAINT "payment_currency_valid" CHECK ("payment_currency" IN ('USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY')),
-    CONSTRAINT "payment_method_valid" CHECK ("method" IN ('transfer', 'cash', 'check', 'crypto', 'paypal', 'stripe', 'other')),
-    CONSTRAINT "payment_status_valid" CHECK ("status" IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled')),
-    CONSTRAINT "payment_no_self_pay" CHECK ("payer_user_id" != "payee_user_id"),
-    CONSTRAINT "payment_paid_at_when_completed" CHECK (("status" != 'completed') OR ("paid_at" IS NOT NULL))
+CREATE TABLE CHAT_MESSAGE (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    thread_id UUID NOT NULL,
+    sender_id UUID NOT NULL,
+    content TEXT NOT NULL,
+    message_type VARCHAR(20) NOT NULL DEFAULT 'text',
+    attachment_url VARCHAR(500),
+    attachment_mime_type VARCHAR(100),
+    attachment_size_bytes INTEGER,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    edited_at TIMESTAMP,
+    deleted_at TIMESTAMP,
+    
+    CONSTRAINT CHAT_MESSAGE_thread_fk FOREIGN KEY (thread_id) REFERENCES CHAT_THREAD(id) ON DELETE CASCADE,
+    CONSTRAINT CHAT_MESSAGE_sender_fk FOREIGN KEY (sender_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT CHAT_MESSAGE_type_check CHECK (message_type IN ('text', 'image', 'file', 'system')),
+    CONSTRAINT CHAT_MESSAGE_content_check CHECK (LENGTH(TRIM(content)) >= 1),
+    
+    -- Attachment constraints
+    CONSTRAINT CHAT_MESSAGE_attachment_consistency CHECK (
+        (attachment_url IS NULL AND attachment_mime_type IS NULL AND attachment_size_bytes IS NULL) OR
+        (attachment_url IS NOT NULL AND attachment_mime_type IS NOT NULL)
+    ),
+    CONSTRAINT CHAT_MESSAGE_attachment_size_check CHECK (
+        attachment_size_bytes IS NULL OR attachment_size_bytes > 0
+    ),
+    CONSTRAINT CHAT_MESSAGE_attachment_url_check CHECK (
+        attachment_url IS NULL OR attachment_url ~* '^https?://'
+    ),
+    
+    -- Timestamp constraints
+    CONSTRAINT CHAT_MESSAGE_edited_check CHECK (
+        edited_at IS NULL OR edited_at > sent_at
+    ),
+    CONSTRAINT CHAT_MESSAGE_deleted_check CHECK (
+        deleted_at IS NULL OR deleted_at >= sent_at
+    )
 );
-
--- ============================================================================
--- INDEXES FOR PERFORMANCE
--- ============================================================================
-
--- User indexes
-CREATE INDEX IF NOT EXISTS "idx_user_email" ON "USER"("email");
-CREATE INDEX IF NOT EXISTS "idx_user_username" ON "USER"("username");
-CREATE INDEX IF NOT EXISTS "idx_user_role_id" ON "USER"("role_id");
-CREATE INDEX IF NOT EXISTS "idx_user_is_active" ON "USER"("is_active");
-
--- User profile indexes
-CREATE INDEX IF NOT EXISTS "idx_user_profile_user_id" ON "USER_PROFILE"("user_id");
-CREATE INDEX IF NOT EXISTS "idx_user_profile_location" ON "USER_PROFILE"("latitude", "longitude") WHERE "latitude" IS NOT NULL;
-
--- User experience indexes
-CREATE INDEX IF NOT EXISTS "idx_user_experience_user_id" ON "USER_EXPERIENCE"("user_id");
-
--- User interest indexes
-CREATE INDEX IF NOT EXISTS "idx_user_interest_user_id" ON "USER_INTEREST"("user_id");
-CREATE INDEX IF NOT EXISTS "idx_user_interest_category_id" ON "USER_INTEREST"("category_id");
-
--- Category indexes
-CREATE INDEX IF NOT EXISTS "idx_category_slug" ON "CATEGORY"("slug");
-
--- PAPS indexes
-CREATE INDEX IF NOT EXISTS "idx_paps_owner_user_id" ON "PAPS"("owner_user_id");
-CREATE INDEX IF NOT EXISTS "idx_paps_status" ON "PAPS"("status");
-CREATE INDEX IF NOT EXISTS "idx_paps_published_at" ON "PAPS"("published_at");
-CREATE INDEX IF NOT EXISTS "idx_paps_expires_at" ON "PAPS"("expires_at");
-CREATE INDEX IF NOT EXISTS "idx_paps_location" ON "PAPS"("latitude", "longitude") WHERE "latitude" IS NOT NULL;
-CREATE INDEX IF NOT EXISTS "idx_paps_created_at" ON "PAPS"("created_at");
-
--- PAPS category indexes
-CREATE INDEX IF NOT EXISTS "idx_paps_category_paps_id" ON "PAPS_CATEGORY"("paps_id");
-CREATE INDEX IF NOT EXISTS "idx_paps_category_category_id" ON "PAPS_CATEGORY"("category_id");
-
--- PAPS media indexes
-CREATE INDEX IF NOT EXISTS "idx_paps_media_paps_id" ON "PAPS_MEDIA"("paps_id");
-CREATE INDEX IF NOT EXISTS "idx_paps_media_sort_order" ON "PAPS_MEDIA"("paps_id", "sort_order");
-
--- PAPS schedule indexes
-CREATE INDEX IF NOT EXISTS "idx_paps_schedule_paps_id" ON "PAPS_SCHEDULE"("paps_id");
-CREATE INDEX IF NOT EXISTS "idx_paps_schedule_next_run_at" ON "PAPS_SCHEDULE"("next_run_at") WHERE "next_run_at" IS NOT NULL;
-
--- Comment indexes
-CREATE INDEX IF NOT EXISTS "idx_comment_paps_id" ON "COMMENT"("paps_id");
-CREATE INDEX IF NOT EXISTS "idx_comment_user_id" ON "COMMENT"("user_id");
-CREATE INDEX IF NOT EXISTS "idx_comment_parent_comment_id" ON "COMMENT"("parent_comment_id") WHERE "parent_comment_id" IS NOT NULL;
-CREATE INDEX IF NOT EXISTS "idx_comment_is_deleted" ON "COMMENT"("is_deleted");
-
--- SPAP indexes
-CREATE INDEX IF NOT EXISTS "idx_spap_paps_id" ON "SPAP"("paps_id");
-CREATE INDEX IF NOT EXISTS "idx_spap_applicant_user_id" ON "SPAP"("applicant_user_id");
-CREATE INDEX IF NOT EXISTS "idx_spap_status" ON "SPAP"("status");
-CREATE INDEX IF NOT EXISTS "idx_spap_created_at" ON "SPAP"("created_at");
-
--- SPAP media indexes
-CREATE INDEX IF NOT EXISTS "idx_spap_media_spap_id" ON "SPAP_MEDIA"("spap_id");
-
--- ASAP indexes
-CREATE INDEX IF NOT EXISTS "idx_asap_paps_id" ON "ASAP"("paps_id");
-CREATE INDEX IF NOT EXISTS "idx_asap_spap_id" ON "ASAP"("spap_id");
-CREATE INDEX IF NOT EXISTS "idx_asap_status" ON "ASAP"("status");
-CREATE INDEX IF NOT EXISTS "idx_asap_started_at" ON "ASAP"("started_at");
-CREATE INDEX IF NOT EXISTS "idx_asap_due_at" ON "ASAP"("due_at");
-CREATE INDEX IF NOT EXISTS "idx_asap_completed_at" ON "ASAP"("completed_at");
-
--- ASAP assignee indexes
-CREATE INDEX IF NOT EXISTS "idx_asap_assignee_asap_id" ON "ASAP_ASSIGNEE"("asap_id");
-CREATE INDEX IF NOT EXISTS "idx_asap_assignee_user_id" ON "ASAP_ASSIGNEE"("user_id");
-
--- ASAP media indexes
-CREATE INDEX IF NOT EXISTS "idx_asap_media_asap_id" ON "ASAP_MEDIA"("asap_id");
-
--- Rating indexes
-CREATE INDEX IF NOT EXISTS "idx_rating_asap_id" ON "RATING"("asap_id");
-CREATE INDEX IF NOT EXISTS "idx_rating_worker_user_id" ON "RATING"("worker_user_id");
-CREATE INDEX IF NOT EXISTS "idx_rating_rater_user_id" ON "RATING"("rater_user_id");
-CREATE INDEX IF NOT EXISTS "idx_rating_created_at" ON "RATING"("created_at");
-
--- Chat thread indexes
-CREATE INDEX IF NOT EXISTS "idx_chat_thread_spap_id" ON "CHAT_THREAD"("spap_id");
-CREATE INDEX IF NOT EXISTS "idx_chat_thread_asap_id" ON "CHAT_THREAD"("asap_id") WHERE "asap_id" IS NOT NULL;
-
--- Chat participant indexes
-CREATE INDEX IF NOT EXISTS "idx_chat_participant_thread_id" ON "CHAT_PARTICIPANT"("chat_thread_id");
-CREATE INDEX IF NOT EXISTS "idx_chat_participant_user_id" ON "CHAT_PARTICIPANT"("user_id");
-
--- Chat message indexes
-CREATE INDEX IF NOT EXISTS "idx_chat_message_thread_id" ON "CHAT_MESSAGE"("chat_thread_id");
-CREATE INDEX IF NOT EXISTS "idx_chat_message_sender_user_id" ON "CHAT_MESSAGE"("sender_user_id");
-CREATE INDEX IF NOT EXISTS "idx_chat_message_created_at" ON "CHAT_MESSAGE"("created_at");
-CREATE INDEX IF NOT EXISTS "idx_chat_message_is_read" ON "CHAT_MESSAGE"("is_read") WHERE NOT "is_read";
-
--- Payment indexes
-CREATE INDEX IF NOT EXISTS "idx_payment_asap_id" ON "PAYMENT"("asap_id");
-CREATE INDEX IF NOT EXISTS "idx_payment_payer_user_id" ON "PAYMENT"("payer_user_id");
-CREATE INDEX IF NOT EXISTS "idx_payment_payee_user_id" ON "PAYMENT"("payee_user_id");
-CREATE INDEX IF NOT EXISTS "idx_payment_status" ON "PAYMENT"("status");
-CREATE INDEX IF NOT EXISTS "idx_payment_created_at" ON "PAYMENT"("created_at");
