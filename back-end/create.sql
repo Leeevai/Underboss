@@ -736,7 +736,7 @@ SELECT
     COUNT(DISTINCT s.id) as application_count,
     COUNT(DISTINCT a.id) as assignment_count
 FROM PAPS p
-JOIN "user" u ON p.owner_id = u.id
+JOIN "USER" u ON p.owner_id = u.id
 LEFT JOIN USER_PROFILE up ON u.id = up.user_id
 LEFT JOIN SPAP s ON p.id = s.paps_id AND s.status = 'pending'
 LEFT JOIN ASAP a ON p.id = a.paps_id
@@ -809,9 +809,9 @@ SELECT
 FROM ASAP a
 JOIN PAPS p ON a.paps_id = p.id
 JOIN SPAP s ON a.accepted_spap_id = s.id
-JOIN "user" u_owner ON p.owner_id = u_owner.id
+JOIN "USER" u_owner ON p.owner_id = u_owner.id
 LEFT JOIN USER_PROFILE up_owner ON u_owner.id = up_owner.user_id
-JOIN "user" u_assignee ON s.applicant_id = u_assignee.id
+JOIN "USER" u_assignee ON s.applicant_id = u_assignee.id
 LEFT JOIN USER_PROFILE up_assignee ON u_assignee.id = up_assignee.user_id
 WHERE a.status IN ('assigned', 'in_progress');
 
@@ -830,7 +830,7 @@ ON CONFLICT (name) DO NOTHING;
 -- COMMENTS
 -- ============================================
 
-COMMENT ON TABLE "user" IS 'Core user authentication and account information';
+COMMENT ON TABLE "USER" IS 'Core user authentication and account information';
 COMMENT ON TABLE USER_PROFILE IS 'Extended user profile information with location and preferences';
 COMMENT ON TABLE USER_EXPERIENCE IS 'Work history and experience for users';
 COMMENT ON TABLE CATEGORY IS 'Hierarchical categories for jobs and user interests';
