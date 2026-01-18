@@ -8,7 +8,7 @@ SELECT VERSION();
 
 -- CAUTION used in several places
 -- name: get_auth_login(login)^
-SELECT u.password_hash as password, (r.name = 'admin') as isadmin
+SELECT u.password_hash as password, (r.name = 'admin') as is_admin
 FROM "USER" u
 JOIN ROLE r ON u.role_id = r.id
 WHERE u.email = :login;
