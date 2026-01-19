@@ -163,7 +163,22 @@ def get_login(user: fsa.CurrentUser):
 def post_login(user: fsa.CurrentUser):
     return jsonify(app.create_token(user)), 201
 
+# Information about PAPS
 #
+# GET /paps for admins
+@app.get("/papsadmin", authz="ADMIN")
+def get_all_paps_admin():
+    paps = db.get_all_paps_admin()
+    return jsonify(paps), 200
+
+@app.get("/papsuser", authz="AUTH")
+def get_all_paps_user():
+    paps = db.get_all_paps_user()
+    return jsonify(paps), 200
+
+
+
+
 # Admin's /users
 #
 # user management routes for testing, disable with APP_USERS = False

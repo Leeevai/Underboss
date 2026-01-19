@@ -80,3 +80,12 @@ UPDATE "USER"
 
 -- name: delete_user(login)!
 DELETE FROM "USER" WHERE username = :login OR email = :login;
+
+-- name: get_all_paps_admin()
+SELECT * FROM PAPS;
+
+-- name: get_all_paps_user()
+SELECT p.*,username FROM PAPS AS p JOIN "USER" ON p.owner_id = "USER".id WHERE is_public = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP);
+
+
+
