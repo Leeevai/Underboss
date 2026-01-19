@@ -143,11 +143,11 @@ def get_who_am_i(user: fsa.CurrentUser):
 def get_myself(auth: model.CurrentAuth):
     return jsonify(auth), 200
 
-# POST /register (login, password)
+# POST /register (login, email, password)
 @app.post("/register", authz="OPEN", authn="none")
-def post_register(login: model.Login, password: str):
+def post_register(login: model.Login, email: str, password: str):
     # NOTE passwords have constraints, see configuration
-    aid = db.insert_auth(login=login, password=app.hash_password(password), is_admin=False)
+    aid = db.insert_auth(login=login, email=email, password=app.hash_password(password), is_admin=False)
     fsa.checkVal(aid, f"user {login} already registered", 409)
     return jsonify(aid), 201
 
