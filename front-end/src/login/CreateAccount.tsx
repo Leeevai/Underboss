@@ -42,29 +42,64 @@ const styles = StyleSheet.create({
  */
 export default function CreateAccount({ onSuccess, onCancel }: 
   { onSuccess: () => void, onCancel: () => void } ): ReactNode {
-  const [username, setUsername] = useState<string>('newUser');
+  const [username, setUsername] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [hasFailure, setHasFailure] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   const sendUserCreationRequest = () => {
+    // Basic validation
+    if (!username.trim()) {
+      setErrorMessage('Username is required');
+      setHasFailure(true);
+      return;
+    }
+    
+    if (!email.trim()) {
+      setErrorMessage('Email is required');
+      setHasFailure(true);
+      return;
+    }
+    
+    if (!password.trim()) {
+      setErrorMessage('Password is required');
+      setHasFailure(true);
+      return;
+    }
+
     setIsLoading(true);
-    axios.post('/register', { login: username, password: password })
+    setHasFailure(false);
+    setErrorMessage('');
+
+    // Updated to include email parameter
+    axios.post('/register', { 
+      login: username, 
+      email: email,
+      password: password 
+    })
       .then((response: AxiosResponse<{}, any, {}>) => {
         setIsLoading(false);
         if (response.status >= 200 && response.status < 300) {
-          setHasFailure(false)
-          onSuccess()
+          setHasFailure(false);
+          onSuccess();
         } else {
-          setHasFailure(true)
+          setHasFailure(true);
+          setErrorMessage('Failed to create account');
         }
       })
       .catch((err: any) => {
-        console.error(`something went wrong ${err.message}`)
-        Alert.alert('something went wrong', `${err.message}`)
-        setIsLoading(false)
-        setHasFailure(true)
-      })
+        console.error(`Something went wrong: ${err.message}`);
+        
+        // Extract error message from backend if available
+        const backendError = err.response?.data?.error || err.message;
+        setErrorMessage(backendError);
+        
+        Alert.alert('Account Creation Failed', backendError);
+        setIsLoading(false);
+        setHasFailure(true);
+      });
   }
 
   return (
@@ -72,40 +107,63 @@ export default function CreateAccount({ onSuccess, onCancel }:
       <View style={styles.titleContainer}>
         <Text style={styles.title}>Create Account</Text>
       </View>
-      { hasFailure && (
+      
+      {hasFailure && (
         <View style={styles.incorrectWarning}>
           <Text style={styles.inputLabel}>
-            Something went wrong while creating the user
+            {errorMessage || 'Something went wrong while creating the user'}
           </Text>
         </View>
-      ) }
+      )}
+      
       <KivTextInput
         label="Username"
         value={username}
-        onChangeText={value => { setUsername(value) } }
+        onChangeText={value => { 
+          setUsername(value);
+          setHasFailure(false);
+        }}
+        autoCapitalize="none"
       />
+      
+      <KivTextInput
+        label="Email"
+        value={email}
+        onChangeText={value => { 
+          setEmail(value);
+          setHasFailure(false);
+        }}
+        keyboardType="email-address"
+        autoCapitalize="none"
+      />
+      
       <KivTextInput
         label="Password"
-        value={ password }
-        secureTextEntry={ true }
-        onChangeText={ value => { setPassword(value) } }
+        value={password}
+        secureTextEntry={true}
+        onChangeText={value => { 
+          setPassword(value);
+          setHasFailure(false);
+        }}
+        autoCapitalize="none"
       />
-      <View style={ styles.buttonRow }>
-        <View style={ styles.button }>
+      
+      <View style={styles.buttonRow}>
+        <View style={styles.button}>
           <Button
             title="< Login"
-            disabled={ isLoading }
-            onPress={ () => {
-              onCancel()
-            } }
+            disabled={isLoading}
+            onPress={() => {
+              onCancel();
+            }}
           />
         </View>
-        <View style={ styles.button }>
+        <View style={styles.button}>
           <Button
             title="Create Account"
-            disabled={ isLoading }
+            disabled={isLoading}
             onPress={() => {
-              sendUserCreationRequest()
+              sendUserCreationRequest();
             }}
           />
         </View>
