@@ -1,5 +1,6 @@
 import { Button, View, StyleSheet } from 'react-native'
 import AllUsers from './AllUsers'
+import Navbar from './Navbar'; // Tu pantalla inicial
 
 const styles = StyleSheet.create({
   mainContainer: {
@@ -32,6 +33,9 @@ export default function MainView({ authToken, logoutUser }:
       <View style={styles.bottomButton }>
         <Button title="Log out" onPress={  logoutUser }/>
       </View>
+      <Navbar/>
     </View>
+
+    
   )
 }
