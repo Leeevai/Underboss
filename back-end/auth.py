@@ -18,6 +18,7 @@ def get_user_pass(login: str) -> str|None:
     res = db.get_auth_login(login=login)
     return res["password"] if res else None
 
+# group authorization helper function for "ADMIN"
 def user_is_admin(login: str) -> bool:
     res = db.get_auth_login(login=login)
     return res["is_admin"] if res else False  
