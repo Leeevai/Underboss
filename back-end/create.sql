@@ -61,6 +61,7 @@ CREATE TABLE ROLE (
 
 CREATE TABLE "USER" (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     phone VARCHAR(20) UNIQUE,
@@ -657,6 +658,7 @@ CREATE TABLE CHAT_MESSAGE (
 
 -- User indexes
 CREATE INDEX idx_user_email ON "USER"(email);
+CREATE INDEX idx_user_username ON "USER"(username);
 CREATE INDEX idx_user_phone ON "USER"(phone) WHERE phone IS NOT NULL;
 CREATE INDEX idx_user_role ON "USER"(role_id);
 CREATE INDEX idx_user_active ON "USER"(is_active) WHERE is_active = TRUE;
@@ -815,16 +817,6 @@ JOIN "USER" u_assignee ON s.applicant_id = u_assignee.id
 LEFT JOIN USER_PROFILE up_assignee ON u_assignee.id = up_assignee.user_id
 WHERE a.status IN ('assigned', 'in_progress');
 
--- ============================================
--- SEED DATA
--- ============================================
-
-INSERT INTO ROLE (name, description) VALUES
-    ('worker', 'User who applies to and completes jobs'),
-    ('poster', 'User who creates and posts job opportunities'),
-    ('admin', 'System administrator with full access'),
-    ('moderator', 'User who can moderate content and resolve disputes')
-ON CONFLICT (name) DO NOTHING;
 
 -- ============================================
 -- COMMENTS
