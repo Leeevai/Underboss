@@ -38,79 +38,113 @@ const styles = StyleSheet.create({
 /**
  * Credentials input component with User & Password
  * @param {Object} props - the properties
- * @param {(username:string, authToken:string) => void} props.onSuccess
+ * @param {(username: string, authToken: string) => void} props.onSuccess
  * @param {() => void} props.onCancel
  */
 export default function Credentials({ onSuccess, onCancel }: 
-  { onSuccess: (_username: string, _token: string) => void, onCancel: () => void }) {
-  // awesome security trick: wired-in defaults to the admin account!
-  const [username, setUsername] = useState<string>('calvin')
-  const [password, setPassword] = useState<string>('hobbes')
-  const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [hasInvalidLogin, setHasInvalidLogin] = useState<boolean>(false)
+  { onSuccess: (username: string, token: string) => void, onCancel: () => void }) {
+  // Default credentials for testing - remove in production!
+  const [username, setUsername] = useState<string>('calvin');
+  const [password, setPassword] = useState<string>('hobbes');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [hasInvalidLogin, setHasInvalidLogin] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   const sendLoginRequest = (): void => {
-    setIsLoading(true)
+    // Basic validation
+    if (!username.trim()) {
+      setErrorMessage('Username is required');
+      setHasInvalidLogin(true);
+      return;
+    }
+    
+    if (!password.trim()) {
+      setErrorMessage('Password is required');
+      setHasInvalidLogin(true);
+      return;
+    }
 
-    console.log(`Request GET on ${baseUrl}/login`)
+    setIsLoading(true);
+    setHasInvalidLogin(false);
+    setErrorMessage('');
 
+    console.log(`Request GET on ${baseUrl}/login`);
+
+    // Login with Basic Auth - can use either username or email
     axios.get('/login', {
       auth: { username: username, password: password }
     })
-      .then((result: AxiosResponse<string, any, {}>) => {
-        console.log('OK ! ' + result.data)
-        setIsLoading(false)
-        setHasInvalidLogin(false)
-        onSuccess(username, result.data)
+      .then((result: AxiosResponse<string, any>) => {
+        console.log('Login successful! Token: ' + result.data);
+        setIsLoading(false);
+        setHasInvalidLogin(false);
+        onSuccess(username, result.data);
       })
       .catch((err: any) => {
-        console.error(`something went wrong: ${err.message}`)
-        Alert.alert('something went wrong', `${err.message}`)
-        setIsLoading(false)
-        setHasInvalidLogin(true)
+        console.error(`Login failed: ${err.message}`);
+        
+        // Extract error message from backend if available
+        const backendError = err.response?.data?.error || 'Invalid username or password';
+        setErrorMessage(backendError);
+        
+        Alert.alert('Login Failed', backendError);
+        setIsLoading(false);
+        setHasInvalidLogin(true);
       });
   };
 
   return (
     <KivCard>
-      <View style={ styles.titleContainer }>
-        <Text style={ styles.title }>Login</Text>
+      <View style={styles.titleContainer}>
+        <Text style={styles.title}>Login</Text>
       </View>
+      
       {hasInvalidLogin && (
-        <View style={ styles.incorrectWarning }>
-          <Text style={ styles.inputLabel }>
-            The username or password is incorrect
+        <View style={styles.incorrectWarning}>
+          <Text style={styles.inputLabel}>
+            {errorMessage || 'The username or password is incorrect'}
           </Text>
         </View>
       )}
+      
       <KivTextInput
-        label="Username"
-        value={ username }
-        onChangeText={ (value: string) => { setUsername(value) } }
+        label="Username or Email"
+        value={username}
+        onChangeText={(value: string) => { 
+          setUsername(value);
+          setHasInvalidLogin(false);
+        }}
+        autoCapitalize="none"
       />
+      
       <KivTextInput
         label="Password"
         value={password}
-        onChangeText={ (value: string) => { setPassword(value) } }
-        secureTextEntry={ true }
+        onChangeText={(value: string) => { 
+          setPassword(value);
+          setHasInvalidLogin(false);
+        }}
+        secureTextEntry={true}
+        autoCapitalize="none"
       />
-      <View style={ styles.buttonRow }>
-        <View style={ styles.button }>
+      
+      <View style={styles.buttonRow}>
+        <View style={styles.button}>
           <Button
-            title="< Create Account"
-            disabled={ isLoading }
-            onPress={ () => {
-              onCancel()
-            } }
+            title="Create Account >"
+            disabled={isLoading}
+            onPress={() => {
+              onCancel();
+            }}
           />
         </View>
-        <View style={ styles.button }>
+        <View style={styles.button}>
           <Button
             title="Login"
-            disabled={ isLoading }
-            onPress={ () => {
-              sendLoginRequest()
-            } }
+            disabled={isLoading}
+            onPress={() => {
+              sendLoginRequest();
+            }}
           />
         </View>
       </View>
