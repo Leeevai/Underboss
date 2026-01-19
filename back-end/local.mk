@@ -3,7 +3,7 @@
 #
 
 APP	    = underboss
-
+PYTHON  = python3
 #
 # TESTS
 #
@@ -13,9 +13,8 @@ LOOP    = 8
 # tcp port for local tests
 PORT    = 5000
 # extract first admin and noadm accounts
-ADMIN   = $(shell grep -v '^#' test_users.in | grep ',TRUE' | head -1 | tr ',' ':' | cut -d: -f1,2)
-NOADM   = $(shell grep -v '^#' test_users.in | grep ',FALSE' | head -1 | tr ',' ':' | cut -d: -f1,2)
-
+ADMIN = calvin:hobbes
+NOADM = hobbes:calvin
 #
 # DEPLOYMENT
 #
