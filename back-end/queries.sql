@@ -8,47 +8,47 @@ SELECT VERSION();
 
 
 -- Allow login with either username or email
--- name: get_auth_login(login)^
+-- name: get_user_login(login)^
 SELECT u.password_hash as password, (r.name = 'admin') as is_admin
 FROM "USER" u
 JOIN ROLE r ON u.role_id = r.id
 WHERE u.username = :login OR u.email = :login;
 
 -- CAUTION may be used in several places
--- name: get_auth_login_lock(login)^
+-- name: get_user_login_lock(login)^
 SELECT u.password_hash as password, (r.name = 'admin') as is_admin
 FROM "USER" u
 JOIN ROLE r ON u.role_id = r.id
 WHERE u.username = :login OR u.email = :login
 FOR UPDATE;
 
--- name: get_auth_all()
+-- name: get_user_all()
 SELECT u.username as login, u.email, (r.name = 'admin') as is_admin
 FROM "USER" u
 JOIN ROLE r ON u.role_id = r.id
 ORDER BY 1;
 
--- name: get_auth_filter(flt)
+-- name: get_user_filter(flt)
 SELECT u.username as login, u.email, (r.name = 'admin') as is_admin
 FROM "USER" u
 JOIN ROLE r ON u.role_id = r.id
 WHERE u.username LIKE :flt OR u.email LIKE :flt
 ORDER BY 1;
 
--- name: get_auth_data(login)^
+-- name: get_user_data(login)^
 SELECT u.id::text as aid, u.username as login, u.email, (r.name = 'admin') as is_admin
 FROM "USER" u
 JOIN ROLE r ON u.role_id = r.id
 WHERE u.username = :login OR u.email = :login;
 
--- name: get_all_auth_data(login)^
+-- name: get_all_user_data(login)^
 SELECT u.id::text as aid, u.username as login, u.password_hash as password, u.email, (r.name = 'admin') as is_admin
 FROM "USER" u
 JOIN ROLE r ON u.role_id = r.id
 WHERE u.username = :login OR u.email = :login;
 
 -- Insert with username and email
--- name: insert_auth(login, email, password, is_admin)$
+-- name: insert_user(login, email, password, is_admin)$
 INSERT INTO "USER"(username, email, password_hash, role_id)
 VALUES (
     :login,
@@ -70,7 +70,7 @@ UPDATE "USER"
 SET role_id = (SELECT id FROM ROLE WHERE name = CASE WHEN :is_admin THEN 'admin' ELSE 'worker' END)
 WHERE username = :login OR email = :login;
 
--- name: update_auth(a)!
+-- name: update_user(a)!
 UPDATE "USER"
   SET
     email = :a.email,

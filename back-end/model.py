@@ -26,7 +26,7 @@ class Auth:
     login: str
     password: str
     email: str|None
-    isadmin: bool
+    is_admin: bool
 
 @pydantic.dataclasses.dataclass
 class CurrentAuth(Auth):

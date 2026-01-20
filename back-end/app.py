@@ -147,7 +147,7 @@ def get_myself(auth: model.CurrentAuth):
 @app.post("/register", authz="OPEN", authn="none")
 def post_register(login: model.Login, email: str, password: str):
     # NOTE passwords have constraints, see configuration
-    aid = db.insert_auth(login=login, email=email, password=app.hash_password(password), is_admin=False)
+    aid = db.insert_user(login=login, email=email, password=app.hash_password(password), is_admin=False)
     fsa.checkVal(aid, f"user {login} already registered", 409)
     return jsonify(aid), 201
 
@@ -238,28 +238,28 @@ if app.config.get("APP_USERS", False):
     # GET /users (flt?)
     @app.get("/users", authz="ADMIN")
     def get_users(flt: str|None = None):
-        res = db.get_auth_all() if flt is None else db.get_auth_filter(flt=flt)
+        res = db.get_user_all() if flt is None else db.get_user_filter(flt=flt)
         return jsonify(res), 200
 
     # POST /users (login, password, is_admin)
     @app.post("/users", authz="ADMIN")
     def post_users(login: model.Login, password: str, is_admin: bool):
         # NOTE ON CONFLICT RETURNING returns NULL, triggering the 409
-        aid = db.insert_auth(login=login, password=app.hash_password(password), is_admin=is_admin)
+        aid = db.insert_user(login=login, email=login, password=app.hash_password(password), is_admin=is_admin)
         fsa.checkVal(aid, f"user {login} already created", 409)
         return jsonify(aid), 201
 
     # GET /users/<login>
     @app.get("/users/<login>", authz="ADMIN")
     def get_users_login(login: model.Login):
-        res = db.get_auth_data(login=login)
+        res = db.get_user_data(login=login)
         fsa.checkVal(res, f"no such user: {login}", 404)
         return res, 200
 
     # PATCH /users/<login> (password?, email?, is_admin?)
     @app.patch("/users/<login>", authz="ADMIN")
     def patch_users_login(login: model.Login, password: str|None = None, email: str|None = None, is_admin: bool|None = None):
-        fsa.checkVal(db.get_auth_login_lock(login=login), f"no such user: {login}", 404)
+        fsa.checkVal(db.get_user_login_lock(login=login), f"no such user: {login}", 404)
         if password is not None:
             db.set_user_password(login=login, password=app.hash_password(password))
         if email is not None:
@@ -273,7 +273,8 @@ if app.config.get("APP_USERS", False):
     def put_users_login(login: model.Login, auth: model.Auth):
         fsa.checkVal(login == auth.login, f"inconsistent login: {login} vs {auth.login}", 400)
         auth.password = app.hash_password(auth.password)
-        fsa.checkVal(db.update_auth(a=auth), f"no such user: {login}", 404)
+        # anodb expects object with attributes matching query parameters
+        fsa.checkVal(db.update_user(a=auth), f"no such user: {login}", 404)
         return "", 204
 
     # DELETE /users/<login>
