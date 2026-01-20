@@ -11,18 +11,39 @@ AttributeError: class must define a '_type_' attribute
 
 This is caused by anaconda/conda Python interfering with the virtual environment. 
 
-**Solution 1: Use system Python explicitly**
+**Solution 1: Deactivate conda before using venv**
 
 ```bash
+# Always deactivate conda first
+conda deactivate
+
 # Remove existing venv
 rm -rf venv
 
-# Create venv with system Python explicitly
-/usr/bin/python3 -m venv venv
+# Create venv (make dev will do this)
+make dev
 
-# Activate and install dependencies
+# Activate and verify
+source venv/bin/activate
+python -c "import sys; print(sys.executable)"  # Should show venv path, not anaconda
+```
+
+**Solution 2: Use virtualenv instead of venv**
+
+If `python3 -m venv` doesn't work:
+```bash
+pip install virtualenv
+virtualenv venv
 source venv/bin/activate
 pip install -r requirements.txt -r dev-requirements.txt
+```
+
+**Solution 3: Fix anaconda's ctypes (advanced)**
+
+If the above don't work, you may need to fix anaconda's Python installation:
+```bash
+conda install -c conda-forge ctypes
+# Or reinstall anaconda Python
 ```
 
 **Solution 2: Unset conda environment**
