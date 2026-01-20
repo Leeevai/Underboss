@@ -166,36 +166,151 @@ See [paper](https://www.cri.minesparis.psl.eu/classement/doc/A-817.pdf) and
 - `GET /users`
 
   ```json
-  [ { "login": "/\\w+/", "email": "$optEMAIL", "isadmin": true } ]
+  [ { "login": "/\\w+/", "email": "$optEMAIL", "is_admin": true } ]
   ```
 
 - `GET /users/<login>`
 
   ```json
-  { "aid": 1, "login": "/\\w+/", "email": "$optEMAIL", "isadmin": true }
+  { "aid": "uuid-string", "login": "/\\w+/", "email": "$optEMAIL", "is_admin": true }
   ```
 
 - `GET /myself`
 
   ```json
-  { "aid": 1, "login": "/\\w+/", "password": "", "email": "$optEMAIL", "isadmin": true }
+  { "aid": "uuid-string", "login": "/\\w+/", "password": "", "email": "$optEMAIL", "is_admin": true }
+  ```
+
+- `GET /users/<login>/profile`
+
+  ```json
+  {
+    "user_id": "uuid-string",
+    "first_name": "string",
+    "last_name": "string",
+    "display_name": "string",
+    "bio": "string",
+    "avatar_url": "string",
+    "date_of_birth": "date",
+    "location_address": "string",
+    "location_lat": 0.0,
+    "location_lng": 0.0,
+    "timezone": "string",
+    "preferred_language": "string"
+  }
+  ```
+
+- `GET /users/<login>/experiences`
+
+  ```json
+  [
+    {
+      "id": "uuid-string",
+      "user_id": "uuid-string",
+      "title": "string",
+      "company": "string",
+      "description": "string",
+      "start_date": "date",
+      "end_date": "date",
+      "is_current": false,
+      "display_order": 0
+    }
+  ]
+  ```
+
+- `GET /categories`
+
+  ```json
+  [
+    {
+      "id": "uuid-string",
+      "name": "string",
+      "slug": "string",
+      "description": "string",
+      "parent_id": "uuid-string",
+      "icon_url": "string",
+      "display_order": 0,
+      "is_active": true
+    }
+  ]
+  ```
+
+- `GET /users/<login>/interests`
+
+  ```json
+  [
+    {
+      "user_id": "uuid-string",
+      "category_id": "uuid-string",
+      "proficiency_level": 1,
+      "category_name": "string",
+      "category_slug": "string"
+    }
+  ]
   ```
 
 - `GET /who-am-i` returns `""`
 
 ## Database Model
 
-Table `Auth` holds user accounts.
+The database uses a `USER` and `ROLE` based schema. Each user has:
+- A unique username and email
+- A password hash
+- A role (admin, worker, poster, moderator)
+- An optional profile with extended information
+- Experiences (work history)
+- Interests (category preferences)
 
 ```mermaid
 erDiagram
-  Auth {
-    aid      int
-    login    text
-    email    text
-    password text
-    isadmin  bool
+  USER {
+    id UUID
+    username text
+    email text
+    password_hash text
+    role_id UUID
   }
+  ROLE {
+    id UUID
+    name text
+    description text
+  }
+  USER_PROFILE {
+    user_id UUID
+    first_name text
+    last_name text
+    display_name text
+    bio text
+    avatar_url text
+    location_address text
+    location_lat decimal
+    location_lng decimal
+  }
+  USER_EXPERIENCE {
+    id UUID
+    user_id UUID
+    title text
+    company text
+    description text
+    start_date date
+    end_date date
+  }
+  CATEGORY {
+    id UUID
+    name text
+    slug text
+    description text
+  }
+  USER_INTEREST {
+    user_id UUID
+    category_id UUID
+    proficiency_level int
+  }
+  USER ||--o{ USER_PROFILE : has
+  USER ||--o{ USER_EXPERIENCE : has
+  USER ||--o{ USER_INTEREST : has
+  ROLE ||--o{ USER : defines
+  CATEGORY ||--o{ USER_INTEREST : referenced_by
 ```
 
-See [`create.sql`](create.sql) for details.
+See [`create.sql`](create.sql) for complete schema details.
