@@ -176,6 +176,55 @@ def get_all_paps_user():
     paps = db.get_all_paps_user()
     return jsonify(paps), 200
 
+# POST /paps
+@app.post("/paps", authz="AUTH")
+def post_paps(user: fsa.CurrentUser, title: str, description: str, payment_amount: float, payment_currency: str = "USD", payment_type: str = "fixed", max_applicants: int = 1, max_assignees: int = 1, location_address: str|None = None, location_lat: float|None = None, location_lng: float|None = None, subtitle: str|None = None, start_datetime: str|None = None, end_datetime: str|None = None, estimated_duration_minutes: int|None = None, is_public: bool = True):
+    # Validate required fields
+    fsa.checkVal(len(title.strip()) >= 5, "Title must be at least 5 characters", 400)
+    fsa.checkVal(len(description.strip()) >= 20, "Description must be at least 20 characters", 400)
+    fsa.checkVal(payment_amount > 0, "Payment amount must be positive", 400)
+    fsa.checkVal(payment_type in ("fixed", "hourly", "negotiable"), "Invalid payment type", 400)
+    fsa.checkVal(max_applicants > 0 and max_applicants <= 100, "Max applicants must be between 1 and 100", 400)
+    fsa.checkVal(max_assignees > 0 and max_assignees <= max_applicants, "Max assignees must be positive and not exceed max applicants", 400)
+    if location_lat is not None or location_lng is not None:
+        fsa.checkVal(location_lat is not None and location_lng is not None, "Both lat and lng must be provided for location", 400)
+        fsa.checkVal(-90 <= location_lat <= 90, "Invalid latitude", 400)
+        fsa.checkVal(-180 <= location_lng <= 180, "Invalid longitude", 400)
+    if start_datetime is not None:
+        # Assuming datetime is passed as ISO string
+        try:
+            start_dt = datetime.datetime.fromisoformat(start_datetime.replace('Z', '+00:00'))
+        except ValueError:
+            fsa.checkVal(False, "Invalid start_datetime format", 400)
+    if end_datetime is not None:
+        try:
+            end_dt = datetime.datetime.fromisoformat(end_datetime.replace('Z', '+00:00'))
+            if start_datetime is not None and end_dt <= start_dt:
+                fsa.checkVal(False, "End datetime must be after start datetime", 400)
+        except ValueError:
+            fsa.checkVal(False, "Invalid end_datetime format", 400)
+    
+    # Insert the PAPS
+    pid = db.insert_paps(
+        owner_id=user.id,
+        title=title.strip(),
+        subtitle=subtitle.strip() if subtitle else None,
+        description=description.strip(),
+        status="draft",  # Default to draft, can be published later
+        location_address=location_address,
+        location_lat=location_lat,
+        location_lng=location_lng,
+        start_datetime=start_dt if start_datetime else None,
+        end_datetime=end_dt if end_datetime else None,
+        estimated_duration_minutes=estimated_duration_minutes,
+        payment_amount=payment_amount,
+        payment_currency=payment_currency,
+        payment_type=payment_type,
+        max_applicants=max_applicants,
+        max_assignees=max_assignees,
+        is_public=is_public
+    )
+    return jsonify(pid), 201
 
 
 
