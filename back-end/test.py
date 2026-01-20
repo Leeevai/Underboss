@@ -197,3 +197,166 @@ def test_redir(api):
         api._base_url = url
     else:
         pytest.skip("cannot test ssl redir without ssl")
+
+# /users/<login>/profile
+def test_user_profile(api):
+    user = "test_profile_user"
+    pswd = "test123!"
+    api.setPass(user, pswd)
+    
+    # Register user
+    api.post("/register", 201, json={"login": user, "email": f"{user}@test.com", "password": pswd}, login=None)
+    user_token = api.get("/login", 200, login=user).json
+    api.setToken(user, user_token)
+    
+    # Get profile (should be 404 initially)
+    api.get(f"/users/{user}/profile", 404, login=user)
+    
+    # Create/update profile
+    api.patch(f"/users/{user}/profile", 204, json={
+        "first_name": "Test",
+        "last_name": "User",
+        "display_name": "Test User",
+        "bio": "Test bio",
+        "timezone": "UTC"
+    }, login=user)
+    
+    # Get profile (should work now)
+    res = api.get(f"/users/{user}/profile", 200, login=user)
+    assert res.json["first_name"] == "Test"
+    assert res.json["display_name"] == "Test User"
+    
+    # Update profile
+    api.patch(f"/users/{user}/profile", 204, json={"bio": "Updated bio"}, login=user)
+    res = api.get(f"/users/{user}/profile", 200, login=user)
+    assert res.json["bio"] == "Updated bio"
+    
+    # Admin can view other user's profile
+    api.get(f"/users/{user}/profile", 200, login=ADMIN)
+    
+    # Other user cannot view profile
+    api.get(f"/users/{user}/profile", 403, login=NOADM)
+    
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+# /users/<login>/experiences
+def test_user_experiences(api):
+    user = "test_exp_user"
+    pswd = "test123!"
+    api.setPass(user, pswd)
+    
+    # Register user
+    api.post("/register", 201, json={"login": user, "email": f"{user}@test.com", "password": pswd}, login=None)
+    user_token = api.get("/login", 200, login=user).json
+    api.setToken(user, user_token)
+    
+    # Get experiences (empty initially)
+    res = api.get(f"/users/{user}/experiences", 200, login=user)
+    assert res.json == []
+    
+    # Create experience
+    res = api.post(f"/users/{user}/experiences", 201, json={
+        "title": "Software Engineer",
+        "company": "Test Corp",
+        "description": "Worked on backend",
+        "start_date": "2020-01-01",
+        "end_date": "2022-12-31",
+        "is_current": False
+    }, login=user)
+    exp_id = res.json
+    
+    # Get experiences (should have one now)
+    res = api.get(f"/users/{user}/experiences", 200, login=user)
+    assert len(res.json) == 1
+    assert res.json[0]["title"] == "Software Engineer"
+    
+    # Update experience
+    api.patch(f"/users/{user}/experiences/{exp_id}", 204, json={"title": "Senior Software Engineer"}, login=user)
+    res = api.get(f"/users/{user}/experiences", 200, login=user)
+    assert res.json[0]["title"] == "Senior Software Engineer"
+    
+    # Delete experience
+    api.delete(f"/users/{user}/experiences/{exp_id}", 204, login=user)
+    res = api.get(f"/users/{user}/experiences", 200, login=user)
+    assert len(res.json) == 0
+    
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+# /categories
+def test_categories(api):
+    # Get categories (may be empty)
+    api.get("/categories", 200, login=ADMIN)
+    
+    # Create category (admin only)
+    res = api.post("/categories", 201, json={
+        "name": "Test Category",
+        "slug": "test-category",
+        "description": "A test category"
+    }, login=ADMIN)
+    cat_id = res.json
+    
+    # Get category
+    res = api.get(f"/categories/{cat_id}", 200, login=ADMIN)
+    assert res.json["name"] == "Test Category"
+    
+    # Update category
+    api.patch(f"/categories/{cat_id}", 204, json={"description": "Updated description"}, login=ADMIN)
+    res = api.get(f"/categories/{cat_id}", 200, login=ADMIN)
+    assert res.json["description"] == "Updated description"
+    
+    # Delete category
+    api.delete(f"/categories/{cat_id}", 204, login=ADMIN)
+    api.get(f"/categories/{cat_id}", 404, login=ADMIN)
+    
+    # Non-admin cannot create categories
+    api.post("/categories", 403, json={"name": "Test", "slug": "test"}, login=NOADM)
+
+# /users/<login>/interests
+def test_user_interests(api):
+    user = "test_interest_user"
+    pswd = "test123!"
+    api.setPass(user, pswd)
+    
+    # Register user
+    api.post("/register", 201, json={"login": user, "email": f"{user}@test.com", "password": pswd}, login=None)
+    user_token = api.get("/login", 200, login=user).json
+    api.setToken(user, user_token)
+    
+    # Create a category first (admin)
+    res = api.post("/categories", 201, json={
+        "name": "Programming",
+        "slug": "programming"
+    }, login=ADMIN)
+    cat_id = res.json
+    
+    # Get interests (empty initially)
+    res = api.get(f"/users/{user}/interests", 200, login=user)
+    assert res.json == []
+    
+    # Create interest
+    res = api.post(f"/users/{user}/interests", 201, json={
+        "category_id": cat_id,
+        "proficiency_level": 5
+    }, login=user)
+    
+    # Get interests (should have one now)
+    res = api.get(f"/users/{user}/interests", 200, login=user)
+    assert len(res.json) == 1
+    assert res.json[0]["proficiency_level"] == 5
+    
+    # Update interest
+    api.patch(f"/users/{user}/interests/{cat_id}", 204, json={"proficiency_level": 4}, login=user)
+    res = api.get(f"/users/{user}/interests", 200, login=user)
+    assert res.json[0]["proficiency_level"] == 4
+    
+    # Delete interest
+    api.delete(f"/users/{user}/interests/{cat_id}", 204, login=user)
+    res = api.get(f"/users/{user}/interests", 200, login=user)
+    assert len(res.json) == 0
+    
+    # Cleanup
+    api.delete(f"/categories/{cat_id}", 204, login=ADMIN)
+    api.setToken(user, None)
+    api.setPass(user, None)
