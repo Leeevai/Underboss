@@ -60,6 +60,99 @@ WHERE user_id = (SELECT id FROM "USER" WHERE username = 'osman');
 -- hassan and admins without profile pics will use the default avatar
 -- Set by the app when avatar_url is NULL
 
+-- ============================================
+-- USER INTERESTS
+-- ============================================
+
+INSERT INTO USER_INTEREST (user_id, category_id, proficiency_level, added_at)
+SELECT u.id, c.id, 
+CASE 
+  WHEN u.username = 'hassan' AND c.slug = 'web-development' THEN 4
+  WHEN u.username = 'hassan' AND c.slug = 'mobile-development' THEN 3
+  WHEN u.username = 'clement' AND c.slug = 'graphic-design' THEN 5
+  WHEN u.username = 'clement' AND c.slug = 'ui-ux-design' THEN 4
+  WHEN u.username = 'clement' AND c.slug = 'social-media' THEN 4
+  WHEN u.username = 'osman' AND c.slug = 'seo' THEN 5
+  WHEN u.username = 'osman' AND c.slug = 'video-editing' THEN 3
+  WHEN u.username = 'enrique' AND c.slug = 'content-writing' THEN 4
+  WHEN u.username = 'enrique' AND c.slug = 'audio-production' THEN 4
+  WHEN u.username = 'hobbes' AND c.slug = 'technology' THEN 3
+  WHEN u.username = 'calvin' AND c.slug = 'technology' THEN 4
+  WHEN u.username = 'calvin' AND c.slug = 'design' THEN 3
+END, NOW()
+FROM "USER" u, CATEGORY c
+WHERE (u.username, c.slug) IN (
+  ('hassan', 'web-development'),
+  ('hassan', 'mobile-development'),
+  ('clement', 'graphic-design'),
+  ('clement', 'ui-ux-design'),
+  ('clement', 'social-media'),
+  ('osman', 'seo'),
+  ('osman', 'video-editing'),
+  ('enrique', 'content-writing'),
+  ('enrique', 'audio-production'),
+  ('hobbes', 'technology'),
+  ('calvin', 'technology'),
+  ('calvin', 'design')
+)
+ON CONFLICT (user_id, category_id) DO NOTHING;
+
+-- ============================================
+-- USER EXPERIENCE
+-- ============================================
+
+INSERT INTO USER_EXPERIENCE (user_id, title, company, description, start_date, end_date, is_current, display_order, created_at)
+SELECT u.id, 
+CASE 
+  WHEN u.username = 'hassan' AND display_order = 1 THEN 'Senior Web Developer'
+  WHEN u.username = 'hassan' AND display_order = 2 THEN 'Mobile App Developer'
+  WHEN u.username = 'clement' THEN 'Graphic Designer'
+  WHEN u.username = 'osman' THEN 'SEO Specialist'
+  WHEN u.username = 'enrique' AND display_order = 1 THEN 'Technical Writer'
+  WHEN u.username = 'enrique' AND display_order = 2 THEN 'Content Creator'
+END,
+CASE 
+  WHEN u.username = 'hassan' AND display_order = 1 THEN 'TechCorp'
+  WHEN u.username = 'hassan' AND display_order = 2 THEN 'AppStudio'
+  WHEN u.username = 'clement' THEN 'DesignAgency'
+  WHEN u.username = 'osman' THEN 'DigitalMarketing Inc'
+  WHEN u.username = 'enrique' AND display_order = 1 THEN 'DocuTech'
+  WHEN u.username = 'enrique' AND display_order = 2 THEN 'MediaHouse'
+END,
+CASE 
+  WHEN u.username = 'hassan' AND display_order = 1 THEN 'Developed full-stack web applications using React and Node.js'
+  WHEN u.username = 'hassan' AND display_order = 2 THEN 'Built cross-platform mobile apps with React Native'
+  WHEN u.username = 'clement' THEN 'Created visual designs for branding and marketing campaigns'
+  WHEN u.username = 'osman' THEN 'Optimized websites for search engines and managed PPC campaigns'
+  WHEN u.username = 'enrique' AND display_order = 1 THEN 'Wrote API documentation and user guides for software products'
+  WHEN u.username = 'enrique' AND display_order = 2 THEN 'Produced podcast content and edited audio files'
+END,
+CASE 
+  WHEN u.username = 'hassan' AND display_order = 1 THEN '2020-01-01'::DATE
+  WHEN u.username = 'hassan' AND display_order = 2 THEN '2018-06-01'::DATE
+  WHEN u.username = 'clement' THEN '2019-03-01'::DATE
+  WHEN u.username = 'osman' THEN '2021-01-01'::DATE
+  WHEN u.username = 'enrique' AND display_order = 1 THEN '2019-09-01'::DATE
+  WHEN u.username = 'enrique' AND display_order = 2 THEN '2017-05-01'::DATE
+END,
+CASE 
+  WHEN u.username = 'hassan' AND display_order = 2 THEN '2019-12-31'::DATE
+  WHEN u.username = 'enrique' AND display_order = 2 THEN '2019-08-31'::DATE
+  ELSE NULL
+END,
+CASE 
+  WHEN u.username IN ('hassan', 'clement', 'osman', 'enrique') AND display_order = 1 THEN TRUE
+  ELSE FALSE
+END,
+display_order, NOW()
+FROM "USER" u
+CROSS JOIN (VALUES (1), (2)) AS t(display_order)
+WHERE (u.username = 'hassan' AND display_order IN (1,2)) OR
+      (u.username = 'clement' AND display_order = 1) OR
+      (u.username = 'osman' AND display_order = 1) OR
+      (u.username = 'enrique' AND display_order IN (1,2))
+ON CONFLICT DO NOTHING;
+
 --
 -- Other tables' initial data can go below
 --
@@ -160,3 +253,110 @@ INSERT INTO PAPS_CATEGORY (paps_id, category_id, is_primary, assigned_at) VALUES
 ((SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App'), (SELECT id FROM CATEGORY WHERE slug = 'ui-ux-design'), TRUE, NOW()),
 ((SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App'), (SELECT id FROM CATEGORY WHERE slug = 'design'), FALSE, NOW()),
 ((SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App'), (SELECT id FROM CATEGORY WHERE slug = 'mobile-development'), FALSE, NOW());
+
+-- ============================================
+-- PAPS MEDIA
+-- ============================================
+
+INSERT INTO PAPS_MEDIA (paps_id, media_type, media_url, thumbnail_url, file_size_bytes, mime_type, display_order, uploaded_at) VALUES
+-- Full-Stack Web Developer (hassan) - image
+((SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed'), 'image', 'https://example.com/media/post/paps_media_123e4567-e89b-12d3-a456-426614174000_1.png', NULL, 2048576, 'image/png', 1, NOW()),
+
+-- Mobile App Development (hassan) - video
+((SELECT id FROM PAPS WHERE title = 'Mobile App Development'), 'video', 'https://example.com/media/post/paps_media_123e4567-e89b-12d3-a456-426614174000_2.mp4', 'https://example.com/media/post/paps_media_123e4567-e89b-12d3-a456-426614174000_1.png', 15728640, 'video/mp4', 1, NOW()),
+
+-- Video Editing for YouTube Channel (osman) - video
+((SELECT id FROM PAPS WHERE title = 'Video Editing for YouTube Channel'), 'video', 'https://example.com/media/post/paps_media_123e4567-e89b-12d3-a456-426614174000_2.mp4', NULL, 15728640, 'video/mp4', 1, NOW())
+ON CONFLICT DO NOTHING;
+
+-- ============================================
+-- SPAP (JOB APPLICATIONS)
+-- ============================================
+
+INSERT INTO SPAP (paps_id, applicant_id, status, applicant_message, proposed_payment_amount, applied_at, reviewed_at, accepted_at, rejected_at) VALUES
+-- Hobbes applies to Hassan's web dev job - accepted
+((SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed'), (SELECT id FROM "USER" WHERE username = 'hobbes'), 'accepted', 'I have extensive experience in full-stack development and would love to work on this project.', NULL, '2026-01-16 10:00:00', '2026-01-17 14:00:00', '2026-01-17 14:00:00', NULL),
+
+-- Osman applies to Enrique's writing job - pending
+((SELECT id FROM PAPS WHERE title = 'Technical Writing Documentation'), (SELECT id FROM "USER" WHERE username = 'osman'), 'pending', 'I have strong technical writing skills and API documentation experience.', NULL, '2026-01-19 09:00:00', NULL, NULL, NULL),
+
+-- Clement applies to Calvin's UI/UX job - accepted
+((SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App'), (SELECT id FROM "USER" WHERE username = 'clement'), 'accepted', 'I specialize in UI/UX design for mobile applications.', NULL, '2026-01-18 11:00:00', '2026-01-19 16:00:00', '2026-01-19 16:00:00', NULL),
+
+-- Enrique applies to Osman's video editing - rejected
+((SELECT id FROM PAPS WHERE title = 'Video Editing for YouTube Channel'), (SELECT id FROM "USER" WHERE username = 'enrique'), 'rejected', 'I have some video editing experience and would like to contribute.', NULL, '2026-01-17 13:00:00', '2026-01-18 10:00:00', NULL, '2026-01-18 10:00:00'),
+
+-- Hassan applies to Hobbes' data analysis - accepted
+((SELECT id FROM PAPS WHERE title = 'Data Analysis Project'), (SELECT id FROM "USER" WHERE username = 'hassan'), 'accepted', 'I have Python and data analysis skills perfect for this project.', NULL, '2026-01-20 08:00:00', '2026-01-21 12:00:00', '2026-01-21 12:00:00', NULL)
+ON CONFLICT (paps_id, applicant_id) DO NOTHING;
+
+-- ============================================
+-- ASAP (ASSIGNED JOBS)
+-- ============================================
+
+INSERT INTO ASAP (paps_id, accepted_spap_id, status, assigned_at, started_at, completed_at, completion_notes, created_at, updated_at) VALUES
+-- Hobbes assigned to Hassan's web dev job
+((SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed' LIMIT 1), (SELECT id FROM SPAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed' LIMIT 1) AND applicant_id = (SELECT id FROM "USER" WHERE username = 'hobbes') LIMIT 1), 'assigned', '2026-01-17 14:00:00', NULL, NULL, NULL, NOW(), NOW()),
+
+-- Clement assigned to Calvin's UI/UX job - completed
+((SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App' LIMIT 1), (SELECT id FROM SPAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App' LIMIT 1) AND applicant_id = (SELECT id FROM "USER" WHERE username = 'clement') LIMIT 1), 'completed', '2026-01-19 16:00:00', '2026-01-20 09:00:00', '2026-01-25 17:00:00', 'Successfully redesigned the UI with improved user flows and modern design elements.', NOW(), NOW()),
+
+-- Hassan assigned to Hobbes' data analysis job - in progress
+((SELECT id FROM PAPS WHERE title = 'Data Analysis Project' LIMIT 1), (SELECT id FROM SPAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'Data Analysis Project' LIMIT 1) AND applicant_id = (SELECT id FROM "USER" WHERE username = 'hassan') LIMIT 1), 'in_progress', '2026-01-21 12:00:00', '2026-01-22 10:00:00', NULL, NULL, NOW(), NOW())
+ON CONFLICT DO NOTHING;
+
+-- ============================================
+-- ASAP ASSIGNEE
+-- ============================================
+
+INSERT INTO ASAP_ASSIGNEE (asap_id, user_id, ROLE, assigned_at, is_active) VALUES
+-- Hobbes as member for web dev
+((SELECT id FROM ASAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed' LIMIT 1) LIMIT 1), (SELECT id FROM "USER" WHERE username = 'hobbes'), 'member', '2026-01-17 14:00:00', TRUE),
+
+-- Clement as lead for UI/UX
+((SELECT id FROM ASAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App' LIMIT 1) LIMIT 1), (SELECT id FROM "USER" WHERE username = 'clement'), 'lead', '2026-01-19 16:00:00', TRUE),
+
+-- Hassan as member for data analysis
+((SELECT id FROM ASAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'Data Analysis Project' LIMIT 1) LIMIT 1), (SELECT id FROM "USER" WHERE username = 'hassan'), 'member', '2026-01-21 12:00:00', TRUE)
+ON CONFLICT (asap_id, user_id) DO NOTHING;
+
+-- ============================================
+-- PAYMENT
+-- ============================================
+
+INSERT INTO PAYMENT (asap_id, payer_id, payee_id, amount, currency, status, transaction_id, paid_at, created_at, updated_at) VALUES
+-- Calvin pays Clement for UI/UX work
+((SELECT id FROM ASAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App' LIMIT 1) LIMIT 1), (SELECT id FROM "USER" WHERE username = 'calvin'), (SELECT id FROM "USER" WHERE username = 'clement'), 1350.00, 'USD', 'completed', 'txn_1234567890', '2026-01-26 10:00:00', NOW(), NOW())
+ON CONFLICT (asap_id) DO NOTHING;
+
+-- ============================================
+-- RATING
+-- ============================================
+
+INSERT INTO RATING (asap_id, rater_id, rated_id, score, COMMENT, rating_type, created_at, updated_at) VALUES
+-- Calvin rates Clement for UI/UX work
+((SELECT id FROM ASAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App' LIMIT 1) LIMIT 1), (SELECT id FROM "USER" WHERE username = 'calvin'), (SELECT id FROM "USER" WHERE username = 'clement'), 5, 'Excellent work on the UI redesign. Very professional and creative.', 'overall', NOW(), NOW()),
+((SELECT id FROM ASAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App' LIMIT 1) LIMIT 1), (SELECT id FROM "USER" WHERE username = 'calvin'), (SELECT id FROM "USER" WHERE username = 'clement'), 5, 'Great communication and attention to detail.', 'communication', NOW(), NOW()),
+((SELECT id FROM ASAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App' LIMIT 1) LIMIT 1), (SELECT id FROM "USER" WHERE username = 'calvin'), (SELECT id FROM "USER" WHERE username = 'clement'), 5, 'Delivered high-quality designs on time.', 'professionalism', NOW(), NOW()),
+
+-- Clement rates Calvin for the job posting
+((SELECT id FROM ASAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App' LIMIT 1) LIMIT 1), (SELECT id FROM "USER" WHERE username = 'clement'), (SELECT id FROM "USER" WHERE username = 'calvin'), 4, 'Clear requirements and timely feedback.', 'overall', NOW(), NOW()),
+((SELECT id FROM ASAP WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App' LIMIT 1) LIMIT 1), (SELECT id FROM "USER" WHERE username = 'clement'), (SELECT id FROM "USER" WHERE username = 'calvin'), 4, 'Professional and responsive.', 'communication', NOW(), NOW())
+ON CONFLICT (asap_id, rater_id, rated_id, rating_type) DO NOTHING;
+
+-- ============================================
+-- COMMENT
+-- ============================================
+
+-- Main comments
+INSERT INTO COMMENT (paps_id, user_id, content, created_at, updated_at) VALUES
+((SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed'), (SELECT id FROM "USER" WHERE username = 'hobbes'), 'This looks like a great project! Do you have any specific tech stack preferences?', NOW(), NOW()),
+((SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App'), (SELECT id FROM "USER" WHERE username = 'enrique'), 'Can you provide more details about the current app?', NOW(), NOW()),
+((SELECT id FROM PAPS WHERE title = 'Video Editing for YouTube Channel'), (SELECT id FROM "USER" WHERE username = 'clement'), 'What software do you use for editing?', NOW(), NOW())
+ON CONFLICT DO NOTHING;
+
+-- Reply comments
+INSERT INTO COMMENT (paps_id, user_id, parent_id, content, created_at, updated_at) VALUES
+((SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed'), (SELECT id FROM "USER" WHERE username = 'hassan'), (SELECT id FROM COMMENT WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed') AND user_id = (SELECT id FROM "USER" WHERE username = 'hobbes') AND parent_id IS NULL LIMIT 1), 'React for frontend and Node.js for backend would be ideal.', NOW(), NOW()),
+((SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App'), (SELECT id FROM "USER" WHERE username = 'calvin'), (SELECT id FROM COMMENT WHERE paps_id = (SELECT id FROM PAPS WHERE title = 'UI/UX Design for Mobile App') AND user_id = (SELECT id FROM "USER" WHERE username = 'enrique') AND parent_id IS NULL LIMIT 1), 'It''s an iOS app for fitness tracking. I can share screenshots.', NOW(), NOW())
+ON CONFLICT DO NOTHING;
