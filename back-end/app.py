@@ -234,16 +234,16 @@ from werkzeug.utils import secure_filename
 
 # GET /profile - get current user's profile
 @app.get("/profile", authz="AUTH")
-def get_profile(user: fsa.CurrentUser):
+def get_profile(auth: model.CurrentAuth):
     """Get the current authenticated user's profile."""
-    profile = db.get_user_profile(user_id=user.id)
+    profile = db.get_user_profile(user_id=auth.aid)
     if not profile:
         return {"error": "Profile not found"}, 404
     return jsonify(profile), 200
 
 # PUT /profile - update current user's profile
 @app.put("/profile", authz="AUTH")
-def put_profile(user: fsa.CurrentUser, first_name: str|None = None, last_name: str|None = None, 
+def put_profile(auth: model.CurrentAuth, first_name: str|None = None, last_name: str|None = None, 
                 display_name: str|None = None, bio: str|None = None, date_of_birth: str|None = None,
                 location_address: str|None = None, location_lat: float|None = None, 
                 location_lng: float|None = None, timezone: str|None = None, 
@@ -264,7 +264,7 @@ def put_profile(user: fsa.CurrentUser, first_name: str|None = None, last_name: s
             fsa.checkVal(False, "Invalid date_of_birth format", 400)
     
     db.update_user_profile(
-        user_id=user.id,
+        user_id=auth.aid,
         first_name=first_name.strip() if first_name else None,
         last_name=last_name.strip() if last_name else None,
         display_name=display_name.strip() if display_name else None,
@@ -280,37 +280,57 @@ def put_profile(user: fsa.CurrentUser, first_name: str|None = None, last_name: s
     return "", 204
 
 # POST /profile/avatar - upload user profile avatar image
-@app.post("/profile/avatar", authz="AUTH")
-def post_avatar(user: fsa.CurrentUser):
-    """Upload a profile avatar image. Expects multipart form data with 'image' field."""
+@app.route("/profile/avatar", methods=["POST"], authz="AUTH")
+def post_avatar(auth: model.CurrentAuth):
+    """Upload a profile avatar image. Accepts binary image data or multipart form data."""
+    from flask import request
     ensure_media_dir()
     
-    # Check if image file is in request
-    fsa.checkVal("image" in fsa.request.files, "No image file provided", 400)
+    # Try to get image from multipart files first (curl -F form), then from raw body (curl --data-binary)
+    image_data = None
+    filename = "avatar.png"
     
-    file = fsa.request.files["image"]
-    fsa.checkVal(file.filename != "", "No file selected", 400)
-    fsa.checkVal(allowed_file(file.filename, app), 
+    if "image" in request.files:
+        file = request.files["image"]
+        fsa.checkVal(file.filename != "", "No file selected", 400)
+        filename = file.filename
+        image_data = file.read()
+    elif request.data:
+        # Handle raw binary data
+        image_data = request.data
+        # Determine filename from Content-Type header
+        content_type = request.headers.get("Content-Type", "image/png")
+        if "jpeg" in content_type or "jpg" in content_type:
+            filename = "avatar.jpg"
+        elif "png" in content_type:
+            filename = "avatar.png"
+        elif "gif" in content_type:
+            filename = "avatar.gif"
+        elif "webp" in content_type:
+            filename = "avatar.webp"
+    else:
+        fsa.checkVal(False, "No image data provided", 400)
+    
+    # Validate file type
+    fsa.checkVal(allowed_file(filename, app), 
                 f"File type not allowed. Allowed: {', '.join(get_allowed_extensions(app))}", 415)
     
     # Check file size
-    file.seek(0, 2)  # Seek to end
-    file_size = file.tell()
-    file.seek(0)  # Reset to start
+    file_size = len(image_data)
     max_size = get_max_file_size(app)
     fsa.checkVal(file_size <= max_size, 
                 f"File too large (max {max_size / 1024 / 1024}MB)", 413)
     
     # Save file with user_id as name to ensure uniqueness and overwrite
     from utils import PROFILE_IMG_DIR
-    filename = secure_filename(f"{user.id}.jpg")
+    filename = secure_filename(f"{auth.aid}.jpg")
     filepath = PROFILE_IMG_DIR / filename
-    file.save(filepath)
+    filepath.write_bytes(image_data)
     
     # Update avatar_url in database
-    avatar_url = get_avatar_url(user.id)
+    avatar_url = get_avatar_url(auth.aid)
     db.update_user_profile(
-        user_id=user.id,
+        user_id=auth.aid,
         first_name=None,
         last_name=None,
         display_name=None,
