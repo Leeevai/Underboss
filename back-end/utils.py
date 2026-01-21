@@ -10,6 +10,7 @@ log = logging.getLogger(os.environ.get("APP_NAME", "app"))
 # Media storage configuration
 MEDIA_DIR = pathlib.Path("media")
 PROFILE_IMG_DIR = MEDIA_DIR / "user" / "profile"
+POST_MEDIA_DIR = MEDIA_DIR / "post"
 
 # NOTE: ALLOWED_EXTENSIONS and MAX_FILE_SIZE are defined in local.conf
 # They are loaded from app.config at runtime via get_media_config()
@@ -29,14 +30,15 @@ def get_media_config(app=None):
     else:
         # Default fallback values
         return {
-            "allowed_extensions": {"jpg", "jpeg", "png", "gif", "webp"},
-            "max_file_size": 5 * 1024 * 1024,  # 5MB
+            "allowed_extensions": {"jpg", "jpeg", "png", "gif", "webp", "mp4", "avi", "mov", "mkv"},
+            "max_file_size": 50 * 1024 * 1024,  # 50MB for videos
         }
 
 # Media management helper functions
 def ensure_media_dir():
     """Create media directories if they don't exist."""
     PROFILE_IMG_DIR.mkdir(parents=True, exist_ok=True)
+    POST_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 def allowed_file(filename: str, app=None) -> bool:
     """Check if file extension is allowed."""
