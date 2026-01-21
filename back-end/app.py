@@ -359,12 +359,18 @@ def get_avatar(user_id: str):
     from utils import PROFILE_IMG_DIR
     filepath = PROFILE_IMG_DIR / secure_filename(f"{user_id}.jpg")
     
-    if not filepath.exists():
-        return {"error": "Avatar not found"}, 404
+    # Check for custom user avatar first
+    if filepath.exists():
+        from flask import send_file
+        return send_file(filepath, mimetype="image/jpeg")
     
-    # Serve the image file with proper content-type
-    from flask import send_file
-    return send_file(filepath, mimetype="image/jpeg")
+    # Fall back to default avatar
+    default_avatar = PROFILE_IMG_DIR / "avatar.png"
+    if default_avatar.exists():
+        from flask import send_file
+        return send_file(default_avatar, mimetype="image/png")
+    
+    return {"error": "Avatar not found"}, 404
 
 
 
