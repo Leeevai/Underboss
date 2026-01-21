@@ -239,6 +239,12 @@ def get_profile(auth: model.CurrentAuth):
     profile = db.get_user_profile(user_id=auth.aid)
     if not profile:
         return {"error": "Profile not found"}, 404
+    
+    # If user has no avatar, use default from config
+    if profile.get("avatar_url") is None:
+        config = app.config.get("MEDIA_CONFIG", {})
+        profile["avatar_url"] = config.get("default_avatar_url", "/profile/avatar/default.png")
+    
     return jsonify(profile), 200
 
 # PUT /profile - update current user's profile

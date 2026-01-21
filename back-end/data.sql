@@ -38,6 +38,28 @@ ON CONFLICT (email) DO NOTHING;
 -- Clean up
 DROP TABLE temp_users;
 
+-- ============================================
+-- USER PROFILE SETUP
+-- ============================================
+-- Users with profile pictures: clement, enrique, osman
+-- Users without profile pictures: hassan (uses default)
+-- Profiles are auto-created by trigger, but we need to set avatar_urls for those with images
+
+UPDATE USER_PROFILE 
+SET avatar_url = '/profile/avatar/clement'
+WHERE user_id = (SELECT id FROM "USER" WHERE username = 'clement');
+
+UPDATE USER_PROFILE 
+SET avatar_url = '/profile/avatar/enrique'
+WHERE user_id = (SELECT id FROM "USER" WHERE username = 'enrique');
+
+UPDATE USER_PROFILE 
+SET avatar_url = '/profile/avatar/osman'
+WHERE user_id = (SELECT id FROM "USER" WHERE username = 'osman');
+
+-- hassan and admins without profile pics will use the default avatar
+-- Set by the app when avatar_url is NULL
+
 --
 -- Other tables' initial data can go below
 --
