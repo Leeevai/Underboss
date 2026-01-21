@@ -216,7 +216,7 @@ CREATE TABLE PAPS (
     
     CONSTRAINT paps_owner_fk FOREIGN KEY (owner_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
     CONSTRAINT paps_status_check CHECK (status IN ('draft', 'published', 'closed', 'cancelled')),
-    CONSTRAINT paps_payment_type_check CHECK (PAYMENT_type IN ('fixed', 'hourly', 'negotiable')),
+    CONSTRAINT paps_payment_type_check CHECK (payment_type IN ('fixed', 'hourly', 'negotiable')),
     CONSTRAINT paps_payment_amount_check CHECK (PAYMENT_amount >= 0),
     CONSTRAINT paps_max_applicants_check CHECK (max_applicants > 0 AND max_applicants <= 100),
     CONSTRAINT paps_max_assignees_check CHECK (max_assignees > 0 AND max_assignees <= max_applicants),
@@ -520,7 +520,7 @@ CREATE TABLE PAYMENT (
     CONSTRAINT payment_payer_fk FOREIGN KEY (payer_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
     CONSTRAINT payment_payee_fk FOREIGN KEY (payee_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
     CONSTRAINT payment_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded')),
-    CONSTRAINT payment_method_check CHECK (PAYMENT_method IS NULL OR payment_method IN ('card', 'bank', 'wallet', 'cash')),
+    CONSTRAINT payment_method_check CHECK (payment_method IS NULL OR payment_method IN ('card', 'bank', 'wallet', 'cash')),
     CONSTRAINT payment_amount_check CHECK (amount > 0),
     CONSTRAINT payment_different_users CHECK (payer_id != payee_id),
     
@@ -559,7 +559,7 @@ CREATE TABLE RATING (
     CONSTRAINT rating_rated_fk FOREIGN KEY (rated_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
     CONSTRAINT rating_unique_rating UNIQUE (asap_id, rater_id, rated_id, rating_type),
     CONSTRAINT rating_score_check CHECK (score BETWEEN 1 AND 5),
-    CONSTRAINT rating_type_check CHECK (RATING_type IN ('skill', 'communication', 'professionalism', 'overall')),
+    CONSTRAINT rating_type_check CHECK (rating_type IN ('skill', 'communication', 'professionalism', 'overall')),
     CONSTRAINT rating_different_users CHECK (rater_id != rated_id),
     CONSTRAINT rating_comment_check CHECK (COMMENT IS NULL OR LENGTH(TRIM(COMMENT)) >= 10)
 );
@@ -745,7 +745,7 @@ CREATE UNIQUE INDEX idx_ASAP_ASSIGNEE_lead
 
 -- Active published PAPS with owner info
 CREATE VIEW v_active_paps AS
-SELECT 
+SELECT
     p.*,
     u.email as owner_email,
     up.display_name as owner_name,
@@ -757,9 +757,26 @@ JOIN "USER" u ON p.owner_id = u.id
 LEFT JOIN USER_PROFILE up ON u.id = up.user_id
 LEFT JOIN SPAP s ON p.id = s.paps_id AND s.status = 'pending'
 LEFT JOIN ASAP a ON p.id = a.paps_id
-WHERE p.status = 'published' 
+WHERE p.status = 'published'
     AND p.deleted_at IS NULL
     AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP)
+GROUP BY p.id, u.email, up.display_name, up.avatar_url;
+
+-- All PAPS with owner info (for admins)
+CREATE VIEW v_all_paps AS
+SELECT
+    p.*,
+    u.email as owner_email,
+    up.display_name as owner_name,
+    up.avatar_url as owner_avatar,
+    COUNT(DISTINCT s.id) as application_count,
+    COUNT(DISTINCT a.id) as assignment_count
+FROM PAPS p
+JOIN "USER" u ON p.owner_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+LEFT JOIN SPAP s ON p.id = s.paps_id
+LEFT JOIN ASAP a ON p.id = a.paps_id
+WHERE p.deleted_at IS NULL
 GROUP BY p.id, u.email, up.display_name, up.avatar_url;
 
 -- User ratings summary

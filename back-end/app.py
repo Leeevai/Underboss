@@ -17,6 +17,7 @@
 import os
 import re
 import sys
+import uuid
 import datetime
 from importlib.metadata import version as pkg_version
 
@@ -167,11 +168,11 @@ def post_login(user: fsa.CurrentUser):
 #
 # GET /paps - returns different data based on user role
 @app.get("/paps", authz="AUTH")
-def get_paps(user: fsa.CurrentUser):
+def get_paps(auth: model.CurrentAuth):
     """
     Get PAPS postings. Admins see all PAPS, regular users see only public ones.
     """
-    if user.is_admin:
+    if auth.is_admin:
         paps = db.get_all_paps_admin()
     else:
         paps = db.get_all_paps_user()
@@ -179,7 +180,7 @@ def get_paps(user: fsa.CurrentUser):
 
 # POST /paps
 @app.post("/paps", authz="AUTH")
-def post_paps(user: fsa.CurrentUser, title: str, description: str, payment_amount: float, payment_currency: str = "USD", payment_type: str = "fixed", max_applicants: int = 1, max_assignees: int = 1, location_address: str|None = None, location_lat: float|None = None, location_lng: float|None = None, subtitle: str|None = None, start_datetime: str|None = None, end_datetime: str|None = None, estimated_duration_minutes: int|None = None, is_public: bool = True):
+def post_paps(auth: model.CurrentAuth, title: str, description: str, payment_amount: float, payment_currency: str = "USD", payment_type: str = "fixed", max_applicants: int = 1, max_assignees: int = 1, location_address: str|None = None, location_lat: float|None = None, location_lng: float|None = None, subtitle: str|None = None, start_datetime: str|None = None, end_datetime: str|None = None, estimated_duration_minutes: int|None = None, is_public: bool = True):
     # Validate required fields
     fsa.checkVal(len(title.strip()) >= 5, "Title must be at least 5 characters", 400)
     fsa.checkVal(len(description.strip()) >= 20, "Description must be at least 20 characters", 400)
@@ -204,10 +205,10 @@ def post_paps(user: fsa.CurrentUser, title: str, description: str, payment_amoun
                 fsa.checkVal(False, "End datetime must be after start datetime", 400)
         except ValueError:
             fsa.checkVal(False, "Invalid end_datetime format", 400)
-    
+
     # Insert the PAPS
     pid = db.insert_paps(
-        owner_id=user.id,
+        owner_id=auth.aid,
         title=title.strip(),
         subtitle=subtitle.strip() if subtitle else None,
         description=description.strip(),
@@ -226,6 +227,287 @@ def post_paps(user: fsa.CurrentUser, title: str, description: str, payment_amoun
         is_public=is_public
     )
     return jsonify(pid), 201
+
+# GET /paps/{paps_id}
+@app.get("/paps/<paps_id>", authz="AUTH")
+def get_paps_id(paps_id: str, auth: model.CurrentAuth):
+    """Get a specific PAP by ID."""
+    # Validate UUID format
+    try:
+        uuid.UUID(paps_id)
+    except ValueError:
+        fsa.checkVal(False, "Invalid PAP ID format", 400)
+
+    if auth.is_admin:
+        paps = db.get_paps_by_id_admin(id=paps_id)
+    else:
+        paps = db.get_paps_by_id(id=paps_id)
+        if not paps:
+            return {"error": "PAP not found or not accessible"}, 404
+
+    if not paps:
+        return {"error": "PAP not found"}, 404
+
+    return jsonify(paps), 200
+
+# PUT /paps/{paps_id}
+@app.put("/paps/<paps_id>", authz="AUTH")
+def put_paps_id(paps_id: str, auth: model.CurrentAuth, title: str|None = None, description: str|None = None, payment_amount: float|None = None, payment_currency: str|None = None, payment_type: str|None = None, max_applicants: int|None = None, max_assignees: int|None = None, location_address: str|None = None, location_lat: float|None = None, location_lng: float|None = None, subtitle: str|None = None, start_datetime: str|None = None, end_datetime: str|None = None, estimated_duration_minutes: int|None = None, is_public: bool|None = None, status: str|None = None):
+    """Update a PAP. Only owner or admin can update."""
+    # Validate UUID format
+    try:
+        uuid.UUID(paps_id)
+    except ValueError:
+        fsa.checkVal(False, "Invalid PAP ID format", 400)
+
+    # Get the PAP to check ownership
+    paps = db.get_paps_by_id_admin(id=paps_id)
+    if not paps:
+        return {"error": "PAP not found"}, 404
+
+    # Check permission: owner or admin
+    if not auth.is_admin and str(paps['owner_id']) != auth.aid:
+        return {"error": "Not authorized to update this PAP"}, 403
+
+    # Validate parameters similar to POST
+    if title is not None:
+        fsa.checkVal(len(title.strip()) >= 5, "Title must be at least 5 characters", 400)
+    if description is not None:
+        fsa.checkVal(len(description.strip()) >= 20, "Description must be at least 20 characters", 400)
+    if payment_amount is not None:
+        fsa.checkVal(payment_amount > 0, "Payment amount must be positive", 400)
+    if payment_type is not None:
+        fsa.checkVal(payment_type in ("fixed", "hourly", "negotiable"), "Invalid payment type", 400)
+    if max_applicants is not None:
+        fsa.checkVal(max_applicants > 0 and max_applicants <= 100, "Max applicants must be between 1 and 100", 400)
+    if max_assignees is not None:
+        fsa.checkVal(max_assignees > 0 and max_assignees <= (max_applicants or paps['max_applicants']), "Max assignees must be positive and not exceed max applicants", 400)
+    if location_lat is not None or location_lng is not None:
+        lat = location_lat if location_lat is not None else paps.get('location_lat')
+        lng = location_lng if location_lng is not None else paps.get('location_lng')
+        fsa.checkVal(lat is not None and lng is not None, "Both lat and lng must be provided for location", 400)
+        fsa.checkVal(-90 <= lat <= 90, "Invalid latitude", 400)
+        fsa.checkVal(-180 <= lng <= 180, "Invalid longitude", 400)
+    if start_datetime is not None:
+        try:
+            start_dt = datetime.datetime.fromisoformat(start_datetime.replace('Z', '+00:00'))
+        except ValueError:
+            fsa.checkVal(False, "Invalid start_datetime format", 400)
+    else:
+        start_dt = None
+    if end_datetime is not None:
+        try:
+            end_dt = datetime.datetime.fromisoformat(end_datetime.replace('Z', '+00:00'))
+            if start_dt is not None or paps.get('start_datetime') is not None:
+                effective_start = start_dt or paps['start_datetime']
+                if end_dt <= effective_start:
+                    fsa.checkVal(False, "End datetime must be after start datetime", 400)
+        except ValueError:
+            fsa.checkVal(False, "Invalid end_datetime format", 400)
+    else:
+        end_dt = None
+    if status is not None:
+        fsa.checkVal(status in ('draft', 'published', 'closed', 'cancelled'), "Invalid status", 400)
+
+    # Update the PAP
+    db.update_paps(
+        id=paps_id,
+        title=title.strip() if title else None,
+        subtitle=subtitle.strip() if subtitle else None,
+        description=description.strip() if description else None,
+        status=status,
+        location_address=location_address,
+        location_lat=location_lat,
+        location_lng=location_lng,
+        start_datetime=start_dt,
+        end_datetime=end_dt,
+        estimated_duration_minutes=estimated_duration_minutes,
+        payment_amount=payment_amount,
+        payment_currency=payment_currency,
+        payment_type=payment_type,
+        max_applicants=max_applicants,
+        max_assignees=max_assignees,
+        is_public=is_public,
+        publish_at=None,  # Not updating publish_at
+        expires_at=None,  # Not updating expires_at
+        deleted_at=None   # For soft delete, use DELETE endpoint
+    )
+    return "", 204
+
+# DELETE /paps/{paps_id}
+@app.delete("/paps/<paps_id>", authz="AUTH")
+def delete_paps_id(paps_id: str, auth: model.CurrentAuth):
+    """Soft delete a PAP. Only owner or admin can delete."""
+    # Validate UUID format
+    try:
+        uuid.UUID(paps_id)
+    except ValueError:
+        fsa.checkVal(False, "Invalid PAP ID format", 400)
+
+    # Get the PAP to check ownership
+    paps = db.get_paps_by_id_admin(id=paps_id)
+    if not paps:
+        return {"error": "PAP not found"}, 404
+
+    # Check permission: owner or admin
+    if not auth.is_admin and str(paps['owner_id']) != auth.aid:
+        return {"error": "Not authorized to delete this PAP"}, 403
+
+    # Soft delete
+    db.delete_paps(id=paps_id)
+    return "", 204
+
+# PAPS Media Management
+#
+
+# POST /paps/{paps_id}/media - upload media for a PAP
+@app.route("/paps/<paps_id>/media", methods=["POST"], authz="AUTH")
+def post_paps_media(paps_id: str, auth: model.CurrentAuth):
+    """Upload media for a PAP. Only owner or admin can upload."""
+    from flask import request
+    ensure_media_dir()
+
+    # Validate UUID format
+    try:
+        uuid.UUID(paps_id)
+    except ValueError:
+        fsa.checkVal(False, "Invalid PAP ID format", 400)
+
+    # Check ownership
+    paps = db.get_paps_by_id_admin(id=paps_id)
+    if not paps:
+        return {"error": "PAP not found"}, 404
+    if not auth.is_admin and str(paps['owner_id']) != auth.aid:
+        return {"error": "Not authorized to upload media for this PAP"}, 403
+
+    # Get media data
+    media_data = None
+    ext = "png"
+    if "media" in request.files:
+        file = request.files["media"]
+        fsa.checkVal(file.filename != "", "No file selected", 400)
+        filename = file.filename
+        media_data = file.read()
+        ext = filename.rsplit(".", 1)[1].lower() if "." in filename else "png"
+    elif request.data:
+        media_data = request.data
+        content_type = request.headers.get("Content-Type", "image/png")
+        if "jpeg" in content_type or "jpg" in content_type:
+            ext = "jpg"
+        elif "png" in content_type:
+            ext = "png"
+        elif "gif" in content_type:
+            ext = "gif"
+        elif "webp" in content_type:
+            ext = "webp"
+        elif "mp4" in content_type:
+            ext = "mp4"
+        elif "avi" in content_type:
+            ext = "avi"
+        elif "mov" in content_type:
+            ext = "mov"
+        elif "mkv" in content_type:
+            ext = "mkv"
+    else:
+        fsa.checkVal(False, "No media data provided", 400)
+
+    # Validate file type
+    fsa.checkVal(allowed_file(f"dummy.{ext}", app),
+                 f"File type not allowed. Allowed: {', '.join(get_allowed_extensions(app))}", 415)
+
+    # Check file size
+    file_size = len(media_data)
+    max_size = get_max_file_size(app)
+    fsa.checkVal(file_size <= max_size,
+                 f"File too large (max {max_size / 1024 / 1024}MB)", 413)
+
+    # Find next index
+    from utils import POST_MEDIA_DIR
+    existing_files = list(POST_MEDIA_DIR.glob(f"paps_media_{paps_id}_*.*"))
+    indices = []
+    for f in existing_files:
+        match = re.match(rf"paps_media_{re.escape(paps_id)}_(\d+)\..*", f.name)
+        if match:
+            indices.append(int(match.group(1)))
+    next_index = max(indices) + 1 if indices else 1
+
+    # Save file
+    filename = secure_filename(f"paps_media_{paps_id}_{next_index}.{ext}")
+    filepath = POST_MEDIA_DIR / filename
+    filepath.write_bytes(media_data)
+
+    return {"media_url": f"/paps/media/{paps_id}/{next_index}"}, 201
+
+# GET /paps/media/{paps_id} - retrieve all PAP media URLs
+@app.get("/paps/media/<paps_id>", authz="OPEN", authn="none")
+def get_paps_media(paps_id: str):
+    """Get all PAP media URLs by PAP ID."""
+    from utils import POST_MEDIA_DIR
+
+    # Validate UUID format
+    try:
+        uuid.UUID(paps_id)
+    except ValueError:
+        return {"error": "Invalid PAP ID format"}, 400
+
+    # Check if PAP is accessible
+    paps = db.get_paps_by_id(id=paps_id)
+    if not paps:
+        return {"error": "PAP not found or not accessible"}, 404
+
+    # Find all media files
+    existing_files = list(POST_MEDIA_DIR.glob(f"paps_media_{paps_id}_*.*"))
+    indices = []
+    for f in existing_files:
+        match = re.match(rf"paps_media_{re.escape(paps_id)}_(\d+)\..*", f.name)
+        if match:
+            indices.append(int(match.group(1)))
+    indices.sort()
+
+    media_urls = [f"/paps/media/{paps_id}/{index}" for index in indices]
+
+    return {"media_urls": media_urls}, 200
+
+# GET /paps/media/{paps_id}/{index} - serve specific PAP media file
+@app.get("/paps/media/<paps_id>/<index>", authz="OPEN", authn="none")
+def get_paps_media_file(paps_id: str, index: str):
+    """Serve a specific PAP media file."""
+    from utils import POST_MEDIA_DIR
+
+    # Validate UUID format
+    try:
+        uuid.UUID(paps_id)
+    except ValueError:
+        return {"error": "Invalid PAP ID format"}, 400
+
+    try:
+        index_int = int(index)
+    except ValueError:
+        return {"error": "Invalid index format"}, 400
+
+    # Check if PAP is accessible
+    paps = db.get_paps_by_id(id=paps_id)
+    if not paps:
+        return {"error": "PAP not found or not accessible"}, 404
+
+    # Find the media file
+    pattern = POST_MEDIA_DIR / f"paps_media_{paps_id}_{index_int}.*"
+    files = list(pattern.parent.glob(pattern.name))
+    if not files:
+        return {"error": "Media file not found"}, 404
+
+    filepath = files[0]
+    ext = filepath.suffix[1:]
+
+    from flask import send_file
+    if ext in {"jpg", "jpeg", "png", "gif", "webp"}:
+        mimetype = f"image/{ext}"
+    elif ext in {"mp4", "avi", "mov", "mkv"}:
+        mimetype = f"video/{ext}"
+    else:
+        mimetype = f"application/octet-stream"
+
+    return send_file(filepath, mimetype=mimetype)
 
 # User Profile Management
 #

@@ -85,10 +85,23 @@ UPDATE "USER"
 DELETE FROM "USER" WHERE username = :login OR email = :login;
 
 -- name: get_all_paps_admin()
-SELECT * FROM PAPS;
+SELECT p.*, u.email as owner_email, up.display_name as owner_name, up.avatar_url as owner_avatar
+FROM PAPS p
+JOIN "USER" u ON p.owner_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+WHERE p.deleted_at IS NULL
+ORDER BY p.created_at DESC;
 
 -- name: get_all_paps_user()
-SELECT p.*,username FROM PAPS AS p JOIN "USER" ON p.owner_id = "USER".id WHERE is_public = TRUE AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP);
+SELECT p.*, u.email as owner_email, up.display_name as owner_name, up.avatar_url as owner_avatar
+FROM PAPS p
+JOIN "USER" u ON p.owner_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+WHERE p.status = 'published'
+  AND p.is_public = TRUE
+  AND p.deleted_at IS NULL
+  AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP)
+ORDER BY p.created_at DESC;
 
 -- name: insert_paps(owner_id, title, subtitle, description, status, location_address, location_lat, location_lng, start_datetime, end_datetime, estimated_duration_minutes, payment_amount, payment_currency, payment_type, max_applicants, max_assignees, is_public)$
 INSERT INTO PAPS (
@@ -129,6 +142,51 @@ INSERT INTO PAPS (
     :is_public
 )
 RETURNING id::text as pid;
+
+-- name: get_paps_by_id(id)^
+SELECT p.*, u.email as owner_email, up.display_name as owner_name, up.avatar_url as owner_avatar
+FROM PAPS p
+JOIN "USER" u ON p.owner_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+WHERE p.id = :id::uuid
+  AND p.status = 'published'
+  AND p.is_public = TRUE
+  AND p.deleted_at IS NULL
+  AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP);
+
+-- name: get_paps_by_id_admin(id)^
+SELECT p.*, u.email as owner_email, up.display_name as owner_name, up.avatar_url as owner_avatar
+FROM PAPS p
+JOIN "USER" u ON p.owner_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+WHERE p.id = :id::uuid AND p.deleted_at IS NULL;
+
+-- name: update_paps(id, title, subtitle, description, status, location_address, location_lat, location_lng, start_datetime, end_datetime, estimated_duration_minutes, payment_amount, payment_currency, payment_type, max_applicants, max_assignees, is_public, publish_at, expires_at, deleted_at)!
+UPDATE PAPS SET
+    title = COALESCE(:title, title),
+    subtitle = COALESCE(:subtitle, subtitle),
+    description = COALESCE(:description, description),
+    status = COALESCE(:status, status),
+    location_address = COALESCE(:location_address, location_address),
+    location_lat = COALESCE(:location_lat, location_lat),
+    location_lng = COALESCE(:location_lng, location_lng),
+    start_datetime = COALESCE(:start_datetime, start_datetime),
+    end_datetime = COALESCE(:end_datetime, end_datetime),
+    estimated_duration_minutes = COALESCE(:estimated_duration_minutes, estimated_duration_minutes),
+    payment_amount = COALESCE(:payment_amount, payment_amount),
+    payment_currency = COALESCE(:payment_currency, payment_currency),
+    payment_type = COALESCE(:payment_type, payment_type),
+    max_applicants = COALESCE(:max_applicants, max_applicants),
+    max_assignees = COALESCE(:max_assignees, max_assignees),
+    is_public = COALESCE(:is_public, is_public),
+    publish_at = COALESCE(:publish_at, publish_at),
+    expires_at = COALESCE(:expires_at, expires_at),
+    deleted_at = COALESCE(:deleted_at, deleted_at),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = :id::uuid;
+
+-- name: delete_paps(id)!
+UPDATE PAPS SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id::uuid;
 
 -- ============================================
 -- USER PROFILE QUERIES
