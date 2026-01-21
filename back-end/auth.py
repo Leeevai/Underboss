@@ -15,12 +15,20 @@ def current_auth(_: str, user: fsa.CurrentUser) -> model.CurrentAuth:
     return model.CurrentAuth(**ad)
 
 # authentication helper function
+# Updated to support username, email, OR phone number login
 def get_user_pass(login: str) -> str|None:
+    """
+    Get password hash for user identified by username, email, or phone.
+    The login parameter can be any of these three identifiers.
+    """
     res = db.get_user_login(login=login)
     return res["password"] if res else None
 
 # group authorization helper function for "ADMIN"
 def user_is_admin(login: str) -> bool:
+    """
+    Check if user is admin. Login can be username, email, or phone.
+    """
     res = db.get_user_login(login=login)
     return res["is_admin"] if res else False
 
