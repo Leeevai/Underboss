@@ -5,6 +5,7 @@ import { baseUrl } from './common/const'
 import Login from './login/Login'
 import MainView from './main/MainView'
 import Header from './header/Header'
+import Homepage from './homepage/homepage'
 
 const styles = StyleSheet.create({
   container: {
@@ -41,6 +42,7 @@ export default function Root() {
         ) : (
           <Login onLogUser={ onLogUser } />
         )}
+        <Homepage />
       </View>
     </View>
   )
