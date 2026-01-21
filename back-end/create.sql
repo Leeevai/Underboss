@@ -115,6 +115,21 @@ CREATE TRIGGER update_USER_PROFILE_updated_at
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
+-- Automatically create a profile for new users
+CREATE OR REPLACE FUNCTION create_user_profile()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO USER_PROFILE (user_id, created_at, updated_at)
+    VALUES (NEW.id, NOW(), NOW());
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER create_profile_on_user_insert
+    AFTER INSERT ON "USER"
+    FOR EACH ROW
+    EXECUTE FUNCTION create_user_profile();
+
 CREATE TABLE USER_EXPERIENCE (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL,
