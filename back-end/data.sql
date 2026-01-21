@@ -46,15 +46,15 @@ DROP TABLE temp_users;
 -- Profiles are auto-created by trigger, but we need to set avatar_urls for those with images
 
 UPDATE USER_PROFILE 
-SET avatar_url = 'media/user/profile/clement'
+SET avatar_url = 'media/user/profile/clement.png'
 WHERE user_id = (SELECT id FROM "USER" WHERE username = 'clement');
 
 UPDATE USER_PROFILE 
-SET avatar_url = 'media/user/profile/enrique'
+SET avatar_url = 'media/user/profile/enrique.png'
 WHERE user_id = (SELECT id FROM "USER" WHERE username = 'enrique');
 
 UPDATE USER_PROFILE 
-SET avatar_url = 'media/user/profile/osman'
+SET avatar_url = 'media/user/profile/osman.png'
 WHERE user_id = (SELECT id FROM "USER" WHERE username = 'osman');
 
 -- hassan and admins without profile pics will use the default avatar
