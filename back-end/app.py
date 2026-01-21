@@ -24,7 +24,7 @@ from importlib.metadata import version as pkg_version
 import logging
 logging.basicConfig(level=logging.INFO)
 
-from utils import log, print
+from utils import log, print, ensure_media_dir, allowed_file, get_avatar_url, get_max_file_size, get_allowed_extensions
 
 # start and configure flask service
 import FlaskSimpleAuth as fsa
@@ -165,15 +165,16 @@ def post_login(user: fsa.CurrentUser):
 
 # Information about PAPS
 #
-# GET /paps for admins
-@app.get("/papsadmin", authz="ADMIN")
-def get_all_paps_admin():
-    paps = db.get_all_paps_admin()
-    return jsonify(paps), 200
-
-@app.get("/papsuser", authz="AUTH")
-def get_all_paps_user():
-    paps = db.get_all_paps_user()
+# GET /paps - returns different data based on user role
+@app.get("/paps", authz="AUTH")
+def get_paps(user: fsa.CurrentUser):
+    """
+    Get PAPS postings. Admins see all PAPS, regular users see only public ones.
+    """
+    if user.is_admin:
+        paps = db.get_all_paps_admin()
+    else:
+        paps = db.get_all_paps_user()
     return jsonify(paps), 200
 
 # POST /paps
@@ -225,6 +226,119 @@ def post_paps(user: fsa.CurrentUser, title: str, description: str, payment_amoun
         is_public=is_public
     )
     return jsonify(pid), 201
+
+# User Profile Management
+#
+import pathlib
+from werkzeug.utils import secure_filename
+
+# GET /profile - get current user's profile
+@app.get("/profile", authz="AUTH")
+def get_profile(user: fsa.CurrentUser):
+    """Get the current authenticated user's profile."""
+    profile = db.get_user_profile(user_id=user.id)
+    if not profile:
+        return {"error": "Profile not found"}, 404
+    return jsonify(profile), 200
+
+# PUT /profile - update current user's profile
+@app.put("/profile", authz="AUTH")
+def put_profile(user: fsa.CurrentUser, first_name: str|None = None, last_name: str|None = None, 
+                display_name: str|None = None, bio: str|None = None, date_of_birth: str|None = None,
+                location_address: str|None = None, location_lat: float|None = None, 
+                location_lng: float|None = None, timezone: str|None = None, 
+                preferred_language: str|None = None):
+    """Update the current user's profile information."""
+    # Validate optional location params
+    if (location_lat is not None or location_lng is not None):
+        fsa.checkVal(location_lat is not None and location_lng is not None, 
+                    "Both lat and lng required", 400)
+        fsa.checkVal(-90 <= location_lat <= 90, "Invalid latitude", 400)
+        fsa.checkVal(-180 <= location_lng <= 180, "Invalid longitude", 400)
+    
+    # Validate optional date_of_birth
+    if date_of_birth is not None:
+        try:
+            datetime.datetime.fromisoformat(date_of_birth.replace('Z', '+00:00'))
+        except ValueError:
+            fsa.checkVal(False, "Invalid date_of_birth format", 400)
+    
+    db.update_user_profile(
+        user_id=user.id,
+        first_name=first_name.strip() if first_name else None,
+        last_name=last_name.strip() if last_name else None,
+        display_name=display_name.strip() if display_name else None,
+        bio=bio.strip() if bio else None,
+        avatar_url=None,  # Avatar URL updated via dedicated endpoint
+        date_of_birth=date_of_birth,
+        location_address=location_address.strip() if location_address else None,
+        location_lat=location_lat,
+        location_lng=location_lng,
+        timezone=timezone,
+        preferred_language=preferred_language
+    )
+    return "", 204
+
+# POST /profile/avatar - upload user profile avatar image
+@app.post("/profile/avatar", authz="AUTH")
+def post_avatar(user: fsa.CurrentUser):
+    """Upload a profile avatar image. Expects multipart form data with 'image' field."""
+    ensure_media_dir()
+    
+    # Check if image file is in request
+    fsa.checkVal("image" in fsa.request.files, "No image file provided", 400)
+    
+    file = fsa.request.files["image"]
+    fsa.checkVal(file.filename != "", "No file selected", 400)
+    fsa.checkVal(allowed_file(file.filename, app), 
+                f"File type not allowed. Allowed: {', '.join(get_allowed_extensions(app))}", 415)
+    
+    # Check file size
+    file.seek(0, 2)  # Seek to end
+    file_size = file.tell()
+    file.seek(0)  # Reset to start
+    max_size = get_max_file_size(app)
+    fsa.checkVal(file_size <= max_size, 
+                f"File too large (max {max_size / 1024 / 1024}MB)", 413)
+    
+    # Save file with user_id as name to ensure uniqueness and overwrite
+    from utils import PROFILE_IMG_DIR
+    filename = secure_filename(f"{user.id}.jpg")
+    filepath = PROFILE_IMG_DIR / filename
+    file.save(filepath)
+    
+    # Update avatar_url in database
+    avatar_url = get_avatar_url(user.id)
+    db.update_user_profile(
+        user_id=user.id,
+        first_name=None,
+        last_name=None,
+        display_name=None,
+        bio=None,
+        avatar_url=avatar_url,
+        date_of_birth=None,
+        location_address=None,
+        location_lat=None,
+        location_lng=None,
+        timezone=None,
+        preferred_language=None
+    )
+    
+    return {"avatar_url": avatar_url}, 201
+
+# GET /profile/avatar/<user_id> - retrieve user's profile avatar image
+@app.get("/profile/avatar/<user_id>", authz="OPEN", authn="none")
+def get_avatar(user_id: str):
+    """Get a user's profile avatar image by user ID."""
+    from utils import PROFILE_IMG_DIR
+    filepath = PROFILE_IMG_DIR / secure_filename(f"{user_id}.jpg")
+    
+    if not filepath.exists():
+        return {"error": "Avatar not found"}, 404
+    
+    # Serve the image file with proper content-type
+    from flask import send_file
+    return send_file(filepath, mimetype="image/jpeg")
 
 
 

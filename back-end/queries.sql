@@ -127,3 +127,31 @@ INSERT INTO PAPS (
 )
 RETURNING id::text as pid;
 
+-- ============================================
+-- USER PROFILE QUERIES
+-- ============================================
+
+-- name: get_user_profile(user_id)^
+SELECT * FROM USER_PROFILE WHERE user_id = :user_id::uuid;
+
+-- name: get_user_profile_by_login(login)^
+SELECT up.* FROM USER_PROFILE up
+JOIN "USER" u ON up.user_id = u.id
+WHERE u.username = :login OR u.email = :login;
+
+-- name: update_user_profile(user_id, first_name, last_name, display_name, bio, avatar_url, date_of_birth, location_address, location_lat, location_lng, timezone, preferred_language)!
+UPDATE USER_PROFILE SET
+    first_name = COALESCE(:first_name, first_name),
+    last_name = COALESCE(:last_name, last_name),
+    display_name = COALESCE(:display_name, display_name),
+    bio = COALESCE(:bio, bio),
+    avatar_url = COALESCE(:avatar_url, avatar_url),
+    date_of_birth = COALESCE(:date_of_birth, date_of_birth),
+    location_address = COALESCE(:location_address, location_address),
+    location_lat = COALESCE(:location_lat, location_lat),
+    location_lng = COALESCE(:location_lng, location_lng),
+    timezone = COALESCE(:timezone, timezone),
+    preferred_language = COALESCE(:preferred_language, preferred_language),
+    updated_at = CURRENT_TIMESTAMP
+WHERE user_id = :user_id::uuid;
+
