@@ -42,7 +42,7 @@ export default function Root() {
         ) : (
           <Login onLogUser={ onLogUser } />
         )}
-        <Homepage />
+        <Homepage/>
       </View>
     </View>
   )
