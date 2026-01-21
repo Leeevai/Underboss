@@ -47,6 +47,9 @@ FROM "USER" u
 JOIN ROLE r ON u.role_id = r.id
 WHERE u.username = :login OR u.email = :login;
 
+-- name: get_user_by_id(user_id)^
+SELECT * FROM "USER" WHERE id=:user_id;
+
 -- Insert with username and email
 -- name: insert_user(login, email, password, is_admin)$
 INSERT INTO "USER"(username, email, password_hash, role_id)

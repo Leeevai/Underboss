@@ -243,7 +243,7 @@ def get_profile(auth: model.CurrentAuth):
     # If user has no avatar, use default from config
     if profile.get("avatar_url") is None:
         config = app.config.get("MEDIA_CONFIG", {})
-        profile["avatar_url"] = config.get("default_avatar_url", "/profile/avatar/default.png")
+        profile["avatar_url"] = config.get("default_avatar_url", "media/user/profile/avatar.png")
     
     return jsonify(profile), 200
 
@@ -327,14 +327,14 @@ def post_avatar(auth: model.CurrentAuth):
     fsa.checkVal(file_size <= max_size, 
                 f"File too large (max {max_size / 1024 / 1024}MB)", 413)
     
-    # Save file with user_id as name to ensure uniqueness and overwrite
+    # Save file with login as name to ensure uniqueness and overwrite
     from utils import PROFILE_IMG_DIR
-    filename = secure_filename(f"{auth.aid}.jpg")
+    filename = secure_filename(f"{auth.login}.jpg")
     filepath = PROFILE_IMG_DIR / filename
     filepath.write_bytes(image_data)
     
     # Update avatar_url in database
-    avatar_url = get_avatar_url(auth.aid)
+    avatar_url = get_avatar_url(auth.login)
     db.update_user_profile(
         user_id=auth.aid,
         first_name=None,
@@ -357,7 +357,14 @@ def post_avatar(auth: model.CurrentAuth):
 def get_avatar(user_id: str):
     """Get a user's profile avatar image by user ID."""
     from utils import PROFILE_IMG_DIR
-    filepath = PROFILE_IMG_DIR / secure_filename(f"{user_id}.jpg")
+    
+    # Look up the login from user_id
+    user = db.get_user_by_id(user_id=user_id)
+    if not user:
+        return {"error": "User not found"}, 404
+    
+    login = user.get("username")
+    filepath = PROFILE_IMG_DIR / secure_filename(f"{login}.jpg")
     
     # Check for custom user avatar first
     if filepath.exists():

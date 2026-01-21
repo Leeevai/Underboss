@@ -44,9 +44,9 @@ def allowed_file(filename: str, app=None) -> bool:
     allowed_exts = config.get("allowed_extensions", {"jpg", "jpeg", "png", "gif", "webp"})
     return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed_exts
 
-def get_avatar_url(user_id: str) -> str:
-    """Generate avatar URL path for a user."""
-    return f"/profile/avatar/{user_id}"
+def get_avatar_url(login: str) -> str:
+    """Generate avatar URL path for a user based on login."""
+    return f"/profile/avatar/{login}"
 
 def get_max_file_size(app=None) -> int:
     """Get maximum file size in bytes."""
