@@ -119,8 +119,8 @@ CREATE TRIGGER update_USER_PROFILE_updated_at
 CREATE OR REPLACE FUNCTION create_user_profile()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO USER_PROFILE (user_id, created_at, updated_at)
-    VALUES (NEW.id, NOW(), NOW());
+    INSERT INTO USER_PROFILE (user_id, avatar_url, created_at, updated_at)
+    VALUES (NEW.id, 'media/user/profile/avatar.png', NOW(), NOW());
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
