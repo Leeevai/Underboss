@@ -66,33 +66,33 @@ const ProfilePage = () => (
   <View style={styles.center}><Text>Profile Page</Text></View>
 )
 const SettingsPage = ({ logoutUser }: { logoutUser: () => void }) => (
-  <View style={styles.center}>
-    <Text style={{ marginBottom: 20 }}>Settings</Text>
-    <Button title="Log Out" onPress={logoutUser} />
-  </View>
+    <View style={styles.center}>
+        <Text style={{ marginBottom: 20 }}>Settings</Text>
+        <Button title="Log Out" onPress={logoutUser} /> 
+    </View>
 )
+
 
 interface MainViewProps {
   logoutUser: () => void
-}
 
-type TabName = 'feed' | 'search' | 'profile' | 'settings'
+}
 
 export default function MainView({ logoutUser }: MainViewProps) {
 
 
   return (
     <View style={{flexDirection: 'column', flex: 1}}>
-      <View style={{ height: 50, backgroundColor: '#32416f', justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ height: 50, backgroundColor: '#1E375A', justifyContent: 'center', alignItems: 'center' }}>
         <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginTop: 10, color:"white" }}>UnderBoss</Text>
       </View>
       <NavigationContainer>
         <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { height: 150 } }}>
           <Tab.Screen
-            name="PapsFeed"
-            component={PapsFeed}
-            options={{ title: 'Home' }}
-          />
+          name="PapsFeed"
+          component={PapsFeed}
+          options={{ title: 'PapsFeed' }}
+        />
           <Tab.Screen
             name="Post"
             component={Post}
@@ -109,10 +109,11 @@ export default function MainView({ logoutUser }: MainViewProps) {
             options={{ title: 'ProfilePage' }}
           />
           <Tab.Screen
-            name="Settings"
-            component={SettingsPage}
-            options={{ title: 'SettingsPage' }}
-          />
+                        name="Settings"
+                        
+                        children={() => <SettingsPage logoutUser={logoutUser} />}
+                        options={{ title: 'SettingsPage' }}
+                    />
           
         </Tab.Navigator>
       </NavigationContainer>
