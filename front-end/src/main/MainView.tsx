@@ -1,6 +1,12 @@
 import React, { useState } from 'react'
 import { View, StyleSheet, TouchableOpacity, Text, Button } from 'react-native'
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { NavigationContainer } from '@react-navigation/native';
 import PapsFeed from '../feed/PapsFeed'
+
+const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
 
 const styles = StyleSheet.create({
   container: {
@@ -13,7 +19,7 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    borderTopWidth: 1,
+    borderTopWidth: 10,
     borderTopColor: '#dbdbdb',
     paddingBottom: 20,
     paddingTop: 8,
@@ -50,8 +56,11 @@ const styles = StyleSheet.create({
 })
 
 // --- Placeholders for missing components ---
-const SearchPage = () => (
-  <View style={styles.center}><Text>Search Component</Text></View>
+const Post = () => (
+  <View style={styles.center}><Text>Post something...</Text></View>
+)
+const Message = () => (
+  <View style={styles.center}><Text>Message uploading...</Text></View>
 )
 const ProfilePage = () => (
   <View style={styles.center}><Text>Profile Page</Text></View>
@@ -70,52 +79,43 @@ interface MainViewProps {
 type TabName = 'feed' | 'search' | 'profile' | 'settings'
 
 export default function MainView({ logoutUser }: MainViewProps) {
-  const [activeTab, setActiveTab] = useState<TabName>('feed')
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'feed':
-        return <PapsFeed /> // Now using the real feed!
-      case 'search':
-        return <SearchPage />
-      case 'profile':
-        return <ProfilePage />
-      case 'settings':
-        return <SettingsPage logoutUser={logoutUser} />
-      default:
-        return <PapsFeed />
-    }
-  }
-
-  const Tab = ({ name, icon, label }: { name: TabName; icon: string; label: string }) => {
-    const isActive = activeTab === name
-    return (
-      <TouchableOpacity
-        style={styles.tab}
-        onPress={() => setActiveTab(name)}
-      >
-        <Text style={[styles.tabIcon, { color: isActive ? '#000' : '#8E8E8E' }]}>
-          {icon}
-        </Text>
-        <Text style={isActive ? styles.tabLabelActive : styles.tabLabel}>
-          {label}
-        </Text>
-      </TouchableOpacity>
-    )
-  }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        {renderContent()}
+    <View style={{flexDirection: 'column', flex: 1}}>
+      <View style={{ height: 50, backgroundColor: '#32416f', justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginTop: 10, color:"white" }}>UnderBoss</Text>
       </View>
-      
-      <View style={styles.tabBar}>
-        <Tab name="feed" icon="🏠" label="Feed" />
-        <Tab name="search" icon="🔍" label="Search" />
-        <Tab name="profile" icon="👤" label="Profile" />
-        <Tab name="settings" icon="⚙️" label="Settings" />
-      </View>
+      <NavigationContainer>
+        <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { height: 150 } }}>
+          <Tab.Screen
+            name="PapsFeed"
+            component={PapsFeed}
+            options={{ title: 'Home' }}
+          />
+          <Tab.Screen
+            name="Post"
+            component={Post}
+            options={{ title: 'Post' }}
+          />
+          <Tab.Screen
+            name="Message"
+            component={Message}
+            options={{ title: 'Message' }}
+          />
+          <Tab.Screen
+            name="Profile"
+            component={ProfilePage}
+            options={{ title: 'ProfilePage' }}
+          />
+          <Tab.Screen
+            name="Settings"
+            component={SettingsPage}
+            options={{ title: 'SettingsPage' }}
+          />
+          
+        </Tab.Navigator>
+      </NavigationContainer>
     </View>
   )
 }
