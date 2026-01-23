@@ -139,7 +139,16 @@ export default function Login({ onLogUser }: LoginProps) {
         ? loginResponse.data 
         : loginResponse.data?.token
 
-      if (!token) {
+      if (!token) {// --- Placeholder for ProfileSetup ---
+        const ProfileSetup = ({ onComplete }: { onComplete: () => void }) => (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <Text style={{ fontSize: 18, marginBottom: 20 }}>Profile Setup Required</Text>
+            <Text style={{ textAlign: 'center', marginBottom: 20, color: '#666' }}>
+              (This is a placeholder. Build your profile form here.)
+            </Text>
+            <Button title="Complete Profile" onPress={onComplete} />
+          </View>
+        )
         Alert.alert('Account Created', 'Please log in manually.')
         setIsLoginMode(true)
       } else {
