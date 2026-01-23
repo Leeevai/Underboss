@@ -1,24 +1,31 @@
-import { PropsWithChildren } from 'react'
-import { StyleSheet, View } from 'react-native'
+import React, { PropsWithChildren } from 'react'
+import { View, StyleSheet, ViewStyle } from 'react-native'
+
+interface KivCardProps extends PropsWithChildren {
+  style?: ViewStyle
+}
+
+export default function KivCard({ children, style }: KivCardProps) {
+  return (
+    <View style={[styles.card, style]}>
+      {children}
+    </View>
+  )
+}
 
 const styles = StyleSheet.create({
-  container: {
-    justifyContent: 'center',
-    backgroundColor: '#BBDEFB',
-    width: '100%',
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
     padding: 16,
-    borderRadius: 4,
+    marginVertical: 8,
+    // Modern shadow (iOS)
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-    elevation: 1
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    // Modern shadow (Android)
+    elevation: 3,
+    width: '100%',
   }
 })
-
-export default function KivCard({ children }: PropsWithChildren) {
-  return <View style={styles.container}>{children}</View>
-}
