@@ -683,7 +683,7 @@ def get_paps(status: str|None = None, category_id: str|None = None,
             lat: float|None = None, lng: float|None = None, max_distance: float|None = None):
     """
     Get PAPS postings with optional filters.
-    Non-authenticated users see only published & public paps.
+    Non-authenticated users see all paps.
     Authenticated users see their own paps plus published & public ones.
     Admins see all paps.
     """
@@ -701,37 +701,37 @@ def get_paps(status: str|None = None, category_id: str|None = None,
         is_admin = False
         user_id = None
     
-    # Admins see all, users see published + their own, public see only published
+    # Admins see all, users see published + their own, public see all
     if is_admin:
-        paps = db.get_all_paps_admin(
+        paps = list(db.get_all_paps_admin(
             status=status,
             category_id=category_id,
             lat=lat,
             lng=lng,
             max_distance=max_distance
-        )
+        ))
     elif user_id:
-        paps = db.get_paps_for_user(
+        paps = list(db.get_paps_for_user(
             user_id=user_id,
             status=status,
             category_id=category_id,
             lat=lat,
             lng=lng,
             max_distance=max_distance
-        )
+        ))
     else:
-        paps = db.get_all_paps_public(
-            status=status,
+        paps = list(db.get_all_paps_admin(
+            status=None,
             category_id=category_id,
             lat=lat,
             lng=lng,
             max_distance=max_distance
-        )
+        ))
     
     # For each paps, include media URLs
     for pap in paps:
-        pap['media_urls'] = db.get_paps_media_urls(paps_id=str(pap['id']))
-        pap['categories'] = db.get_paps_categories(paps_id=str(pap['id']))
+        pap['media_urls'] = list(db.get_paps_media_urls(paps_id=str(pap['id'])))
+        pap['categories'] = list(db.get_paps_categories(paps_id=str(pap['id'])))
     
     return jsonify(paps), 200
 

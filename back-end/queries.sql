@@ -72,9 +72,7 @@ VALUES (
     :password,
     (SELECT id FROM ROLE WHERE name = CASE WHEN :is_admin THEN 'admin' ELSE 'worker' END)
 )
-ON CONFLICT (username) DO NOTHING
-ON CONFLICT (email) DO NOTHING
-ON CONFLICT (phone) DO NOTHING
+ON CONFLICT DO NOTHING
 RETURNING id::text as aid;
 
 -- name: set_user_password(user_id, password)!
@@ -243,6 +241,7 @@ WHERE user_id = :user_id::uuid AND category_id = :category_id::uuid;
 -- ============================================
 
 -- Get all paps for admin (see everything)
+-- FIXED: Added casts for ALL optional parameters
 -- name: get_all_paps_admin(status, category_id, lat, lng, max_distance)
 SELECT DISTINCT
     p.id::text,
@@ -273,8 +272,8 @@ SELECT DISTINCT
     up.display_name as owner_name,
     up.avatar_url as owner_avatar,
     CASE 
-        WHEN :lat IS NOT NULL AND :lng IS NOT NULL AND p.location_lat IS NOT NULL AND p.location_lng IS NOT NULL
-        THEN calculate_distance(:lat, :lng, p.location_lat, p.location_lng)
+        WHEN :lat::numeric IS NOT NULL AND :lng::numeric IS NOT NULL AND p.location_lat IS NOT NULL AND p.location_lng IS NOT NULL
+        THEN calculate_distance(:lat::numeric, :lng::numeric, p.location_lat, p.location_lng)
         ELSE NULL
     END as distance_km
 FROM PAPS p
@@ -282,19 +281,20 @@ JOIN "USER" u ON p.owner_id = u.id
 LEFT JOIN USER_PROFILE up ON u.id = up.user_id
 LEFT JOIN PAPS_CATEGORY pc ON p.id = pc.paps_id
 WHERE p.deleted_at IS NULL
-  AND (:status IS NULL OR p.status = :status)
-  AND (:category_id IS NULL OR pc.category_id = :category_id::uuid)
+  AND (:status::text IS NULL OR p.status = :status::text)
+  AND (:category_id::uuid IS NULL OR pc.category_id = :category_id::uuid)
   AND (
-    :max_distance IS NULL 
-    OR :lat IS NULL 
-    OR :lng IS NULL 
+    :max_distance::numeric IS NULL 
+    OR :lat::numeric IS NULL 
+    OR :lng::numeric IS NULL 
     OR p.location_lat IS NULL 
     OR p.location_lng IS NULL
-    OR calculate_distance(:lat, :lng, p.location_lat, p.location_lng) <= :max_distance
+    OR calculate_distance(:lat::numeric, :lng::numeric, p.location_lat, p.location_lng) <= :max_distance::numeric
   )
 ORDER BY p.created_at DESC;
 
 -- Get paps for authenticated user (their own + published public)
+-- FIXED: Added casts for ALL optional parameters
 -- name: get_paps_for_user(user_id, status, category_id, lat, lng, max_distance)
 SELECT DISTINCT
     p.id::text,
@@ -325,8 +325,8 @@ SELECT DISTINCT
     up.display_name as owner_name,
     up.avatar_url as owner_avatar,
     CASE 
-        WHEN :lat IS NOT NULL AND :lng IS NOT NULL AND p.location_lat IS NOT NULL AND p.location_lng IS NOT NULL
-        THEN calculate_distance(:lat, :lng, p.location_lat, p.location_lng)
+        WHEN :lat::numeric IS NOT NULL AND :lng::numeric IS NOT NULL AND p.location_lat IS NOT NULL AND p.location_lng IS NOT NULL
+        THEN calculate_distance(:lat::numeric, :lng::numeric, p.location_lat, p.location_lng)
         ELSE NULL
     END as distance_km
 FROM PAPS p
@@ -338,19 +338,20 @@ WHERE p.deleted_at IS NULL
     p.owner_id = :user_id::uuid
     OR (p.status = 'published' AND p.is_public = TRUE AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP))
   )
-  AND (:status IS NULL OR p.status = :status)
-  AND (:category_id IS NULL OR pc.category_id = :category_id::uuid)
+  AND (:status::text IS NULL OR p.status = :status::text)
+  AND (:category_id::uuid IS NULL OR pc.category_id = :category_id::uuid)
   AND (
-    :max_distance IS NULL 
-    OR :lat IS NULL 
-    OR :lng IS NULL 
+    :max_distance::numeric IS NULL 
+    OR :lat::numeric IS NULL 
+    OR :lng::numeric IS NULL 
     OR p.location_lat IS NULL 
     OR p.location_lng IS NULL
-    OR calculate_distance(:lat, :lng, p.location_lat, p.location_lng) <= :max_distance
+    OR calculate_distance(:lat::numeric, :lng::numeric, p.location_lat, p.location_lng) <= :max_distance::numeric
   )
 ORDER BY p.created_at DESC;
 
 -- Get public paps only (for non-authenticated users)
+
 -- name: get_all_paps_public(status, category_id, lat, lng, max_distance)
 SELECT DISTINCT
     p.id::text,
@@ -381,8 +382,8 @@ SELECT DISTINCT
     up.display_name as owner_name,
     up.avatar_url as owner_avatar,
     CASE 
-        WHEN :lat IS NOT NULL AND :lng IS NOT NULL AND p.location_lat IS NOT NULL AND p.location_lng IS NOT NULL
-        THEN calculate_distance(:lat, :lng, p.location_lat, p.location_lng)
+        WHEN :lat::numeric IS NOT NULL AND :lng::numeric IS NOT NULL AND p.location_lat IS NOT NULL AND p.location_lng IS NOT NULL
+        THEN calculate_distance(:lat::numeric, :lng::numeric, p.location_lat, p.location_lng)
         ELSE NULL
     END as distance_km
 FROM PAPS p
@@ -393,15 +394,15 @@ WHERE p.status = 'published'
   AND p.is_public = TRUE
   AND p.deleted_at IS NULL
   AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP)
-  AND (:status IS NULL OR p.status = :status)
-  AND (:category_id IS NULL OR pc.category_id = :category_id::uuid)
+  AND (:status::text IS NULL OR p.status = :status::text)
+  AND (:category_id::uuid IS NULL OR pc.category_id = :category_id::uuid)
   AND (
-    :max_distance IS NULL 
-    OR :lat IS NULL 
-    OR :lng IS NULL 
+    :max_distance::numeric IS NULL 
+    OR :lat::numeric IS NULL 
+    OR :lng::numeric IS NULL 
     OR p.location_lat IS NULL 
     OR p.location_lng IS NULL
-    OR calculate_distance(:lat, :lng, p.location_lat, p.location_lng) <= :max_distance
+    OR calculate_distance(:lat::numeric, :lng::numeric, p.location_lat, p.location_lng) <= :max_distance::numeric
   )
 ORDER BY p.created_at DESC;
 
