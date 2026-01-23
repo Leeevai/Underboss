@@ -12,13 +12,13 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 1. UTILITY FUNCTION: UPDATED_AT AUTOMATION
 -- Defined first so it is available for all tables
 CREATE
-OR REPLACE FUNCTION update_updated_at_column() RETURNS TRIGGER AS $ $ BEGIN NEW.updated_at = CURRENT_TIMESTAMP;
+OR REPLACE FUNCTION update_updated_at_column() RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = CURRENT_TIMESTAMP;
 
 RETURN NEW;
 
 END;
 
-$ $ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- 2. UTILITY FUNCTION: DISTANCE CALCULATION
 -- Haversine formula
@@ -28,7 +28,7 @@ OR REPLACE FUNCTION calculate_distance(
     lng1 DECIMAL,
     lat2 DECIMAL,
     lng2 DECIMAL
-) RETURNS DECIMAL AS $ $ DECLARE r DECIMAL := 6371;
+) RETURNS DECIMAL AS $$ DECLARE r DECIMAL := 6371;
 
 -- Earth radius in kilometers
 dlat DECIMAL;
@@ -51,7 +51,7 @@ RETURN r * c;
 
 END;
 
-$ $ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql IMMUTABLE;
 
 -- ============================================
 -- 1. USER MANAGEMENT
@@ -109,7 +109,7 @@ CREATE TABLE USER_PROFILE (
     preferred_language VARCHAR(10) DEFAULT 'en',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    8 CONSTRAINT USER_PROFILE_user_fk FOREIGN KEY (user_id) REFERENCES "USER"(id) ON DELETE CASCADE,
+    CONSTRAINT USER_PROFILE_user_fk FOREIGN KEY (user_id) REFERENCES "USER"(id) ON DELETE CASCADE,
     CONSTRAINT USER_PROFILE_lat_check CHECK (
         location_lat IS NULL
         OR (
@@ -142,7 +142,7 @@ CREATE TABLE USER_PROFILE (
     CONSTRAINT USER_PROFILE_display_name_check CHECK (
         display_name IS NULL
         OR LENGTH(TRIM(display_name)) >= 2
-    ) CONSTRAINT USER_PROFILE_language_check CHECK (
+    ), CONSTRAINT USER_PROFILE_language_check CHECK (
         preferred_language IN (
             'en',
             'fr',
@@ -151,8 +151,7 @@ CREATE TABLE USER_PROFILE (
             'it',
             'pt',
             'ru',
-            'ar',
-
+            'ar'
         )
     )
 );
@@ -163,7 +162,7 @@ UPDATE
 
 -- Automatically create a profile for new users
 CREATE
-OR REPLACE FUNCTION create_user_profile() RETURNS TRIGGER AS $ $ BEGIN
+OR REPLACE FUNCTION create_user_profile() RETURNS TRIGGER AS $$ BEGIN
 INSERT INTO
     USER_PROFILE (user_id, avatar_url, created_at, updated_at)
 VALUES
@@ -178,7 +177,7 @@ RETURN NEW;
 
 END;
 
-$ $ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER create_profile_on_user_insert
 AFTER
@@ -1230,7 +1229,7 @@ COMMENT ON FUNCTION calculate_distance IS 'Calculate distance in kilometers betw
 -- ============================================
 -- DATABASE SETUP COMPLETE
 -- ============================================
-DO $ $ DECLARE table_count INTEGER;
+DO $$ DECLARE table_count INTEGER;
 
 BEGIN
 SELECT
@@ -1256,4 +1255,4 @@ RAISE NOTICE 'Indexes: optimized for performance';
 
 RAISE NOTICE 'Constraints: enforced for data integrity';
 
-END $ $;
+END $$;

@@ -5,8 +5,7 @@
 -- First, ensure ROLE table has the required roles
 INSERT INTO ROLE (name, description) VALUES
     ('admin', 'Administrator role'),
-    ('worker', 'Worker role'),
-    ('poster', 'Poster role'),
+    ('user' , 'User role'),
     ('moderator', 'Moderator role')
 ON CONFLICT (name) DO NOTHING;
 
@@ -23,17 +22,31 @@ CREATE TEMP TABLE temp_users (
 -- Import from CSV file (format: username,email,password_hash,is_admin)
 \copy temp_users(username, email, password_hash, is_admin) from './test_users.csv' (format csv)
 
--- Insert into USER table with role lookup
-INSERT INTO "USER" (username, email, password_hash, role_id, is_active, is_verified)
-SELECT 
+INSERT INTO "USER" (
+    id,
     username,
-    email, 
-    password_hash, 
-    (SELECT id FROM ROLE WHERE name = CASE WHEN is_admin THEN 'admin' ELSE 'worker' END),
-    TRUE,
-    TRUE
-FROM temp_users
-ON CONFLICT (email) DO NOTHING;
+    email,
+    password_hash,
+    role_id,
+    is_active,
+    is_verified
+  )
+SELECT -- Generates a valid UUID format from the row number
+  lpad(row_number() OVER ()::text, 32, '0')::uuid,
+  username,
+  email,
+  password_hash,
+  (
+    SELECT id
+    FROM ROLE
+    WHERE name = CASE
+        WHEN is_admin THEN 'admin'
+        ELSE 'user'
+      END
+  ),
+  TRUE,
+  TRUE
+FROM temp_users ON CONFLICT (email) DO NOTHING;
 
 -- Clean up
 DROP TABLE temp_users;
@@ -161,21 +174,21 @@ ON CONFLICT DO NOTHING;
 -- CATEGORIES
 -- ============================================
 
-INSERT INTO CATEGORY (name, slug, description, parent_id, icon_url, display_order, is_active, created_at) VALUES
-    ('Technology', 'technology', 'Tech-related jobs and services', NULL, 'icon/tech.png', 1, TRUE, NOW()),
-    ('Web Development', 'web-development', 'Website and web application development', (SELECT id FROM CATEGORY WHERE slug = 'technology'), 'icon/web-dev.png', 1, TRUE, NOW()),
-    ('Mobile Development', 'mobile-development', 'Mobile app development for iOS and Android', (SELECT id FROM CATEGORY WHERE slug = 'technology'), 'icon/mobile-dev.png', 2, TRUE, NOW()),
-    ('Design', 'design', 'Graphic design and creative services', NULL, 'icon/design.png', 2, TRUE, NOW()),
-    ('Graphic Design', 'graphic-design', 'Visual design and branding', (SELECT id FROM CATEGORY WHERE slug = 'design'), 'icon/graphic-design.png', 1, TRUE, NOW()),
-    ('UI/UX Design', 'ui-ux-design', 'User interface and experience design', (SELECT id FROM CATEGORY WHERE slug = 'design'), 'icon/ui-ux.png', 2, TRUE, NOW()),
-    ('Writing', 'writing', 'Content creation and copywriting', NULL, 'icon/writing.png', 3, TRUE, NOW()),
-    ('Content Writing', 'content-writing', 'Blog posts, articles, and web content', (SELECT id FROM CATEGORY WHERE slug = 'writing'), 'icon/content-writing.png', 1, TRUE, NOW()),
-    ('Marketing', 'marketing', 'Marketing and advertising services', NULL, 'icon/marketing.png', 4, TRUE, NOW()),
-    ('SEO', 'seo', 'Search engine optimization services', (SELECT id FROM CATEGORY WHERE slug = 'marketing'), 'icon/seo.png', 1, TRUE, NOW()),
-    ('Social Media', 'social-media', 'Social media management and marketing', (SELECT id FROM CATEGORY WHERE slug = 'marketing'), 'icon/social-media.png', 2, TRUE, NOW()),
-    ('Audio/Video', 'audio-video', 'Audio production and video editing', NULL, 'icon/audio-video.png', 5, TRUE, NOW()),
-    ('Video Editing', 'video-editing', 'Video production and editing services', (SELECT id FROM CATEGORY WHERE slug = 'audio-video'), 'icon/video-editing.png', 1, TRUE, NOW()),
-    ('Audio Production', 'audio-production', 'Podcast editing and music production', (SELECT id FROM CATEGORY WHERE slug = 'audio-video'), 'icon/audio-prod.png', 2, TRUE, NOW())
+INSERT INTO CATEGORY (name, slug, description, parent_id, icon_url, is_active, created_at) VALUES
+    ('Technology', 'technology', 'Tech-related jobs and services', NULL, 'icon/tech.png',  TRUE, NOW()),
+    ('Web Development', 'web-development', 'Website and web application development', (SELECT id FROM CATEGORY WHERE slug = 'technology'), 'icon/web-dev.png', TRUE, NOW()),
+    ('Mobile Development', 'mobile-development', 'Mobile app development for iOS and Android', (SELECT id FROM CATEGORY WHERE slug = 'technology'), 'icon/mobile-dev.png',TRUE, NOW()),
+    ('Design', 'design', 'Graphic design and creative services', NULL, 'icon/design.png', TRUE, NOW()),
+    ('Graphic Design', 'graphic-design', 'Visual design and branding', (SELECT id FROM CATEGORY WHERE slug = 'design'), 'icon/graphic-design.png',  TRUE, NOW()),
+    ('UI/UX Design', 'ui-ux-design', 'User interface and experience design', (SELECT id FROM CATEGORY WHERE slug = 'design'), 'icon/ui-ux.png',  TRUE, NOW()),
+    ('Writing', 'writing', 'Content creation and copywriting', NULL, 'icon/writing.png',  TRUE, NOW()),
+    ('Content Writing', 'content-writing', 'Blog posts, articles, and web content', (SELECT id FROM CATEGORY WHERE slug = 'writing'), 'icon/content-writing.png',  TRUE, NOW()),
+    ('Marketing', 'marketing', 'Marketing and advertising services', NULL, 'icon/marketing.png',  TRUE, NOW()),
+    ('SEO', 'seo', 'Search engine optimization services', (SELECT id FROM CATEGORY WHERE slug = 'marketing'), 'icon/seo.png',  TRUE, NOW()),
+    ('Social Media', 'social-media', 'Social media management and marketing', (SELECT id FROM CATEGORY WHERE slug = 'marketing'), 'icon/social-media.png',  TRUE, NOW()),
+    ('Audio/Video', 'audio-video', 'Audio production and video editing', NULL, 'icon/audio-video.png',  TRUE, NOW()),
+    ('Video Editing', 'video-editing', 'Video production and editing services', (SELECT id FROM CATEGORY WHERE slug = 'audio-video'), 'icon/video-editing.png',  TRUE, NOW()),
+    ('Audio Production', 'audio-production', 'Podcast editing and music production', (SELECT id FROM CATEGORY WHERE slug = 'audio-video'), 'icon/audio-prod.png',  TRUE, NOW())
 ON CONFLICT (slug) DO NOTHING;
 
 -- ============================================
