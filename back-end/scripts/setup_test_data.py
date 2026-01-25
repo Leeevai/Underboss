@@ -74,6 +74,22 @@ TEST_USERS = [
             {"category_slug": "graphic-design", "proficiency": 5},
             {"category_slug": "ui-ux-design", "proficiency": 4},
             {"category_slug": "social-media", "proficiency": 4}
+        ],
+        "experiences": [
+            {
+                "title": "Lead UI/UX Designer",
+                "company": "Design Studio Paris",
+                "start_date": "2020-06-01",
+                "description": "Leading design team for mobile and web projects",
+                "is_current": True
+            },
+            {
+                "title": "Junior Designer",
+                "company": "Creative Agency",
+                "start_date": "2018-01-15",
+                "end_date": "2020-05-31",
+                "description": "Worked on branding and digital design projects"
+            }
         ]
     },
     {
@@ -97,6 +113,15 @@ TEST_USERS = [
         "interests": [
             {"category_slug": "seo", "proficiency": 5},
             {"category_slug": "video-editing", "proficiency": 3}
+        ],
+        "experiences": [
+            {
+                "title": "SEO Manager",
+                "company": "Digital Marketing Co",
+                "start_date": "2019-03-01",
+                "description": "Managing SEO strategies for enterprise clients",
+                "is_current": True
+            }
         ]
     },
     {
@@ -120,6 +145,22 @@ TEST_USERS = [
         "interests": [
             {"category_slug": "content-writing", "proficiency": 4},
             {"category_slug": "audio-production", "proficiency": 4}
+        ],
+        "experiences": [
+            {
+                "title": "Senior Content Writer",
+                "company": "Media House Barcelona",
+                "start_date": "2021-09-01",
+                "description": "Creating content for digital platforms and podcasts",
+                "is_current": True
+            },
+            {
+                "title": "Audio Producer",
+                "company": "Podcast Studio",
+                "start_date": "2019-01-01",
+                "end_date": "2021-08-31",
+                "description": "Produced and edited podcasts for various clients"
+            }
         ]
     },
     {
@@ -366,6 +407,26 @@ def main():
                                     print(f"    ✓ Set avatar_url: {avatar_url}")
                                 else:
                                     print(f"    ⚠ Source image not found: {src_pic}")
+                        
+                        # Insert experiences if user has any
+                        if "experiences" in user_data:
+                            for exp in user_data["experiences"]:
+                                try:
+                                    cur.execute("""
+                                        INSERT INTO USER_EXPERIENCE (user_id, title, company, description, start_date, end_date, is_current)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                    """, (
+                                        static_uuid,
+                                        exp.get("title"),
+                                        exp.get("company"),
+                                        exp.get("description"),
+                                        exp.get("start_date"),
+                                        exp.get("end_date"),
+                                        exp.get("is_current", False)
+                                    ))
+                                    print(f"    ✓ Added experience: {exp.get('title')}")
+                                except Exception as e:
+                                    print(f"    ⚠ Could not add experience: {e}")
                         
                     except Exception as e:
                         print(f"    ✗ Error creating user {username}: {e}")

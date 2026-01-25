@@ -1,5 +1,5 @@
 #
-# Experience Routes - /profile/experiences, /users/<user_id>/experiences
+# Experience Routes - /profile/experiences, /user/<username>/experiences
 #
 
 import uuid
@@ -18,22 +18,15 @@ def register_routes(app):
         experiences = db.get_user_experiences(user_id=auth.aid)
         return fsa.jsonify(experiences), 200
 
-    # GET /users/<user_id>/experiences - get any user's experiences (public)
-    @app.get("/users/<user_id>/experiences", authz="OPEN", authn="none")
-    def get_user_experiences(user_id: str):
-        """Get any user's work experiences (public endpoint)."""
-        # If user_id looks like a username (not a UUID), resolve it
-        try:
-            uuid.UUID(user_id)
-            actual_user_id = user_id
-        except ValueError:
-            # Might be a username - try to resolve it
-            user_data = db.get_user_by_username(username=user_id)
-            if not user_data:
-                return {"error": f"User not found: {user_id}"}, 404
-            actual_user_id = user_data.get("id")
-
-        experiences = db.get_user_experiences(user_id=actual_user_id)
+    # GET /user/<username>/experiences - get a user's experiences (requires auth)
+    @app.get("/user/<username>/experiences", authz="AUTH")
+    def get_user_experiences(username: str):
+        """Get a user's work experiences by username."""
+        user_data = db.get_user_by_username(username=username)
+        if not user_data:
+            return {"error": f"User not found: {username}"}, 404
+        
+        experiences = db.get_user_experiences(user_id=user_data.get("id"))
         return fsa.jsonify(experiences), 200
 
     # POST /profile/experiences - add experience to current user

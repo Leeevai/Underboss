@@ -46,8 +46,8 @@ def register_routes(app):
 
         return fsa.jsonify(profile), 200
 
-    # Route registered below - public profile viewing
-    @app.get("/user/<username>/profile", authz="OPEN", authn="none")
+    # GET /user/<username>/profile - view another user's profile (requires auth)
+    @app.get("/user/<username>/profile", authz="AUTH")
     def get_user_profile_public_route(username: str):
         return get_user_profile_public(username)
 

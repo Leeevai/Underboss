@@ -1,5 +1,5 @@
 #
-# Interest Routes - /profile/interests, /users/<user_id>/interests
+# Interest Routes - /profile/interests, /user/<username>/interests
 #
 
 import uuid
@@ -17,22 +17,15 @@ def register_routes(app):
         interests = db.get_user_interests(user_id=auth.aid)
         return fsa.jsonify(interests), 200
 
-    # GET /users/<user_id>/interests - get any user's interests (public)
-    @app.get("/users/<user_id>/interests", authz="OPEN", authn="none")
-    def get_user_interests(user_id: str):
-        """Get any user's interests (public endpoint)."""
-        # If user_id looks like a username (not a UUID), resolve it
-        try:
-            uuid.UUID(user_id)
-            actual_user_id = user_id
-        except ValueError:
-            # Might be a username - try to resolve it
-            user_data = db.get_user_by_username(username=user_id)
-            if not user_data:
-                return {"error": f"User not found: {user_id}"}, 404
-            actual_user_id = user_data.get("id")
-
-        interests = db.get_user_interests(user_id=actual_user_id)
+    # GET /user/<username>/interests - get a user's interests (requires auth)
+    @app.get("/user/<username>/interests", authz="AUTH")
+    def get_user_interests(username: str):
+        """Get a user's interests by username."""
+        user_data = db.get_user_by_username(username=username)
+        if not user_data:
+            return {"error": f"User not found: {username}"}, 404
+        
+        interests = db.get_user_interests(user_id=user_data.get("id"))
         return fsa.jsonify(interests), 200
 
     # POST /profile/interests - add interest to current user
