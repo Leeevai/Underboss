@@ -6,6 +6,8 @@ This document explains how to set up test data for the Underboss backend.
 
 Test data is now managed through a Python script (`setup_test_data.py`) rather than being hardcoded in SQL files. This makes test data more maintainable and flexible.
 
+Each test user is assigned a **static UUID** for consistency across test runs and easier testing.
+
 ## Quick Start
 
 After creating the database with `make underboss.db`, run:
@@ -14,16 +16,16 @@ After creating the database with `make underboss.db`, run:
 make setup-test-data
 ```
 
-This will create the following test users:
+This will create the following test users with static UUIDs:
 
-| Username  | Password     | Role  | Email                 |
-|-----------|--------------|-------|-----------------------|
-| hassan    | Password123  | USER  | hassan@example.com    |
-| clement   | Password123  | USER  | clement@example.com   |
-| osman     | Password123  | USER  | osman@example.com     |
-| enrique   | Password123  | USER  | enrique@example.com   |
-| calvin    | Hobbes123    | ADMIN | calvin@example.com    |
-| hobbes    | Calvin123    | USER  | hobbes@example.com    |
+| Username  | UUID                                   | Password     | Role  | Email                 |
+|-----------|----------------------------------------|--------------|-------|-----------------------|
+| calvin    | `00000000-0000-0000-0000-000000000001` | Hobbes123    | ADMIN | calvin@example.com    |
+| hobbes    | `00000000-0000-0000-0000-000000000002` | Calvin123    | USER  | hobbes@example.com    |
+| hassan    | `00000000-0000-0000-0000-000000000003` | Password123  | USER  | hassan@example.com    |
+| clement   | `00000000-0000-0000-0000-000000000004` | Password123  | USER  | clement@example.com   |
+| osman     | `00000000-0000-0000-0000-000000000005` | Password123  | USER  | osman@example.com     |
+| enrique   | `00000000-0000-0000-0000-000000000006` | Password123  | USER  | enrique@example.com   |
 
 ## Manual Setup
 
