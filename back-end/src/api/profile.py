@@ -46,18 +46,10 @@ def register_routes(app):
 
         return fsa.jsonify(profile), 200
 
-    app.add_url_rule(
-        "/users/<username>/profile",
-        endpoint="user_profile_by_username",
-        view_func=get_user_profile_public,
-        authz="AUTH",
-    )
-    app.add_url_rule(
-        "/user/<username>/profile",
-        endpoint="user_profile_by_username_alias",
-        view_func=get_user_profile_public,
-        authz="AUTH",
-    )
+    # Route registered below
+    @app.get("/users/<username>/profile", authz="AUTH")
+    def get_user_profile_public_route(username: str):
+        return get_user_profile_public(username)
 
     # PUT /user/profile - update current user's profile
     @app.put("/user/profile", authz="AUTH")
