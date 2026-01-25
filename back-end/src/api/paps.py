@@ -14,7 +14,7 @@ def register_routes(app):
     import model
 
     # GET /paps - list all accessible paps
-    @app.get("/paps", authz="OPEN", authn="none")
+    @app.get("/paps", authz="AUTH")
     def get_paps(status: str|None = None, category_id: str|None = None,
                 lat: float|None = None, lng: float|None = None, max_distance: float|None = None):
         """
@@ -145,7 +145,7 @@ def register_routes(app):
         return fsa.jsonify({"paps_id": pid}), 201
 
     # GET /paps/<paps_id> - get specific paps with full details
-    @app.get("/paps/<paps_id>", authz="OPEN", authn="none")
+    @app.get("/paps/<paps_id>", authz="AUTH")
     def get_paps_id(paps_id: str):
         """Get a specific PAP by ID with full details including owner, media, and categories."""
         try:
@@ -343,7 +343,7 @@ def register_routes(app):
         return {"uploaded_media": uploaded_media, "count": len(uploaded_media)}, 201
 
     # GET /paps/media/<filename> - serve paps media
-    @app.get("/paps/media/<filename>", authz="OPEN", authn="none")
+    @app.get("/paps/media/<filename>", authz="AUTH")
     def get_paps_media_file(filename: str):
         """Serve a PAPS media file."""
         from flask import send_file

@@ -29,8 +29,6 @@ def register_routes(app):
         return fsa.jsonify(profile), 200
 
     # GET /users/<username>/profile - get any user's profile by username
-    @app.get("/users/<username>/profile", authz="AUTH")
-    @app.get("/user/<username>/profile", authz="AUTH")
     def get_user_profile_public(username: str):
         """Get any user's profile by username."""
         user = db.get_user_by_username(username=username)
@@ -47,6 +45,19 @@ def register_routes(app):
             profile["avatar_url"] = config.get("default_avatar_url", "/media/user/profile/avatar.png")
 
         return fsa.jsonify(profile), 200
+
+    app.add_url_rule(
+        "/users/<username>/profile",
+        endpoint="user_profile_by_username",
+        view_func=get_user_profile_public,
+        authz="AUTH",
+    )
+    app.add_url_rule(
+        "/user/<username>/profile",
+        endpoint="user_profile_by_username_alias",
+        view_func=get_user_profile_public,
+        authz="AUTH",
+    )
 
     # PUT /user/profile - update current user's profile
     @app.put("/user/profile", authz="AUTH")

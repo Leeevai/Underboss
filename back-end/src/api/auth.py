@@ -10,7 +10,7 @@ def register_routes(app):
     from database import db
 
     # POST /register (login, email, phone, password)
-    @app.post("/register", authz="OPEN", authn="none")
+    @app.post("/register", authz="AUTH")
     def post_register(username: str, email: str, password: str, phone: str|None = None):
         """Register a new user with username, email, optional phone, and password."""
         # Validate username

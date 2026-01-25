@@ -18,7 +18,7 @@ def register_routes(app):
         return fsa.jsonify(interests), 200
 
     # GET /users/<user_id>/interests - get any user's interests
-    @app.get("/users/<user_id>/interests", authz="OPEN", authn="none")
+    @app.get("/users/<user_id>/interests", authz="AUTH")
     def get_user_interests(user_id: str):
         """Get any user's interests."""
         try:

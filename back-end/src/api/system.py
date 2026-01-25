@@ -23,7 +23,7 @@ def register_routes(app):
 
     # under testing, quick route to check whether the server is running
     if app.config.get("APP_TESTING", False):
-        @app.get("/uptime", authz="OPEN", authn="none")
+        @app.get("/uptime", authz="AUTH")
         def get_uptime():
             running = db.now() - started
             return {"app": app.name, "up": running}, 200

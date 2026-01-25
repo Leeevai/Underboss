@@ -12,14 +12,14 @@ def register_routes(app):
     import model
 
     # GET /categories - list all active categories
-    @app.get("/categories", authz="OPEN", authn="none")
+    @app.get("/categories", authz="AUTH")
     def get_categories():
         """Get all active categories."""
         categories = db.get_all_categories()
         return fsa.jsonify(categories), 200
 
     # GET /categories/<category_id> - get specific category
-    @app.get("/categories/<category_id>", authz="OPEN", authn="none")
+    @app.get("/categories/<category_id>", authz="AUTH")
     def get_category(category_id: str):
         """Get a specific category by ID."""
         try:

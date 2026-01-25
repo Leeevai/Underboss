@@ -19,7 +19,7 @@ def register_routes(app):
         return fsa.jsonify(experiences), 200
 
     # GET /users/<user_id>/experiences - get any user's experiences
-    @app.get("/users/<user_id>/experiences", authz="OPEN", authn="none")
+    @app.get("/users/<user_id>/experiences", authz="AUTH")
     def get_user_experiences(user_id: str):
         """Get any user's work experiences."""
         try:
