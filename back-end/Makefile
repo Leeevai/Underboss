@@ -115,6 +115,11 @@ setup-test-data: $(PYTHON_RUN) .postgres src/version.py
 	export PYTHONPATH="$$PWD/src:$$PYTHONPATH"
 	export APP_NAME=$(APP) APP_SECRET=$(APP.secret) APP_CONFIG=config/local.conf
 	$(PYTHON) scripts/setup_test_data.py
+	###
+	#
+	# Setting up category icons
+	#
+	$(PYTHON) scripts/setup_category_icons.py
 
 # Legacy target - kept for backwards compatibility but not used
 .PHONY: paps-media
@@ -180,6 +185,7 @@ clean: full-stop
 	[ -f app.log ] && echo -e "# REMOVING app.log! RESTART \"make log\"…" >> app.log
 	$(RM) app.log app.pid $(F.gen) $(F.csv) .coverage *~
 	$(RM) -r __pycache__ src/__pycache__ tests/__pycache__ scripts/__pycache__ .pytype .pytest_cache .postgres htmlcov .ruff_cache
+	$(RM) -r media/category/*
 	psql $(DB) < /dev/null >& /dev/null && dropdb $(DB) || exit 0
 
 .PHONY: clean.dev

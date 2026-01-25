@@ -480,8 +480,8 @@ def test_category_icons(api):
     }, login=ADMIN)
     cat_id = res.json["category_id"]
 
-    # Initially no icon - should return 404
-    api.get(f"/categories/{cat_id}/icon", 404, login=ADMIN)
+    # Initially no custom icon - should return 200 with default icon
+    res = api.get(f"/categories/{cat_id}/icon", 200, login=ADMIN)
 
     # Upload icon using requests directly (test framework doesn't support file uploads well)
     # This is a valid 1x1 transparent PNG
@@ -531,8 +531,8 @@ def test_category_icons(api):
     api.delete(f"/categories/{cat_id}/icon", 403, login=NOADM)
     api.delete(f"/categories/{cat_id}/icon", 204, login=ADMIN)
 
-    # Verify icon is gone
-    api.get(f"/categories/{cat_id}/icon", 404, login=ADMIN)
+    # Verify custom icon is gone - should now return default icon (200)
+    api.get(f"/categories/{cat_id}/icon", 200, login=ADMIN)
 
     # Verify icon_url is cleared in database
     res = api.get(f"/categories/{cat_id}", 200, login=ADMIN)

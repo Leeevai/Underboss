@@ -226,8 +226,10 @@ def register_routes(app):
             filename = secure_filename(icon_url.split("/")[-1])
             filepath = CATEGORY_IMG_DIR / filename
         else:
-            # Return default icon
-            filepath = CATEGORY_IMG_DIR / "default.png"
+            # Return default icon (try default.svg first, then default.png)
+            filepath = CATEGORY_IMG_DIR / "default.svg"
+            if not filepath.exists():
+                filepath = CATEGORY_IMG_DIR / "default.png"
 
         if not filepath.exists():
             return {"error": "Icon not found"}, 404
