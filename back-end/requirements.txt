@@ -7,3 +7,4 @@ anodb >= 15.0
 psycopg
 # data structures
 pydantic
+Pillow

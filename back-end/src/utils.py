@@ -48,7 +48,7 @@ def allowed_file(filename: str, app=None) -> bool:
 
 def get_avatar_url(login: str) -> str:
     """Generate avatar URL path for a user based on login."""
-    return f"/profile/avatar/{login}"
+    return f"/user/profile/avatar/{login}"
 
 def get_max_file_size(app=None) -> int:
     """Get maximum file size in bytes."""

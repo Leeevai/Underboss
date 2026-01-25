@@ -1,10 +1,11 @@
 #
-# Profile Routes - /profile, /profile/avatar, /users/<user_id>/profile, /media/user/profile/<filename>
+# Profile Routes - /user/profile, /user/profile/avatar, /users/<username>/profile, /media/user/profile/<filename>
 #
 
-import uuid
 import datetime
+from io import BytesIO
 import FlaskSimpleAuth as fsa
+from PIL import Image
 
 def register_routes(app):
     """Register profile routes with the Flask app."""
@@ -12,8 +13,8 @@ def register_routes(app):
     from utils import ensure_media_dir, PROFILE_IMG_DIR
     import model
 
-    # GET /profile - get current user's profile
-    @app.get("/profile", authz="AUTH")
+    # GET /user/profile - get current user's profile
+    @app.get("/user/profile", authz="AUTH")
     def get_profile(auth: model.CurrentAuth):
         """Get the current authenticated user's profile."""
         profile = db.get_user_profile(user_id=auth.aid)
@@ -27,16 +28,15 @@ def register_routes(app):
 
         return fsa.jsonify(profile), 200
 
-    # GET /users/<user_id>/profile - get any user's public profile
-    @app.get("/users/<user_id>/profile", authz="OPEN", authn="none")
-    def get_user_profile_public(user_id: str):
-        """Get any user's public profile by user ID."""
-        try:
-            uuid.UUID(user_id)
-        except ValueError:
-            return {"error": "Invalid user ID format"}, 400
+    # GET /users/<username>/profile - get any user's public profile
+    @app.get("/users/<username>/profile", authz="OPEN")
+    def get_user_profile_public(username: str):
+        """Get any user's public profile by username."""
+        user = db.get_user_by_username(username=username)
+        if not user:
+            return {"error": "User not found"}, 404
 
-        profile = db.get_user_profile(user_id=user_id)
+        profile = db.get_user_profile(user_id=user["id"])
         if not profile:
             return {"error": "Profile not found"}, 404
 
@@ -47,8 +47,8 @@ def register_routes(app):
 
         return fsa.jsonify(profile), 200
 
-    # PUT /profile - update current user's profile
-    @app.put("/profile", authz="AUTH")
+    # PUT /user/profile - update current user's profile
+    @app.put("/user/profile", authz="AUTH")
     def put_profile(auth: model.CurrentAuth, first_name: str|None = None, last_name: str|None = None,
                     display_name: str|None = None, bio: str|None = None, date_of_birth: str|None = None,
                     location_address: str|None = None, location_lat: float|None = None,
@@ -85,13 +85,14 @@ def register_routes(app):
         )
         return "", 204
 
-    # POST /profile/avatar - upload user profile avatar image
-    @app.route("/profile/avatar", methods=["POST"], authz="AUTH")
+    # POST /user/profile/avatar - upload user profile avatar image
+    @app.route("/user/profile/avatar", methods=["POST"], authz="AUTH")
     def post_avatar(auth: model.CurrentAuth):
         """Upload a profile avatar image. Accepts binary image data or multipart form data."""
         from flask import request
         from werkzeug.utils import secure_filename
         ensure_media_dir()
+        config = app.config.get("MEDIA_CONFIG", {})
 
         # Try to get image from multipart files first, then from raw body
         image_data = None
@@ -117,15 +118,41 @@ def register_routes(app):
             fsa.checkVal(False, "No image data provided", 400)
 
         # Validate file type - only images for avatars
-        avatar_extensions = {"jpg", "jpeg", "png", "gif", "webp"}
+        avatar_extensions = config.get("avatar_extensions", {"jpg", "jpeg", "png", "gif", "webp"})
         ext = filename.rsplit(".", 1)[1].lower() if "." in filename else "png"
         fsa.checkVal(ext in avatar_extensions,
                     f"File type not allowed for avatars. Allowed: {', '.join(avatar_extensions)}", 415)
 
-        # Check file size
-        file_size = len(image_data)
-        max_size = 5 * 1024 * 1024  # 5MB for avatars
-        fsa.checkVal(file_size <= max_size,
+        # Compress before storage
+        max_size = config.get("max_avatar_size", 5 * 1024 * 1024)
+        def compress_avatar(data: bytes, ext: str) -> bytes:
+            try:
+                img = Image.open(BytesIO(data))
+            except Exception:
+                fsa.checkVal(False, "Invalid image data", 400)
+            img_format = {
+                "jpg": "JPEG",
+                "jpeg": "JPEG",
+                "png": "PNG",
+                "gif": "GIF",
+                "webp": "WEBP",
+            }.get(ext, "PNG")
+            if img_format == "JPEG" and img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            if img_format in ("JPEG", "WEBP"):
+                quality = int(config.get("avatar_quality", 85))
+                for q in [quality, 80, 75, 70, 60, 50]:
+                    out = BytesIO()
+                    img.save(out, format=img_format, quality=q, optimize=True)
+                    if out.tell() <= max_size:
+                        return out.getvalue()
+                return out.getvalue()
+            out = BytesIO()
+            img.save(out, format=img_format, optimize=True)
+            return out.getvalue()
+
+        image_data = compress_avatar(image_data, ext)
+        fsa.checkVal(len(image_data) <= max_size,
                     f"File too large (max {max_size / 1024 / 1024}MB)", 413)
 
         # Save file with user_id as name to ensure uniqueness
@@ -152,8 +179,40 @@ def register_routes(app):
 
         return {"avatar_url": avatar_url}, 201
 
+    # DELETE /user/profile/avatar - remove current user's avatar
+    @app.delete("/user/profile/avatar", authz="AUTH")
+    def delete_avatar(auth: model.CurrentAuth):
+        """Delete the current user's avatar and reset to default."""
+        from werkzeug.utils import secure_filename
+        config = app.config.get("MEDIA_CONFIG", {})
+        default_avatar_url = config.get("default_avatar_url", "/media/user/profile/avatar.png")
+
+        profile = db.get_user_profile(user_id=auth.aid)
+        if profile and profile.get("avatar_url") and profile["avatar_url"] != default_avatar_url:
+            filename = profile["avatar_url"].split("/")[-1]
+            filepath = PROFILE_IMG_DIR / secure_filename(filename)
+            if filepath.exists():
+                filepath.unlink()
+
+        db.update_user_profile(
+            user_id=auth.aid,
+            first_name=None,
+            last_name=None,
+            display_name=None,
+            bio=None,
+            avatar_url=None,
+            date_of_birth=None,
+            location_address=None,
+            location_lat=None,
+            location_lng=None,
+            timezone=None,
+            preferred_language=None
+        )
+
+        return "", 204
+
     # GET /media/user/profile/<filename> - serve avatar image
-    @app.get("/media/user/profile/<filename>", authz="OPEN", authn="none")
+    @app.get("/media/user/profile/<filename>", authz="OPEN")
     def get_avatar_image(filename: str):
         """Serve a user's profile avatar image."""
         from flask import send_file
