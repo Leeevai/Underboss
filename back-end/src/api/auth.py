@@ -42,10 +42,14 @@ def register_routes(app):
     @app.get("/login", authz="AUTH", authn="basic")
     def get_login(user: fsa.CurrentUser):
         """Login with Basic auth (username/email/phone + password) to get token."""
-        return fsa.jsonify({"token": app.create_token(user)}), 200
+        login = db.get_user_login(login=user)
+        fsa.checkVal(login and login.get("login"), "Invalid login", 401)
+        return fsa.jsonify({"token": app.create_token(login["login"])}), 200
 
     # POST /login (login, password)
     @app.post("/login", authz="AUTH", authn="param")
     def post_login(user: fsa.CurrentUser):
         """Login with form params (login + password) to get token."""
-        return fsa.jsonify({"token": app.create_token(user)}), 201
+        login = db.get_user_login(login=user)
+        fsa.checkVal(login and login.get("login"), "Invalid login", 401)
+        return fsa.jsonify({"token": app.create_token(login["login"])}), 201
