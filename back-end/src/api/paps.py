@@ -317,7 +317,8 @@ def register_routes(app):
     # DELETE /paps/<paps_id> - soft delete paps
     @app.delete("/paps/<paps_id>", authz="AUTH")
     def delete_paps_id(paps_id: str, auth: model.CurrentAuth):
-        """Soft delete a PAP. Only owner or admin can delete."""
+        """Soft delete a PAP. Only owner or admin can delete.
+        Also deletes all associated media files from disk."""
         try:
             uuid.UUID(paps_id)
         except ValueError:
@@ -329,6 +330,15 @@ def register_routes(app):
 
         if not auth.is_admin and str(paps['owner_id']) != auth.aid:
             return {"error": "Not authorized to delete this PAP"}, 403
+
+        # Delete all media files from disk before deleting the paps
+        media_list = list(db.get_paps_media(paps_id=paps_id))
+        for media in media_list:
+            ext = media.get('file_extension', 'png')
+            filename = f"{media['media_id']}.{ext}"
+            filepath = POST_MEDIA_DIR / filename
+            if filepath.exists():
+                filepath.unlink()
 
         db.delete_paps(id=paps_id)
         return "", 204
