@@ -1,5 +1,5 @@
 #
-# Profile Routes - /user/profile, /user/profile/avatar, /users/<username>/profile, /media/user/profile/<filename>
+# Profile Routes - /user/profile, /user/profile/avatar, /users/<username>/profile, /user/<username>/profile/avatar
 #
 
 import datetime
@@ -177,7 +177,6 @@ def register_routes(app):
             timezone=None,
             preferred_language=None
         )
-
         return {"avatar_url": avatar_url}, 201
 
     # DELETE /user/profile/avatar - remove current user's avatar
@@ -187,7 +186,6 @@ def register_routes(app):
         from werkzeug.utils import secure_filename
         config = app.config.get("MEDIA_CONFIG", {})
         default_avatar_url = config.get("default_avatar_url", "/media/user/profile/avatar.png")
-
         profile = db.get_user_profile(user_id=auth.aid)
         if profile and profile.get("avatar_url") and profile["avatar_url"] != default_avatar_url:
             filename = profile["avatar_url"].split("/")[-1]
@@ -212,24 +210,40 @@ def register_routes(app):
 
         return "", 204
 
-    # GET /media/user/profile/<filename> - serve avatar image
-    @app.get("/media/user/profile/<filename>", authz="AUTH")
-    def get_avatar_image(filename: str):
-        """Serve a user's profile avatar image."""
+    # GET /user/profile/avatar - serve current user's avatar image
+    @app.get("/user/profile/avatar", authz="AUTH")
+    def get_my_avatar(auth: model.CurrentAuth):
+        """Serve current user's profile avatar image."""
+        return _serve_avatar_for_user_id(auth.aid)
+
+    # GET /user/<username>/profile/avatar - serve another user's avatar image
+    @app.get("/user/<username>/profile/avatar", authz="AUTH")
+    def get_user_avatar(username: str):
+        """Serve another user's profile avatar image by username."""
+        user = db.get_user_by_username(username=username)
+        if not user:
+            return {"error": "User not found"}, 404
+        return _serve_avatar_for_user_id(user["id"])
+
+    def _serve_avatar_for_user_id(user_id: str):
+        """Serve avatar image for a given user id without exposing filename."""
         from flask import send_file
         from werkzeug.utils import secure_filename
 
-        filename = secure_filename(filename)
-        filepath = PROFILE_IMG_DIR / filename
+        profile = db.get_user_profile(user_id=user_id)
+        if not profile:
+            return {"error": "Profile not found"}, 404
+
+        avatar_url = profile.get("avatar_url")
+        if avatar_url:
+            filename = secure_filename(avatar_url.split("/")[-1])
+            filepath = PROFILE_IMG_DIR / filename
+        else:
+            filepath = PROFILE_IMG_DIR / "avatar.png"
 
         if not filepath.exists():
-            # Return default avatar
-            default_avatar = PROFILE_IMG_DIR / "avatar.png"
-            if default_avatar.exists():
-                return send_file(default_avatar, mimetype="image/png")
             return {"error": "Avatar not found"}, 404
 
-        # Determine mimetype
         ext = filepath.suffix[1:]
         if ext in {"jpg", "jpeg"}:
             mimetype = "image/jpeg"
