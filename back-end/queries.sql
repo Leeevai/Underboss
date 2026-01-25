@@ -69,9 +69,10 @@ SELECT id::text, username, email, phone FROM "USER" WHERE id=:user_id::uuid;
 SELECT id::text, username, email, phone FROM "USER" WHERE username=:username;
 
 -- Insert with username, email, and optional phone
--- name: insert_user(username, email, phone, password, is_admin)$
-INSERT INTO "USER"(username, email, phone, password_hash, role_id)
+-- name: insert_user(username, email, phone, password, is_admin, user_id)$
+INSERT INTO "USER"(id, username, email, phone, password_hash, role_id)
 VALUES (
+    COALESCE(:user_id::uuid, gen_random_uuid()),
     :username,
     :email,
     :phone,

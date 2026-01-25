@@ -7,7 +7,17 @@ Run this after create.sql to populate test data.
 
 import os
 import sys
-from database import db
+import anodb  # type: ignore
+
+# Static UUIDs for test users (for consistency across test runs)
+USER_UUIDS = {
+    "calvin": "00000000-0000-0000-0000-000000000001",
+    "hobbes": "00000000-0000-0000-0000-000000000002",
+    "hassan": "00000000-0000-0000-0000-000000000003",
+    "clement": "00000000-0000-0000-0000-000000000004",
+    "osman": "00000000-0000-0000-0000-000000000005",
+    "enrique": "00000000-0000-0000-0000-000000000006"
+}
 
 # Test user configurations
 TEST_USERS = [
@@ -172,7 +182,7 @@ def setup_categories(app):
     return
 
 
-def setup_users(app):
+def setup_users(app, db):
     """Create test users with profiles and data."""
     print("Setting up test users...")
     
@@ -184,14 +194,20 @@ def setup_users(app):
             # Hash password
             password_hash = app.hash_password(user_data["password"])
             
-            # Insert user
+            # Get static UUID for this user
+            static_uuid = USER_UUIDS.get(username)
+            
+            # Insert user with static UUID
+            print(f"    → Inserting with UUID: {static_uuid}")
             user_id = db.insert_user(
+                user_id=static_uuid,  # Use static UUID
                 username=username,
                 email=user_data["email"],
                 phone=user_data.get("phone"),
                 password=password_hash,
                 is_admin=user_data.get("is_admin", False)
             )
+            print(f"    → insert_user returned: {user_id} (type: {type(user_id)})")
             
             if not user_id:
                 print(f"    ⚠ User {username} may already exist, skipping...")
@@ -258,14 +274,74 @@ def main():
         print("Make sure APP_NAME, APP_CONFIG, and APP_SECRET environment variables are set")
         sys.exit(1)
     
+    # Use psycopg directly for better control
+    import psycopg
+    
     print("=" * 60)
     print("TEST DATA SETUP")
     print("=" * 60)
     print()
     
-    # Setup data
-    setup_categories(app)
-    setup_users(app)
+    # Get database config
+    db_config = app.config["DATABASE"]
+    conn_str = db_config.get('conn', 'dbname=underboss')
+    
+    try:
+        with psycopg.connect(conn_str) as conn:
+            with conn.cursor() as cur:
+                print("Setting up test users...")
+                
+                for user_data in TEST_USERS:
+                    username = user_data["username"]
+                    print(f"\n  Creating user: {username}")
+                    
+                    try:
+                        # Hash password
+                        password_hash = app.hash_password(user_data["password"])
+                        
+                        # Get static UUID for this user
+                        static_uuid = USER_UUIDS.get(username)
+                        
+                        # Get role ID
+                        role_name = 'admin' if user_data.get("is_admin") else 'user'
+                        cur.execute("SELECT id FROM ROLE WHERE name = %s", (role_name,))
+                        role_id = cur.fetchone()[0]
+                        
+                        # Insert user with static UUID
+                        print(f"    → Inserting with UUID: {static_uuid}")
+                        cur.execute("""
+                            INSERT INTO "USER"(id, username, email, phone, password_hash, role_id)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (email) DO NOTHING
+                            RETURNING id
+                        """, (static_uuid, username, user_data["email"], user_data.get("phone"), password_hash, role_id))
+                        
+                        result = cur.fetchone()
+                        if not result:
+                            print(f"    ⚠ User {username} may already exist (conflict), skipping...")
+                            continue
+                        
+                        user_id = str(result[0])
+                        print(f"    ✓ User created with ID: {user_id}")
+                        
+                    except Exception as e:
+                        print(f"    ✗ Error creating user {username}: {e}")
+                        continue
+                
+                # Commit the transaction
+                conn.commit()
+                print("\n✓ All changes committed to database")
+                
+                # Verify
+                cur.execute("SELECT COUNT(*) FROM \"USER\"")
+                count = cur.fetchone()[0]
+                print(f"  Total users in database: {count}")
+        
+    except Exception as e:
+        print(f"\n✗ Error during setup: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
     
     print()
     print("=" * 60)
