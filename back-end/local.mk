@@ -13,8 +13,8 @@ LOOP    = 8
 # tcp port for local tests
 PORT    = 5000
 # extract first admin and noadm accounts
-ADMIN = calvin:hobbes
-NOADM = hobbes:calvin
+ADMIN = calvin:Hobbes123
+NOADM = hobbes:Calvin123
 #
 # DEPLOYMENT
 #
