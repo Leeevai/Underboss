@@ -343,6 +343,15 @@ def main():
                                 if os.path.exists(src_pic):
                                     shutil.copy(src_pic, dest_pic)
                                     print(f"    ✓ Copied profile picture: {avatar_filename} → {user_id}.jpg")
+                                    
+                                    # Update avatar_url in user_profile table
+                                    avatar_url = f"media/user/profile/{user_id}.jpg"
+                                    cur.execute("""
+                                        UPDATE user_profile 
+                                        SET avatar_url = %s 
+                                        WHERE user_id = %s
+                                    """, (avatar_url, static_uuid))
+                                    print(f"    ✓ Set avatar_url: {avatar_url}")
                                 else:
                                     print(f"    ⚠ Source image not found: {src_pic}")
                         
