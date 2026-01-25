@@ -215,6 +215,141 @@ SAMPLE_CATEGORIES = [
     {"name": "Design", "slug": "design", "description": "General design work"}
 ]
 
+# Static UUIDs for test PAPS (for consistency)
+PAPS_UUIDS = {
+    "paps1": "00000000-0000-0000-1000-000000000001",
+    "paps2": "00000000-0000-0000-1000-000000000002",
+    "paps3": "00000000-0000-0000-1000-000000000003",
+    "paps4": "00000000-0000-0000-1000-000000000004",
+    "paps5": "00000000-0000-0000-1000-000000000005",
+    "paps6": "00000000-0000-0000-1000-000000000006",
+}
+
+# Sample PAPS (job postings) for testing
+TEST_PAPS = [
+    {
+        "id": "paps1",
+        "owner_username": "clement",
+        "title": "Need a Web Developer for E-commerce Site",
+        "subtitle": "React + Node.js Project",
+        "description": "Looking for an experienced web developer to build a modern e-commerce platform. Must have experience with React, Node.js, and PostgreSQL. The project involves building a responsive storefront, admin dashboard, and payment integration.",
+        "status": "published",
+        "location_address": "Paris, France",
+        "location_lat": 48.8566,
+        "location_lng": 2.3522,
+        "payment_amount": 2500.00,
+        "payment_currency": "EUR",
+        "payment_type": "fixed",
+        "max_applicants": 10,
+        "max_assignees": 1,
+        "is_public": True,
+        "categories": [
+            {"slug": "web-development", "is_primary": True},
+            {"slug": "technology", "is_primary": False}
+        ]
+    },
+    {
+        "id": "paps2",
+        "owner_username": "clement",
+        "title": "Mobile App UI/UX Design",
+        "subtitle": "Fitness Tracking App Redesign",
+        "description": "Need a talented UI/UX designer to redesign our fitness tracking mobile app. Looking for someone who understands modern design trends and can create an intuitive user experience. Deliverables include wireframes, mockups, and a design system.",
+        "status": "published",
+        "location_address": "Remote",
+        "payment_amount": 1800.00,
+        "payment_currency": "EUR",
+        "payment_type": "fixed",
+        "max_applicants": 15,
+        "max_assignees": 1,
+        "is_public": True,
+        "categories": [
+            {"slug": "ui-ux-design", "is_primary": True},
+            {"slug": "graphic-design", "is_primary": False},
+            {"slug": "mobile-development", "is_primary": False}
+        ]
+    },
+    {
+        "id": "paps3",
+        "owner_username": "osman",
+        "title": "SEO Optimization for Tourism Website",
+        "subtitle": "Boost Search Rankings",
+        "description": "Looking for an SEO expert to optimize our tourism website. The site promotes vacation packages in Turkey. Need keyword research, on-page optimization, and a content strategy to improve organic rankings.",
+        "status": "published",
+        "location_address": "Istanbul, Turkey",
+        "location_lat": 41.0082,
+        "location_lng": 28.9784,
+        "payment_amount": 75.00,
+        "payment_currency": "USD",
+        "payment_type": "hourly",
+        "max_applicants": 5,
+        "max_assignees": 1,
+        "is_public": True,
+        "categories": [
+            {"slug": "seo", "is_primary": True}
+        ]
+    },
+    {
+        "id": "paps4",
+        "owner_username": "enrique",
+        "title": "Podcast Editing and Production",
+        "subtitle": "Weekly Business Podcast",
+        "description": "Need an audio producer to edit and produce a weekly business podcast. Episodes are typically 45-60 minutes. Tasks include noise reduction, EQ, adding intro/outro music, and mastering for various platforms.",
+        "status": "published",
+        "location_address": "Barcelona, Spain",
+        "location_lat": 41.3851,
+        "location_lng": 2.1734,
+        "payment_amount": 150.00,
+        "payment_currency": "EUR",
+        "payment_type": "fixed",
+        "max_applicants": 8,
+        "max_assignees": 2,
+        "is_public": True,
+        "categories": [
+            {"slug": "audio-production", "is_primary": True}
+        ]
+    },
+    {
+        "id": "paps5",
+        "owner_username": "hassan",
+        "title": "Social Media Content Creation",
+        "subtitle": "Tech Startup Brand Building",
+        "description": "Looking for a creative social media manager to create engaging content for our tech startup. Need someone who can create graphics, write captions, and maintain a consistent brand voice across Instagram, Twitter, and LinkedIn.",
+        "status": "published",
+        "location_address": "New York, NY",
+        "location_lat": 40.7128,
+        "location_lng": -74.0060,
+        "payment_amount": 500.00,
+        "payment_currency": "USD",
+        "payment_type": "fixed",
+        "max_applicants": 20,
+        "max_assignees": 1,
+        "is_public": True,
+        "categories": [
+            {"slug": "social-media", "is_primary": True},
+            {"slug": "graphic-design", "is_primary": False},
+            {"slug": "content-writing", "is_primary": False}
+        ]
+    },
+    {
+        "id": "paps6",
+        "owner_username": "calvin",
+        "title": "Video Editing for YouTube Channel",
+        "subtitle": "Tech Review Videos",
+        "description": "Admin-posted job for testing. Need a video editor for tech review content. Experience with Adobe Premiere or DaVinci Resolve required. Must be able to add motion graphics, transitions, and color grade footage.",
+        "status": "draft",  # Draft status for admin testing
+        "location_address": "Remote",
+        "payment_amount": 200.00,
+        "payment_currency": "USD",
+        "payment_type": "fixed",
+        "max_applicants": 10,
+        "max_assignees": 1,
+        "is_public": False,  # Not public for admin testing
+        "categories": [
+            {"slug": "video-editing", "is_primary": True}
+        ]
+    }
+]
+
 
 def setup_categories(app):
     """Create sample categories."""
@@ -347,7 +482,12 @@ def main():
                         # Get role ID
                         role_name = 'admin' if user_data.get("is_admin") else 'user'
                         cur.execute("SELECT id FROM ROLE WHERE name = %s", (role_name,))
-                        role_id = cur.fetchone()[0]
+                        role_result = cur.fetchone()
+                        if not role_result:
+                            print(f"    ✗ Role '{role_name}' not found in database!")
+                            print(f"      Make sure data.sql has been run to create roles")
+                            continue
+                        role_id = role_result[0]
                         
                         # Insert user with static UUID
                         print(f"    → Inserting with UUID: {static_uuid}")
@@ -428,8 +568,114 @@ def main():
                                 except Exception as e:
                                     print(f"    ⚠ Could not add experience: {e}")
                         
+                        # Insert user interests if any
+                        if "interests" in user_data:
+                            for interest in user_data["interests"]:
+                                try:
+                                    # Get category ID by slug
+                                    cur.execute("SELECT id FROM CATEGORY WHERE slug = %s", (interest.get("category_slug"),))
+                                    cat_result = cur.fetchone()
+                                    if cat_result:
+                                        category_id = cat_result[0]
+                                        cur.execute("""
+                                            INSERT INTO USER_INTEREST (user_id, category_id, proficiency_level)
+                                            VALUES (%s, %s, %s)
+                                            ON CONFLICT (user_id, category_id) DO UPDATE SET proficiency_level = %s
+                                        """, (
+                                            static_uuid,
+                                            category_id,
+                                            interest.get("proficiency", 3),
+                                            interest.get("proficiency", 3)
+                                        ))
+                                        print(f"    ✓ Added interest: {interest.get('category_slug')} (proficiency: {interest.get('proficiency', 3)})")
+                                    else:
+                                        print(f"    ⚠ Category not found: {interest.get('category_slug')}")
+                                except Exception as e:
+                                    print(f"    ⚠ Could not add interest: {e}")
+                        
                     except Exception as e:
                         print(f"    ✗ Error creating user {username}: {e}")
+                        continue
+                
+                # Now create test PAPS
+                print("\n" + "-" * 40)
+                print("Setting up test PAPS...")
+                
+                # Import datetime for PAPS
+                from datetime import datetime, timedelta
+                
+                for paps_data in TEST_PAPS:
+                    paps_key = paps_data["id"]
+                    paps_uuid = PAPS_UUIDS.get(paps_key)
+                    owner_username = paps_data["owner_username"]
+                    owner_uuid = USER_UUIDS.get(owner_username)
+                    
+                    if not owner_uuid:
+                        print(f"  ⚠ Owner not found: {owner_username}")
+                        continue
+                    
+                    print(f"\n  Creating PAPS: {paps_data['title'][:40]}...")
+                    
+                    try:
+                        # For published status, we need publish_at and start_datetime
+                        status = paps_data.get("status", "draft")
+                        publish_at = None
+                        start_datetime = None
+                        
+                        if status == "published":
+                            publish_at = datetime.now()
+                            start_datetime = datetime.now() + timedelta(days=7)  # Start in a week
+                        
+                        cur.execute("""
+                            INSERT INTO PAPS (id, owner_id, title, subtitle, description, status,
+                                location_address, location_lat, location_lng,
+                                payment_amount, payment_currency, payment_type,
+                                max_applicants, max_assignees, is_public, publish_at, start_datetime)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (id) DO NOTHING
+                            RETURNING id
+                        """, (
+                            paps_uuid,
+                            owner_uuid,
+                            paps_data["title"],
+                            paps_data.get("subtitle"),
+                            paps_data["description"],
+                            status,
+                            paps_data.get("location_address"),
+                            paps_data.get("location_lat"),
+                            paps_data.get("location_lng"),
+                            paps_data["payment_amount"],
+                            paps_data.get("payment_currency", "USD"),
+                            paps_data.get("payment_type", "fixed"),
+                            paps_data.get("max_applicants", 10),
+                            paps_data.get("max_assignees", 1),
+                            paps_data.get("is_public", True),
+                            publish_at,
+                            start_datetime
+                        ))
+                        
+                        result = cur.fetchone()
+                        if result:
+                            print(f"    ✓ PAPS created: {paps_uuid}")
+                            
+                            # Add categories for this PAPS
+                            if "categories" in paps_data:
+                                for cat in paps_data["categories"]:
+                                    cur.execute("SELECT id FROM CATEGORY WHERE slug = %s", (cat["slug"],))
+                                    cat_result = cur.fetchone()
+                                    if cat_result:
+                                        category_id = cat_result[0]
+                                        cur.execute("""
+                                            INSERT INTO PAPS_CATEGORY (paps_id, category_id, is_primary)
+                                            VALUES (%s, %s, %s)
+                                            ON CONFLICT (paps_id, category_id) DO NOTHING
+                                        """, (paps_uuid, category_id, cat.get("is_primary", False)))
+                                        print(f"    ✓ Added category: {cat['slug']}")
+                        else:
+                            print(f"    ⚠ PAPS may already exist: {paps_uuid}")
+                            
+                    except Exception as e:
+                        print(f"    ✗ Error creating PAPS: {e}")
                         continue
                 
                 # Commit the transaction

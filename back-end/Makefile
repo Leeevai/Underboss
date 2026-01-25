@@ -526,7 +526,7 @@ check.pytest.external: $(PYTHON_DEV) $(PYTHON_RUN) $(F.src)
 	$(MAKE) stop
 
 .PHONY: check.pytest.internal
-check.pytest.internal: $(PYTHON_DEV) $(PYTHON_RUN) $(F.src) .postgres
+check.pytest.internal: $(PYTHON_DEV) $(PYTHON_RUN) $(F.src) .postgres setup-test-data
 	###
 	#
 	# Checking INTERNAL tests
@@ -534,9 +534,9 @@ check.pytest.internal: $(PYTHON_DEV) $(PYTHON_RUN) $(F.src) .postgres
 	source $(PYTHON_VENV)/bin/activate
 	# internal tests: CONFIG but **no** URL
 	export PYTHONPATH="$$PWD/src:$$PYTHONPATH"
-	export APP_NAME=$(APP) APP_CONFIG=\"local.conf\" APP_SECRET=$(APP.secret)
-	export FLASK_TESTER_USER=\"login\" FLASK_TESTER_PASS=\"password\" FLASK_TESTER_AUTH=\"$(APP_AUTH)\"
-	export FLASK_TESTER_APP=\"app\"
+	export APP_NAME=$(APP) APP_CONFIG="config/local.conf" APP_SECRET=$(APP.secret)
+	export FLASK_TESTER_USER="login" FLASK_TESTER_PASS="password" FLASK_TESTER_AUTH="$(APP_AUTH)"
+	export FLASK_TESTER_APP="app"
 	$(PYTEST) $(PYTOPT) tests/test.py
 
 .PHONY: check.local.pytest

@@ -521,16 +521,190 @@ UPDATE PAPS SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id::uuid;
 -- PAPS MEDIA QUERIES
 -- ============================================
 
--- name: get_paps_media_urls(paps_id)
-SELECT media_url, display_order, media_type
+-- Get all media for a paps (returns media_id and extension for URL construction)
+-- name: get_paps_media(paps_id)
+SELECT 
+    id::text as media_id,
+    media_type,
+    file_extension,
+    file_size_bytes,
+    mime_type,
+    display_order
 FROM PAPS_MEDIA
 WHERE paps_id = :paps_id::uuid
 ORDER BY display_order;
 
--- name: insert_paps_media(paps_id, media_type, media_url, file_size_bytes, mime_type, display_order)$
-INSERT INTO PAPS_MEDIA (paps_id, media_type, media_url, file_size_bytes, mime_type, display_order)
-VALUES (:paps_id::uuid, :media_type, :media_url, :file_size_bytes, :mime_type, :display_order)
+-- Get single media by ID
+-- name: get_paps_media_by_id(media_id)^
+SELECT 
+    pm.id::text as media_id,
+    pm.paps_id::text,
+    pm.media_type,
+    pm.file_extension,
+    pm.file_size_bytes,
+    pm.mime_type,
+    pm.display_order
+FROM PAPS_MEDIA pm
+WHERE pm.id = :media_id::uuid;
+
+-- Insert paps media (returns the generated media_id)
+-- name: insert_paps_media(paps_id, media_type, file_extension, file_size_bytes, mime_type, display_order)$
+INSERT INTO PAPS_MEDIA (paps_id, media_type, file_extension, file_size_bytes, mime_type, display_order)
+VALUES (:paps_id::uuid, :media_type, :file_extension, :file_size_bytes, :mime_type, :display_order)
 RETURNING id::text;
+
+-- Delete paps media
+-- name: delete_paps_media(media_id)!
+DELETE FROM PAPS_MEDIA WHERE id = :media_id::uuid;
+
+-- Get next display order for paps media
+-- name: get_next_paps_media_order(paps_id)$
+SELECT COALESCE(MAX(display_order), 0) + 1 FROM PAPS_MEDIA WHERE paps_id = :paps_id::uuid;
+
+-- ============================================
+-- INTEREST-BASED PAPS MATCHING QUERY
+-- For non-admin users: Returns paps ranked by matching user interests
+-- ============================================
+
+-- Get paps matched by user interests (for non-admin users)
+-- Returns paps where user has interests in the paps categories, ranked by proficiency sum
+-- name: get_paps_by_interest_match(user_id, status, category_id, lat, lng, max_distance, min_price, max_price, payment_type, owner_username, title_search, limit_count)
+SELECT DISTINCT
+    p.id::text,
+    p.owner_id::text,
+    p.title,
+    p.subtitle,
+    p.description,
+    p.status,
+    p.location_address,
+    p.location_lat,
+    p.location_lng,
+    p.location_timezone,
+    p.start_datetime,
+    p.end_datetime,
+    p.estimated_duration_minutes,
+    p.payment_amount,
+    p.payment_currency,
+    p.payment_type,
+    p.max_applicants,
+    p.max_assignees,
+    p.is_public,
+    p.publish_at,
+    p.expires_at,
+    p.created_at,
+    p.updated_at,
+    u.username as owner_username,
+    u.email as owner_email,
+    up.display_name as owner_name,
+    up.avatar_url as owner_avatar,
+    CASE 
+        WHEN :lat::numeric IS NOT NULL AND :lng::numeric IS NOT NULL AND p.location_lat IS NOT NULL AND p.location_lng IS NOT NULL
+        THEN calculate_distance(:lat::numeric, :lng::numeric, p.location_lat, p.location_lng)
+        ELSE NULL
+    END as distance_km,
+    COALESCE(interest_match.match_score, 0) as interest_match_score
+FROM PAPS p
+JOIN "USER" u ON p.owner_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+LEFT JOIN PAPS_CATEGORY pc ON p.id = pc.paps_id
+LEFT JOIN (
+    -- Calculate match score: sum of user's proficiency levels for matching categories
+    SELECT pc2.paps_id, SUM(ui.proficiency_level) as match_score
+    FROM PAPS_CATEGORY pc2
+    JOIN USER_INTEREST ui ON pc2.category_id = ui.category_id
+    WHERE ui.user_id = :user_id::uuid
+    GROUP BY pc2.paps_id
+) interest_match ON p.id = interest_match.paps_id
+WHERE p.deleted_at IS NULL
+  AND (
+    p.owner_id = :user_id::uuid
+    OR (p.status = 'published' AND p.is_public = TRUE AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP))
+  )
+  AND (:status::text IS NULL OR p.status = :status::text)
+  AND (:category_id::uuid IS NULL OR pc.category_id = :category_id::uuid)
+  AND (:min_price::numeric IS NULL OR p.payment_amount >= :min_price::numeric)
+  AND (:max_price::numeric IS NULL OR p.payment_amount <= :max_price::numeric)
+  AND (:payment_type::text IS NULL OR p.payment_type = :payment_type::text)
+  AND (:owner_username::text IS NULL OR u.username ILIKE '%%' || :owner_username::text || '%%')
+  AND (:title_search::text IS NULL OR p.title ILIKE '%%' || :title_search::text || '%%' OR p.description ILIKE '%%' || :title_search::text || '%%')
+  AND (
+    :max_distance::numeric IS NULL 
+    OR :lat::numeric IS NULL 
+    OR :lng::numeric IS NULL 
+    OR p.location_lat IS NULL 
+    OR p.location_lng IS NULL
+    OR calculate_distance(:lat::numeric, :lng::numeric, p.location_lat, p.location_lng) <= :max_distance::numeric
+  )
+ORDER BY interest_match_score DESC NULLS LAST, p.created_at DESC
+LIMIT :limit_count::integer;
+
+-- Get all paps for admin with enhanced filters
+-- name: get_paps_admin_search(status, category_id, lat, lng, max_distance, min_price, max_price, payment_type, owner_username, title_search)
+SELECT DISTINCT
+    p.id::text,
+    p.owner_id::text,
+    p.title,
+    p.subtitle,
+    p.description,
+    p.status,
+    p.location_address,
+    p.location_lat,
+    p.location_lng,
+    p.location_timezone,
+    p.start_datetime,
+    p.end_datetime,
+    p.estimated_duration_minutes,
+    p.payment_amount,
+    p.payment_currency,
+    p.payment_type,
+    p.max_applicants,
+    p.max_assignees,
+    p.is_public,
+    p.publish_at,
+    p.expires_at,
+    p.created_at,
+    p.updated_at,
+    u.username as owner_username,
+    u.email as owner_email,
+    up.display_name as owner_name,
+    up.avatar_url as owner_avatar,
+    CASE 
+        WHEN :lat::numeric IS NOT NULL AND :lng::numeric IS NOT NULL AND p.location_lat IS NOT NULL AND p.location_lng IS NOT NULL
+        THEN calculate_distance(:lat::numeric, :lng::numeric, p.location_lat, p.location_lng)
+        ELSE NULL
+    END as distance_km
+FROM PAPS p
+JOIN "USER" u ON p.owner_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+LEFT JOIN PAPS_CATEGORY pc ON p.id = pc.paps_id
+WHERE p.deleted_at IS NULL
+  AND (:status::text IS NULL OR p.status = :status::text)
+  AND (:category_id::uuid IS NULL OR pc.category_id = :category_id::uuid)
+  AND (:min_price::numeric IS NULL OR p.payment_amount >= :min_price::numeric)
+  AND (:max_price::numeric IS NULL OR p.payment_amount <= :max_price::numeric)
+  AND (:payment_type::text IS NULL OR p.payment_type = :payment_type::text)
+  AND (:owner_username::text IS NULL OR u.username ILIKE '%%' || :owner_username::text || '%%')
+  AND (:title_search::text IS NULL OR p.title ILIKE '%%' || :title_search::text || '%%' OR p.description ILIKE '%%' || :title_search::text || '%%')
+  AND (
+    :max_distance::numeric IS NULL 
+    OR :lat::numeric IS NULL 
+    OR :lng::numeric IS NULL 
+    OR p.location_lat IS NULL 
+    OR p.location_lng IS NULL
+    OR calculate_distance(:lat::numeric, :lng::numeric, p.location_lat, p.location_lng) <= :max_distance::numeric
+  )
+ORDER BY p.created_at DESC;
+
+-- Insert paps category
+-- name: insert_paps_category(paps_id, category_id, is_primary)!
+INSERT INTO PAPS_CATEGORY (paps_id, category_id, is_primary)
+VALUES (:paps_id::uuid, :category_id::uuid, :is_primary)
+ON CONFLICT (paps_id, category_id) DO UPDATE SET is_primary = :is_primary;
+
+-- Delete paps category
+-- name: delete_paps_category(paps_id, category_id)!
+DELETE FROM PAPS_CATEGORY
+WHERE paps_id = :paps_id::uuid AND category_id = :category_id::uuid;
 
 -- ============================================
 -- PAPS CATEGORY QUERIES

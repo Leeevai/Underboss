@@ -354,8 +354,7 @@ CREATE TABLE PAPS_MEDIA (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     paps_id UUID NOT NULL,
     media_type VARCHAR(20) NOT NULL,
-    media_url VARCHAR(500) NOT NULL,
-    thumbnail_url VARCHAR(500),
+    file_extension VARCHAR(10) NOT NULL,
     file_size_bytes INTEGER,
     mime_type VARCHAR(100),
     display_order INTEGER NOT NULL DEFAULT 0,
@@ -366,7 +365,7 @@ CREATE TABLE PAPS_MEDIA (
         file_size_bytes IS NULL
         OR file_size_bytes > 0
     ),
-    CONSTRAINT PAPS_MEDIA_url_check CHECK (media_url ~* '^https?://')
+    CONSTRAINT PAPS_MEDIA_extension_check CHECK (file_extension ~ '^[a-z0-9]+$')
 );
 
 CREATE TABLE PAPS_CATEGORY (
