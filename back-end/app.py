@@ -151,16 +151,12 @@ def get_myself(auth: model.CurrentAuth):
 @app.post("/register", authz="OPEN", authn="none")
 def post_register(username: str, email: str, password: str, phone: str|None = None):
     """Register a new user with username, email, optional phone, and password."""
-    import re
-    
     # Validate username
     fsa.checkVal(len(username.strip()) >= 3 and len(username.strip()) <= 50, 
                 "Username must be 3-50 characters", 400)
-    fsa.checkVal(not username[0].isdigit(), "Username cannot start with a number", 400)
-    fsa.checkVal(username.replace('_', '').replace('-', '').isalnum(), 
-                "Username can only contain letters, numbers, underscores, and hyphens", 400)
     
     # Validate email format
+    import re
     email_regex = r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
     fsa.checkVal(re.match(email_regex, email), "Invalid email format", 400)
     
@@ -197,16 +193,29 @@ def post_login(user: fsa.CurrentUser):
 # ============================================
 
 # GET /profile - get current user's profile
-# GET /users/<username>/profile - get any user's public profile
-@app.get("/users/<username>/profile", authz="OPEN", authn="none")
-def get_user_profile_public(username: str):
-    """Get any user's public profile by username."""
-    # Look up user by username
-    user = db.get_user_by_username(username=username)
-    if not user:
-        return {"error": "User not found"}, 404
+@app.get("/profile", authz="AUTH")
+def get_profile(auth: model.CurrentAuth):
+    """Get the current authenticated user's profile."""
+    profile = db.get_user_profile(user_id=auth.aid)
+    if not profile:
+        return {"error": "Profile not found"}, 404
     
-    user_id = user['id']
+    # If user has no avatar, use default from config
+    if profile.get("avatar_url") is None:
+        config = app.config.get("MEDIA_CONFIG", {})
+        profile["avatar_url"] = config.get("default_avatar_url", "/media/user/profile/avatar.png")
+    
+    return jsonify(profile), 200
+
+# GET /users/<user_id>/profile - get any user's public profile
+@app.get("/users/<user_id>/profile", authz="OPEN", authn="none")
+def get_user_profile_public(user_id: str):
+    """Get any user's public profile by user ID."""
+    try:
+        uuid.UUID(user_id)
+    except ValueError:
+        return {"error": "Invalid user ID format"}, 400
+    
     profile = db.get_user_profile(user_id=user_id)
     if not profile:
         return {"error": "Profile not found"}, 404
@@ -218,104 +227,14 @@ def get_user_profile_public(username: str):
     
     return jsonify(profile), 200
 
-# PATCH /users/<username>/profile - update user profile (any field including avatar)
-@app.route("/users/<username>/profile", methods=["PATCH"], authz="AUTH")
-def patch_user_profile(username: str, auth: model.CurrentAuth,
-                       first_name: str|None = None, last_name: str|None = None, 
-                       display_name: str|None = None, bio: str|None = None, 
-                       date_of_birth: str|None = None,
-                       location_address: str|None = None, location_lat: float|None = None, 
-                       location_lng: float|None = None, timezone: str|None = None, 
-                       preferred_language: str|None = None, **kwargs):
-    """Update a user's profile information. Can update any field including avatar image via multipart/form-data."""
-    from flask import request
-    from werkzeug.utils import secure_filename
-    from utils import PROFILE_IMG_DIR
-    
-    # Look up user by username
-    user = db.get_user_by_username(username=username)
-    if not user:
-        return {"error": "User not found"}, 404
-    
-    user_id = user['id']
-    
-    # Authorization: users can only update their own profile
-    fsa.checkVal(user_id == auth.aid, "You can only update your own profile", 403)
-    
-    # Handle avatar upload if present in request
-    avatar_url = None
-    if "avatar" in request.files or "image" in request.files:
-        ensure_media_dir()
-        file = request.files.get("avatar") or request.files.get("image")
-        fsa.checkVal(file and file.filename != "", "No file selected", 400)
-        
-        image_data = file.read()
-        filename = file.filename
-        
-        # Validate file type - only images for avatars
-        avatar_extensions = {"jpg", "jpeg", "png", "gif", "webp"}
-        ext = filename.rsplit(".", 1)[1].lower() if "." in filename else "png"
-        fsa.checkVal(ext in avatar_extensions, 
-                    f"File type not allowed for avatars. Allowed: {', '.join(avatar_extensions)}", 415)
-
-        # Try to compress using Pillow if available, otherwise save directly
-        try:
-            from io import BytesIO
-            from PIL import Image
-            
-            img_stream = BytesIO(image_data)
-            try:
-                img = Image.open(img_stream)
-            except Exception:
-                fsa.checkVal(False, "Invalid image file", 415)
-
-            # Convert to RGB for JPEG/webp, keep mode for PNG/GIF
-            if ext in {"jpg", "jpeg", "webp"}:
-                img = img.convert("RGB")
-
-            # Save file with user_id as name to ensure uniqueness
-            filename = secure_filename(f"{user_id}.{ext}")
-            filepath = PROFILE_IMG_DIR / filename
-            save_kwargs = {}
-            if ext in {"jpg", "jpeg"}:
-                save_kwargs = {"format": "JPEG", "quality": 85, "optimize": True}
-            elif ext == "png":
-                save_kwargs = {"format": "PNG", "optimize": True, "compress_level": 6}
-            elif ext == "webp":
-                save_kwargs = {"format": "WEBP", "quality": 80}
-            elif ext == "gif":
-                save_kwargs = {"format": "GIF"}
-            else:
-                save_kwargs = {"format": img.format}
-
-            # Compress and write
-            out_buf = BytesIO()
-            img.save(out_buf, **save_kwargs)
-            out_buf.seek(0)
-            compressed_data = out_buf.read()
-
-            # Check file size after compression
-            file_size = len(compressed_data)
-            max_size = 5 * 1024 * 1024  # 5MB for avatars
-            fsa.checkVal(file_size <= max_size, 
-                        f"File too large after compression (max {max_size / 1024 / 1024}MB)", 413)
-
-            filepath.write_bytes(compressed_data)
-        except ImportError:
-            # PIL not available, save file directly without compression
-            filename = secure_filename(f"{user_id}.{ext}")
-            filepath = PROFILE_IMG_DIR / filename
-            
-            # Check file size
-            file_size = len(image_data)
-            max_size = 5 * 1024 * 1024  # 5MB for avatars
-            fsa.checkVal(file_size <= max_size, 
-                        f"File too large (max {max_size / 1024 / 1024}MB)", 413)
-            
-            filepath.write_bytes(image_data)
-        
-        avatar_url = f"/media/user/profile/{filename}"
-    
+# PUT /profile - update current user's profile
+@app.put("/profile", authz="AUTH")
+def put_profile(auth: model.CurrentAuth, first_name: str|None = None, last_name: str|None = None, 
+                display_name: str|None = None, bio: str|None = None, date_of_birth: str|None = None,
+                location_address: str|None = None, location_lat: float|None = None, 
+                location_lng: float|None = None, timezone: str|None = None, 
+                preferred_language: str|None = None):
+    """Update the current user's profile information."""
     # Validate optional location params
     if (location_lat is not None or location_lng is not None):
         fsa.checkVal(location_lat is not None and location_lng is not None, 
@@ -330,14 +249,13 @@ def patch_user_profile(username: str, auth: model.CurrentAuth,
         except ValueError:
             fsa.checkVal(False, "Invalid date_of_birth format", 400)
     
-    # Update profile with all provided fields
     db.update_user_profile(
-        user_id=user_id,
+        user_id=auth.aid,
         first_name=first_name.strip() if first_name else None,
         last_name=last_name.strip() if last_name else None,
         display_name=display_name.strip() if display_name else None,
         bio=bio.strip() if bio else None,
-        avatar_url=avatar_url,
+        avatar_url=None,
         date_of_birth=date_of_birth,
         location_address=location_address.strip() if location_address else None,
         location_lat=location_lat,
@@ -345,8 +263,75 @@ def patch_user_profile(username: str, auth: model.CurrentAuth,
         timezone=timezone,
         preferred_language=preferred_language
     )
-    
     return "", 204
+
+# POST /profile/avatar - upload user profile avatar image
+@app.route("/profile/avatar", methods=["POST"], authz="AUTH")
+def post_avatar(auth: model.CurrentAuth):
+    """Upload a profile avatar image. Accepts binary image data or multipart form data."""
+    from flask import request
+    from werkzeug.utils import secure_filename
+    ensure_media_dir()
+    
+    # Try to get image from multipart files first, then from raw body
+    image_data = None
+    filename = "avatar.png"
+    
+    if "image" in request.files:
+        file = request.files["image"]
+        fsa.checkVal(file.filename != "", "No file selected", 400)
+        filename = file.filename
+        image_data = file.read()
+    elif request.data:
+        image_data = request.data
+        content_type = request.headers.get("Content-Type", "image/png")
+        if "jpeg" in content_type or "jpg" in content_type:
+            filename = "avatar.jpg"
+        elif "png" in content_type:
+            filename = "avatar.png"
+        elif "gif" in content_type:
+            filename = "avatar.gif"
+        elif "webp" in content_type:
+            filename = "avatar.webp"
+    else:
+        fsa.checkVal(False, "No image data provided", 400)
+    
+    # Validate file type - only images for avatars
+    avatar_extensions = {"jpg", "jpeg", "png", "gif", "webp"}
+    ext = filename.rsplit(".", 1)[1].lower() if "." in filename else "png"
+    fsa.checkVal(ext in avatar_extensions, 
+                f"File type not allowed for avatars. Allowed: {', '.join(avatar_extensions)}", 415)
+    
+    # Check file size
+    file_size = len(image_data)
+    max_size = 5 * 1024 * 1024  # 5MB for avatars
+    fsa.checkVal(file_size <= max_size, 
+                f"File too large (max {max_size / 1024 / 1024}MB)", 413)
+    
+    # Save file with user_id as name to ensure uniqueness
+    from utils import PROFILE_IMG_DIR
+    filename = secure_filename(f"{auth.aid}.{ext}")
+    filepath = PROFILE_IMG_DIR / filename
+    filepath.write_bytes(image_data)
+    
+    # Update avatar_url in database
+    avatar_url = f"/media/user/profile/{filename}"
+    db.update_user_profile(
+        user_id=auth.aid,
+        first_name=None,
+        last_name=None,
+        display_name=None,
+        bio=None,
+        avatar_url=avatar_url,
+        date_of_birth=None,
+        location_address=None,
+        location_lat=None,
+        location_lng=None,
+        timezone=None,
+        preferred_language=None
+    )
+    
+    return {"avatar_url": avatar_url}, 201
 
 # GET /media/user/profile/<filename> - serve avatar image
 @app.get("/media/user/profile/<filename>", authz="OPEN", authn="none")
@@ -392,16 +377,15 @@ def get_my_experiences(auth: model.CurrentAuth):
     experiences = db.get_user_experiences(user_id=auth.aid)
     return jsonify(experiences), 200
 
-# GET /users/<username>/experiences - get any user's experiences
-@app.get("/users/<username>/experiences", authz="OPEN", authn="none")
-def get_user_experiences(username: str):
-    """Get any user's work experiences by username."""
-    # Look up user by username
-    user = db.get_user_by_username(username=username)
-    if not user:
-        return {"error": "User not found"}, 404
+# GET /users/<user_id>/experiences - get any user's experiences
+@app.get("/users/<user_id>/experiences", authz="OPEN", authn="none")
+def get_user_experiences(user_id: str):
+    """Get any user's work experiences."""
+    try:
+        uuid.UUID(user_id)
+    except ValueError:
+        return {"error": "Invalid user ID format"}, 400
     
-    user_id = user['id']
     experiences = db.get_user_experiences(user_id=user_id)
     return jsonify(experiences), 200
 
@@ -622,16 +606,15 @@ def get_my_interests(auth: model.CurrentAuth):
     interests = db.get_user_interests(user_id=auth.aid)
     return jsonify(interests), 200
 
-# GET /users/<username>/interests - get any user's interests
-@app.get("/users/<username>/interests", authz="OPEN", authn="none")
-def get_user_interests(username: str):
-    """Get any user's interests by username."""
-    # Look up user by username
-    user = db.get_user_by_username(username=username)
-    if not user:
-        return {"error": "User not found"}, 404
+# GET /users/<user_id>/interests - get any user's interests
+@app.get("/users/<user_id>/interests", authz="OPEN", authn="none")
+def get_user_interests(user_id: str):
+    """Get any user's interests."""
+    try:
+        uuid.UUID(user_id)
+    except ValueError:
+        return {"error": "Invalid user ID format"}, 400
     
-    user_id = user['id']
     interests = db.get_user_interests(user_id=user_id)
     return jsonify(interests), 200
 
@@ -949,13 +932,12 @@ def post_paps_media(paps_id: str, auth: model.CurrentAuth):
     if not auth.is_admin and str(paps['owner_id']) != auth.aid:
         return {"error": "Not authorized"}, 403
     
-    # Find next index for this user and paps
+    # Find next index
     from utils import POST_MEDIA_DIR
-    user_id = auth.aid
-    existing_files = list(POST_MEDIA_DIR.glob(f"{paps_id}_{user_id}_*.*"))
+    existing_files = list(POST_MEDIA_DIR.glob(f"paps_media_{paps_id}_*.*"))
     indices = []
     for f in existing_files:
-        match = re.match(rf"{re.escape(paps_id)}_{re.escape(user_id)}_(\d+)\..*", f.name)
+        match = re.match(rf"paps_media_{re.escape(paps_id)}_(\d+)\..*", f.name)
         if match:
             indices.append(int(match.group(1)))
     next_index = max(indices) + 1 if indices else 1
@@ -968,57 +950,32 @@ def post_paps_media(paps_id: str, auth: model.CurrentAuth):
         if not files:
             return {"error": "No files selected"}, 400
         
-        from io import BytesIO
-        from PIL import Image
         for file in files:
             if not file.filename:
                 continue
+            
             # Extract extension
             ext = file.filename.rsplit(".", 1)[1].lower() if "." in file.filename else "png"
+            
             # Validate file type
             fsa.checkVal(allowed_file(f"dummy.{ext}", app),
                         f"File type not allowed. Allowed: {', '.join(get_allowed_extensions(app))}", 415)
+            
             # Read and validate file size
             media_data = file.read()
+            file_size = len(media_data)
             max_size = get_max_file_size(app)
-            # Save file with new convention: papsid_userid_orderid.extension
-            filename = secure_filename(f"{paps_id}_{user_id}_{next_index}.{ext}")
+            fsa.checkVal(file_size <= max_size,
+                        f"File too large (max {max_size / 1024 / 1024}MB)", 413)
+            
+            # Save file
+            filename = secure_filename(f"paps_media_{paps_id}_{next_index}.{ext}")
             filepath = POST_MEDIA_DIR / filename
-            # Compress if image
-            if ext in {"jpg", "jpeg", "png", "webp", "gif"}:
-                try:
-                    img = Image.open(BytesIO(media_data))
-                    if ext in {"jpg", "jpeg", "webp"}:
-                        img = img.convert("RGB")
-                    save_kwargs = {}
-                    if ext in {"jpg", "jpeg"}:
-                        save_kwargs = {"format": "JPEG", "quality": 85, "optimize": True}
-                    elif ext == "png":
-                        save_kwargs = {"format": "PNG", "optimize": True, "compress_level": 6}
-                    elif ext == "webp":
-                        save_kwargs = {"format": "WEBP", "quality": 80}
-                    elif ext == "gif":
-                        save_kwargs = {"format": "GIF"}
-                    else:
-                        save_kwargs = {"format": img.format}
-                    out_buf = BytesIO()
-                    img.save(out_buf, **save_kwargs)
-                    out_buf.seek(0)
-                    compressed_data = out_buf.read()
-                    file_size = len(compressed_data)
-                    fsa.checkVal(file_size <= max_size,
-                                f"File too large after compression (max {max_size / 1024 / 1024}MB)", 413)
-                    filepath.write_bytes(compressed_data)
-                except Exception:
-                    fsa.checkVal(False, "Invalid image file", 415)
-            else:
-                # For video and other types, just save as is
-                file_size = len(media_data)
-                fsa.checkVal(file_size <= max_size,
-                            f"File too large (max {max_size / 1024 / 1024}MB)", 413)
-                filepath.write_bytes(media_data)
+            filepath.write_bytes(media_data)
+            
             # Determine media type
             media_type = "image" if ext in {"jpg", "jpeg", "png", "gif", "webp"} else "video"
+            
             # Insert media record
             media_url = f"/paps/media/{filename}"
             db.insert_paps_media(
@@ -1029,6 +986,7 @@ def post_paps_media(paps_id: str, auth: model.CurrentAuth):
                 mime_type=file.content_type or f"image/{ext}",
                 display_order=next_index
             )
+            
             uploaded_media.append({
                 "media_url": media_url,
                 "index": next_index,
@@ -1036,9 +994,11 @@ def post_paps_media(paps_id: str, auth: model.CurrentAuth):
                 "media_type": media_type,
                 "file_size": file_size
             })
+            
             next_index += 1
     else:
         return {"error": "No media files provided"}, 400
+    
     return {"uploaded_media": uploaded_media, "count": len(uploaded_media)}, 201
 
 # GET /paps/media/<filename> - serve paps media
