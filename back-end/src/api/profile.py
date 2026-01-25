@@ -1,5 +1,5 @@
 #
-# Profile Routes - /user/profile, /user/profile/avatar, /users/<username>/profile, /user/<username>/profile/avatar
+# Profile Routes - /user/profile, /user/profile/avatar, /user/<username>/profile, /user/<username>/profile/avatar
 #
 
 import datetime
@@ -28,7 +28,7 @@ def register_routes(app):
 
         return fsa.jsonify(profile), 200
 
-    # GET /users/<username>/profile - get any user's profile by username
+    # GET /user/<username>/profile - get any user's profile by username
     def get_user_profile_public(username: str):
         """Get any user's profile by username."""
         user = db.get_user_by_username(username=username)
@@ -47,12 +47,12 @@ def register_routes(app):
         return fsa.jsonify(profile), 200
 
     # Route registered below - public profile viewing
-    @app.get("/users/<username>/profile", authz="OPEN", authn="none")
+    @app.get("/user/<username>/profile", authz="OPEN", authn="none")
     def get_user_profile_public_route(username: str):
         return get_user_profile_public(username)
 
-    # PATCH /users/<username>/profile - update user's profile (must be authenticated as that user)
-    @app.patch("/users/<username>/profile", authz="AUTH")
+    # PATCH /user/<username>/profile - update user's profile (must be authenticated as that user)
+    @app.patch("/user/<username>/profile", authz="AUTH")
     def patch_user_profile(auth: model.CurrentAuth, username: str, first_name: str|None = None, 
                           last_name: str|None = None, display_name: str|None = None, bio: str|None = None, 
                           date_of_birth: str|None = None, location_address: str|None = None, 
