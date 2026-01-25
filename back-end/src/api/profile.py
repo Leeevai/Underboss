@@ -28,10 +28,11 @@ def register_routes(app):
 
         return fsa.jsonify(profile), 200
 
-    # GET /users/<username>/profile - get any user's public profile
+    # GET /users/<username>/profile - get any user's profile by username
     @app.get("/users/<username>/profile", authz="AUTH")
+    @app.get("/user/<username>/profile", authz="AUTH")
     def get_user_profile_public(username: str):
-        """Get any user's public profile by username."""
+        """Get any user's profile by username."""
         user = db.get_user_by_username(username=username)
         if not user:
             return {"error": "User not found"}, 404
