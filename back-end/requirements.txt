@@ -1,5 +1,5 @@
 # web framework
-FlaskSimpleAuth[cors] >= 35.6
+FlaskSimpleAuth[cors] >= 35.6, < 36.0
 ProxyPatternPool >= 11.0
 bcrypt
 # Postgres database
