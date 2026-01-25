@@ -10,6 +10,7 @@ log = logging.getLogger(os.environ.get("APP_NAME", "app"))
 # Media storage configuration
 MEDIA_DIR = pathlib.Path("media")
 PROFILE_IMG_DIR = MEDIA_DIR / "user" / "profile"
+CATEGORY_IMG_DIR = MEDIA_DIR / "category"
 POST_MEDIA_DIR = MEDIA_DIR / "post"
 
 # NOTE: ALLOWED_EXTENSIONS and MAX_FILE_SIZE are defined in local.conf
@@ -38,6 +39,7 @@ def get_media_config(app=None):
 def ensure_media_dir():
     """Create media directories if they don't exist."""
     PROFILE_IMG_DIR.mkdir(parents=True, exist_ok=True)
+    CATEGORY_IMG_DIR.mkdir(parents=True, exist_ok=True)
     POST_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 def allowed_file(filename: str, app=None) -> bool:

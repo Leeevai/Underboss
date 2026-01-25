@@ -458,6 +458,89 @@ def test_categories(api):
     # Non-admin cannot create categories
     api.post("/categories", 403, json={"name": "Test", "slug": "test"}, login=NOADM)
 
+
+# /categories/<category_id>/icon - category icon management
+def test_category_icons(api):
+    import io
+    import requests
+
+    # Check if we're running in external mode (actual server on localhost:5000)
+    # File uploads via requests only work in external mode
+    base_url = os.environ.get("FLASK_TESTER_APP", None)
+    if not base_url or not base_url.startswith("http"):
+        pytest.skip("Category icon upload tests require external server (make check.pytest)")
+
+    ts = int(time.time() * 1000) % 100000
+
+    # Create a test category
+    res = api.post("/categories", 201, json={
+        "name": f"Icon Test Category {ts}",
+        "slug": f"icon-test-category-{ts}",
+        "description": "Testing icon upload"
+    }, login=ADMIN)
+    cat_id = res.json["category_id"]
+
+    # Initially no icon - should return 404
+    api.get(f"/categories/{cat_id}/icon", 404, login=ADMIN)
+
+    # Upload icon using requests directly (test framework doesn't support file uploads well)
+    # This is a valid 1x1 transparent PNG
+    png_data = bytes([
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,  # PNG signature
+        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,  # IHDR chunk
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,  # 1x1
+        0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+        0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,  # IDAT chunk
+        0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+        0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+        0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,  # IEND chunk
+        0x42, 0x60, 0x82
+    ])
+
+    # Get tokens via basic auth using requests directly
+    from requests.auth import HTTPBasicAuth
+    resp = requests.get(f"{base_url}/login", auth=HTTPBasicAuth(ADMIN, "Hobbes123"))
+    admin_token = resp.json().get("token") if isinstance(resp.json(), dict) else resp.json()
+    resp = requests.get(f"{base_url}/login", auth=HTTPBasicAuth(NOADM, "Calvin123"))
+    noadm_token = resp.json().get("token") if isinstance(resp.json(), dict) else resp.json()
+
+    # Upload using requests with token auth
+    url = f"{base_url}/categories/{cat_id}/icon"
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    files = {"image": ("icon.png", io.BytesIO(png_data), "image/png")}
+    resp = requests.post(url, headers=headers, files=files)
+    assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
+    assert "icon_url" in resp.json()
+    assert cat_id in resp.json()["icon_url"]
+
+    # Get the icon (requires auth)
+    api.get(f"/categories/{cat_id}/icon", 401, login=None)
+    res = api.get(f"/categories/{cat_id}/icon", 200, login=ADMIN)
+
+    # Verify the category now has icon_url set
+    res = api.get(f"/categories/{cat_id}", 200, login=ADMIN)
+    assert res.json["icon_url"] is not None
+    assert "/media/category/" in res.json["icon_url"]
+
+    # Non-admin cannot upload icons (use requests)
+    headers_noadm = {"Authorization": f"Bearer {noadm_token}"}
+    resp = requests.post(url, headers=headers_noadm, files={"image": ("icon.png", io.BytesIO(png_data), "image/png")})
+    assert resp.status_code == 403, f"Expected 403, got {resp.status_code}"
+
+    # Delete icon (admin only)
+    api.delete(f"/categories/{cat_id}/icon", 403, login=NOADM)
+    api.delete(f"/categories/{cat_id}/icon", 204, login=ADMIN)
+
+    # Verify icon is gone
+    api.get(f"/categories/{cat_id}/icon", 404, login=ADMIN)
+
+    # Verify icon_url is cleared in database
+    res = api.get(f"/categories/{cat_id}", 200, login=ADMIN)
+    # icon_url should be None or empty after deletion
+
+    # Delete category (should clean up any remaining icon files)
+    api.delete(f"/categories/{cat_id}", 204, login=ADMIN)
+
 # /profile/interests and /user/<username>/profile/interests - comprehensive interest tests
 def test_user_interests(api):
     user = "testinterest"
@@ -1019,12 +1102,12 @@ def test_paps_search_filters(api):
 
     # Test category_id filter
     res = api.get("/paps", 200, json={"category_id": cat_id}, login=user)
-    # All results should have the category
+    # All results should have the category - verify they include our category
     for pap in res.json["paps"]:
         if "categories" in pap:
-            cat_ids = [c["category_id"] for c in pap["categories"]]
-            # paps with this category should be found
-            pass
+            pap_cat_ids = [c["category_id"] for c in pap["categories"]]
+            # Check that each returned pap has the filtered category
+            assert cat_id in pap_cat_ids, f"Category {cat_id} not found in pap categories: {pap_cat_ids}"
 
     # Cleanup - remove category associations first before deleting categories
     api.delete(f"/paps/{paps_id1}/categories/{cat_id}", 204, login=user)
