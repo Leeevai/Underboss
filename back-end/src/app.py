@@ -17,6 +17,8 @@
 import os
 import datetime
 import logging
+import decimal
+import json
 
 # initial logging configuration
 logging.basicConfig(level=logging.INFO)
@@ -25,8 +27,22 @@ from utils import log
 
 # start and configure flask service
 import FlaskSimpleAuth as fsa
+from flask.json.provider import DefaultJSONProvider
+
+# Custom JSON provider to handle Decimal and other types
+class CustomJSONProvider(DefaultJSONProvider):
+    def default(self, o):
+        if isinstance(o, decimal.Decimal):
+            # Convert Decimal to float for JSON serialization
+            return float(o)
+        if isinstance(o, datetime.timedelta):
+            # Convert timedelta to total seconds
+            return o.total_seconds()
+        return super().default(o)
 
 app = fsa.Flask(os.environ["APP_NAME"], static_folder=None)
+app.json_provider_class = CustomJSONProvider
+app.json = CustomJSONProvider(app)
 app.config.from_envvar("APP_CONFIG")
 
 # setup application log

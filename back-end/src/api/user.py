@@ -3,13 +3,38 @@
 #
 
 import os
+import re
 import FlaskSimpleAuth as fsa
+
+# Helper regex patterns
+UUID_REGEX = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+USERNAME_REGEX = r'^[a-zA-Z][-a-zA-Z0-9_\.]*$'
 
 def register_routes(app):
     """Register admin user routes with the Flask app (only if APP_USERS is enabled)."""
     from database import db
     from utils import log
 
+    def resolve_user_id(user_identifier: str):
+        """
+        Resolve a user identifier (UUID or username) to the user data.
+        Returns (user_data, resolved_uuid) or (None, None) if not found.
+        Raises ValueError with appropriate message for invalid format.
+        """
+        # If it's a valid UUID, use get_user_data_by_id
+        if re.match(UUID_REGEX, user_identifier, re.IGNORECASE):
+            user_data = db.get_user_data_by_id(user_id=user_identifier)
+            return user_data, user_identifier
+        # If it's a valid username, use get_user_data
+        elif re.match(USERNAME_REGEX, user_identifier) and len(user_identifier) >= 3:
+            user_data = db.get_user_data(login=user_identifier)
+            if user_data:
+                return user_data, user_data.get('aid')
+            return None, None
+        else:
+            # Invalid format
+            raise ValueError(f"invalid user identifier: {user_identifier}")
+    
     # Admin's /users routes for testing
     if app.config.get("APP_USERS", False):
         log.warning("/users testing routes are active")
@@ -20,40 +45,84 @@ def register_routes(app):
             return fsa.jsonify(res), 200
 
         @app.post("/users", authz="ADMIN")
-        def post_users(username: str, email: str, password: str, phone: str|None = None, is_admin: bool = False):
-            aid = db.insert_user(username=username, email=email, phone=phone,
+        def post_users(login: str, password: str, email: str|None = None, phone: str|None = None, is_admin: bool = False):
+            # Validate username (login) format
+            fsa.checkVal(len(login) >= 3, "username must be at least 3 characters", 400)
+            fsa.checkVal(re.match(USERNAME_REGEX, login), "username must start with a letter and contain only letters, digits, hyphens, underscores, or dots", 400)
+            
+            aid = db.insert_user(username=login, email=email, phone=phone,
                                  password=app.hash_password(password), is_admin=is_admin, user_id=None)
-            fsa.checkVal(aid, f"user {username} already created", 409)
+            fsa.checkVal(aid, f"user {login} already created", 409)
             return fsa.jsonify({"user_id": aid}), 201
 
         @app.get("/users/<user_id>", authz="ADMIN")
         def get_users_id(user_id: str):
-            res = db.get_user_data_by_id(user_id=user_id)
+            try:
+                res, _ = resolve_user_id(user_id)
+            except ValueError as e:
+                fsa.checkVal(False, str(e), 400)
+            
             fsa.checkVal(res, f"no such user: {user_id}", 404)
             return res, 200
 
         @app.patch("/users/<user_id>", authz="ADMIN")
         def patch_users_id(user_id: str, password: str|None = None, email: str|None = None,
                            phone: str|None = None, is_admin: bool|None = None):
-            fsa.checkVal(db.get_user_by_id(user_id=user_id), f"no such user: {user_id}", 404)
+            try:
+                user_data, resolved_id = resolve_user_id(user_id)
+            except ValueError as e:
+                fsa.checkVal(False, str(e), 400)
+            
+            fsa.checkVal(user_data, f"no such user: {user_id}", 404)
+            
             if password is not None:
-                db.set_user_password(user_id=user_id, password=app.hash_password(password))
+                db.set_user_password(user_id=resolved_id, password=app.hash_password(password))
             if email is not None:
-                db.set_user_email(user_id=user_id, email=email)
+                db.set_user_email(user_id=resolved_id, email=email)
             if phone is not None:
-                db.set_user_phone(user_id=user_id, phone=phone)
+                db.set_user_phone(user_id=resolved_id, phone=phone)
             if is_admin is not None:
-                db.set_user_is_admin(user_id=user_id, is_admin=is_admin)
+                db.set_user_is_admin(user_id=resolved_id, is_admin=is_admin)
+            return "", 204
+
+        @app.put("/users/<user_id>", authz="ADMIN")
+        def put_users_id(user_id: str, auth: dict = None):
+            """Replace user data completely."""         
+            try:
+                user_data, resolved_id = resolve_user_id(user_id)
+            except ValueError as e:
+                fsa.checkVal(False, str(e), 400)
+            
+            fsa.checkVal(user_data, f"no such user: {user_id}", 404)
+            
+            if auth:
+                # Validate the auth dict has required login matching the user_id
+                login = auth.get('login')
+                fsa.checkVal(login and login == user_id, f"login must match user: {user_id}", 400)
+                
+                # Update all fields
+                if 'password' in auth:
+                    db.set_user_password(user_id=resolved_id, password=app.hash_password(auth['password']))
+                if 'email' in auth:
+                    db.set_user_email(user_id=resolved_id, email=auth['email'])
+                if 'isadmin' in auth:
+                    db.set_user_is_admin(user_id=resolved_id, is_admin=auth['isadmin'])
+            
             return "", 204
 
         @app.delete("/users/<user_id>", authz="ADMIN")
         def delete_users_id(user_id: str):
+            try:
+                user_data, resolved_id = resolve_user_id(user_id)
+            except ValueError as e:
+                fsa.checkVal(False, str(e), 400)
+            
             current_user_data = db.get_user_data(login=app.get_user())
-            fsa.checkVal(user_id != current_user_data['aid'], "cannot delete oneself", 400)
+            fsa.checkVal(resolved_id != current_user_data['aid'], "cannot delete oneself", 400)
 
             # Get user profile to find avatar
             try:
-                profile = db.get_user_profile(user_id=user_id)
+                profile = db.get_user_profile(user_id=resolved_id)
                 # Delete profile picture if it exists
                 if profile and profile.get('avatar_url'):
                     avatar_path = os.path.join(os.getcwd(), profile['avatar_url'].lstrip('/'))
@@ -63,6 +132,6 @@ def register_routes(app):
             except Exception as e:
                 log.warning(f"Could not delete profile picture for user {user_id}: {e}")
 
-            deleted = db.delete_user(user_id=user_id)
+            deleted = db.delete_user(user_id=resolved_id)
             fsa.checkVal(deleted, f"no such user: {user_id}", 404)
             return "", 204

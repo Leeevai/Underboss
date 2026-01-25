@@ -93,7 +93,7 @@ UPDATE "USER" SET phone = :phone WHERE id = :user_id::uuid;
 
 -- name: set_user_is_admin(user_id, is_admin)!
 UPDATE "USER" 
-SET role_id = (SELECT id FROM ROLE WHERE name = CASE WHEN :is_admin THEN 'admin' ELSE 'worker' END)
+SET role_id = (SELECT id FROM ROLE WHERE name = CASE WHEN :is_admin THEN 'admin' ELSE 'user' END)
 WHERE id = :user_id::uuid;
 
 -- name: delete_user(user_id)!

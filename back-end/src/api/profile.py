@@ -46,10 +46,53 @@ def register_routes(app):
 
         return fsa.jsonify(profile), 200
 
-    # Route registered below
-    @app.get("/users/<username>/profile", authz="AUTH")
+    # Route registered below - public profile viewing
+    @app.get("/users/<username>/profile", authz="OPEN", authn="none")
     def get_user_profile_public_route(username: str):
         return get_user_profile_public(username)
+
+    # PATCH /users/<username>/profile - update user's profile (must be authenticated as that user)
+    @app.patch("/users/<username>/profile", authz="AUTH")
+    def patch_user_profile(auth: model.CurrentAuth, username: str, first_name: str|None = None, 
+                          last_name: str|None = None, display_name: str|None = None, bio: str|None = None, 
+                          date_of_birth: str|None = None, location_address: str|None = None, 
+                          location_lat: float|None = None, location_lng: float|None = None, 
+                          timezone: str|None = None, preferred_language: str|None = None):
+        """Update user's profile - must be authenticated as that user."""
+        # Get user data to verify username matches authenticated user
+        user_data = db.get_user_data(login=username)
+        fsa.checkVal(user_data, f"no such user: {username}", 404)
+        fsa.checkVal(str(user_data.get('aid')) == str(auth.aid), "can only update your own profile", 403)
+        
+        # Validate optional location params
+        if (location_lat is not None or location_lng is not None):
+            fsa.checkVal(location_lat is not None and location_lng is not None,
+                        "Both lat and lng required", 400)
+            fsa.checkVal(-90 <= location_lat <= 90, "Invalid latitude", 400)
+            fsa.checkVal(-180 <= location_lng <= 180, "Invalid longitude", 400)
+
+        # Validate optional date_of_birth
+        if date_of_birth is not None:
+            try:
+                datetime.datetime.fromisoformat(date_of_birth.replace('Z', '+00:00'))
+            except ValueError:
+                fsa.checkVal(False, "Invalid date_of_birth format", 400)
+
+        db.update_user_profile(
+            user_id=auth.aid,
+            first_name=first_name.strip() if first_name else None,
+            last_name=last_name.strip() if last_name else None,
+            display_name=display_name.strip() if display_name else None,
+            bio=bio.strip() if bio else None,
+            avatar_url=None,
+            date_of_birth=date_of_birth,
+            location_address=location_address.strip() if location_address else None,
+            location_lat=location_lat,
+            location_lng=location_lng,
+            timezone=timezone,
+            preferred_language=preferred_language
+        )
+        return "", 204
 
     # PUT /user/profile - update current user's profile
     @app.put("/user/profile", authz="AUTH")

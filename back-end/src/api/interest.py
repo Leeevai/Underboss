@@ -17,16 +17,22 @@ def register_routes(app):
         interests = db.get_user_interests(user_id=auth.aid)
         return fsa.jsonify(interests), 200
 
-    # GET /users/<user_id>/interests - get any user's interests
-    @app.get("/users/<user_id>/interests", authz="AUTH")
+    # GET /users/<user_id>/interests - get any user's interests (public)
+    @app.get("/users/<user_id>/interests", authz="OPEN", authn="none")
     def get_user_interests(user_id: str):
-        """Get any user's interests."""
+        """Get any user's interests (public endpoint)."""
+        # If user_id looks like a username (not a UUID), resolve it
         try:
             uuid.UUID(user_id)
+            actual_user_id = user_id
         except ValueError:
-            return {"error": "Invalid user ID format"}, 400
+            # Might be a username - try to resolve it
+            user_data = db.get_user_by_username(username=user_id)
+            if not user_data:
+                return {"error": f"User not found: {user_id}"}, 404
+            actual_user_id = user_data.get("id")
 
-        interests = db.get_user_interests(user_id=user_id)
+        interests = db.get_user_interests(user_id=actual_user_id)
         return fsa.jsonify(interests), 200
 
     # POST /profile/interests - add interest to current user
@@ -44,6 +50,12 @@ def register_routes(app):
         category = db.get_category_by_id(category_id=category_id)
         if not category:
             return {"error": "Category not found"}, 404
+
+        # Check if user already has this interest
+        existing_interests = db.get_user_interests(user_id=auth.aid)
+        for interest in existing_interests:
+            if interest["category_id"] == category_id:
+                return {"error": "Interest already exists"}, 409
 
         db.insert_user_interest(
             user_id=auth.aid,
@@ -80,6 +92,12 @@ def register_routes(app):
             uuid.UUID(category_id)
         except ValueError:
             return {"error": "Invalid category_id format"}, 400
+
+        # Check if user has this interest
+        existing_interests = db.get_user_interests(user_id=auth.aid)
+        interest_exists = any(i["category_id"] == category_id for i in existing_interests)
+        if not interest_exists:
+            return {"error": "Interest not found"}, 404
 
         db.delete_user_interest(user_id=auth.aid, category_id=category_id)
         return "", 204

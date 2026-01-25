@@ -22,8 +22,9 @@ def register_routes(app):
     ADMIN_AUTHN = ["token", "basic", "param"]
 
     # under testing, quick route to check whether the server is running
+    # NOTE: This MUST be OPEN for health checks (no auth required)
     if app.config.get("APP_TESTING", False):
-        @app.get("/uptime", authz="AUTH")
+        @app.get("/uptime", authz="OPEN", authn="none")
         def get_uptime():
             running = db.now() - started
             return {"app": app.name, "up": running}, 200
@@ -103,4 +104,12 @@ def register_routes(app):
     # GET /myself
     @app.get("/myself", authz="AUTH", authn=ADMIN_AUTHN)
     def get_myself(auth: model.CurrentAuth):
-        return fsa.jsonify(auth), 200
+        # Convert auth to dict and rename is_admin to isadmin for backward compatibility
+        result = {
+            "login": auth.login,
+            "password": auth.password,
+            "email": auth.email,
+            "isadmin": auth.is_admin,
+            "aid": auth.aid
+        }
+        return fsa.jsonify(result), 200

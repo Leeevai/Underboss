@@ -10,12 +10,18 @@ def register_routes(app):
     from database import db
 
     # POST /register (login, email, phone, password)
-    @app.post("/register", authz="AUTH")
+    # NOTE: This MUST be OPEN so new users can register without a token
+    @app.post("/register", authz="OPEN", authn="none")
     def post_register(username: str, email: str, password: str, phone: str|None = None):
         """Register a new user with username, email, optional phone, and password."""
-        # Validate username
+        # Validate username length
         fsa.checkVal(len(username.strip()) >= 3 and len(username.strip()) <= 50,
                     "Username must be 3-50 characters", 400)
+        
+        # Validate username format (no spaces, must start with letter)
+        username_regex = r'^[a-zA-Z][-a-zA-Z0-9_\.]*$'
+        fsa.checkVal(re.match(username_regex, username.strip()),
+                    "Username can only contain letters, numbers, hyphens, underscores, and dots. Must start with a letter.", 400)
 
         # Validate email format
         email_regex = r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
@@ -39,7 +45,8 @@ def register_routes(app):
         return fsa.jsonify({"user_id": aid}), 201
 
     # GET /login
-    @app.get("/login", authz="AUTH", authn="basic")
+    # NOTE: This MUST be OPEN so users can get tokens; authn="basic" checks credentials
+    @app.get("/login", authz="OPEN", authn="basic")
     def get_login(user: fsa.CurrentUser):
         """Login with Basic auth (username/email/phone + password) to get token."""
         login = db.get_user_login(login=user)
@@ -47,7 +54,8 @@ def register_routes(app):
         return fsa.jsonify({"token": app.create_token(login["login"])}), 200
 
     # POST /login (login, password)
-    @app.post("/login", authz="AUTH", authn="param")
+    # NOTE: This MUST be OPEN so users can get tokens; authn="param" checks credentials
+    @app.post("/login", authz="OPEN", authn="param")
     def post_login(user: fsa.CurrentUser):
         """Login with form params (login + password) to get token."""
         login = db.get_user_login(login=user)
