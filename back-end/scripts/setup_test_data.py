@@ -339,13 +339,25 @@ def main():
                                 # Ensure destination directory exists
                                 os.makedirs(dest_dir, exist_ok=True)
                                 
+                                # Avatar URL to set in database
+                                avatar_url = f"media/user/profile/{user_id}.jpg"
+                                
+                                # Check if destination already exists (e.g., from previous setup)
+                                if os.path.exists(dest_pic):
+                                    print(f"    ✓ Avatar already exists: {user_id}.jpg")
+                                    # Update avatar_url in user_profile table
+                                    cur.execute("""
+                                        UPDATE user_profile 
+                                        SET avatar_url = %s 
+                                        WHERE user_id = %s
+                                    """, (avatar_url, static_uuid))
+                                    print(f"    ✓ Set avatar_url: {avatar_url}")
                                 # Copy file if source exists
-                                if os.path.exists(src_pic):
+                                elif os.path.exists(src_pic):
                                     shutil.copy(src_pic, dest_pic)
                                     print(f"    ✓ Copied profile picture: {avatar_filename} → {user_id}.jpg")
                                     
                                     # Update avatar_url in user_profile table
-                                    avatar_url = f"media/user/profile/{user_id}.jpg"
                                     cur.execute("""
                                         UPDATE user_profile 
                                         SET avatar_url = %s 
