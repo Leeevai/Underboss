@@ -29,7 +29,7 @@ def register_routes(app):
         return fsa.jsonify(profile), 200
 
     # GET /users/<username>/profile - get any user's public profile
-    @app.get("/users/<username>/profile", authz="OPEN")
+    @app.get("/users/<username>/profile", authz="AUTH")
     def get_user_profile_public(username: str):
         """Get any user's public profile by username."""
         user = db.get_user_by_username(username=username)
@@ -212,7 +212,7 @@ def register_routes(app):
         return "", 204
 
     # GET /media/user/profile/<filename> - serve avatar image
-    @app.get("/media/user/profile/<filename>", authz="OPEN")
+    @app.get("/media/user/profile/<filename>", authz="AUTH")
     def get_avatar_image(filename: str):
         """Serve a user's profile avatar image."""
         from flask import send_file
