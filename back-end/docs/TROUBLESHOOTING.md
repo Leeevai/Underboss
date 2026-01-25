@@ -1,5 +1,11 @@
 # Troubleshooting Guide
 
+**Related Documentation:**
+- [README](README.md) - Project overview and quick start
+- [Developer Guide](DEV.md) - Setup and development workflow
+- [Test Data Setup](TEST_DATA_SETUP.md) - How to set up test users
+- [API Routes](routes.md) - API endpoint documentation
+
 ## Environment Issues
 
 ### Anaconda/Conda Python Conflict

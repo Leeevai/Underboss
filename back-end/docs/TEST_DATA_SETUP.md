@@ -2,6 +2,12 @@
 
 This document explains how to set up test data for the Underboss backend.
 
+**Related Documentation:**
+- [README](README.md) - Project overview and quick start
+- [Developer Guide](DEV.md) - Full development workflow
+- [API Routes](routes.md) - API endpoint documentation
+- [Troubleshooting](TROUBLESHOOTING.md) - Common issues
+
 ## Overview
 
 Test data is now managed through a Python script (`setup_test_data.py`) rather than being hardcoded in SQL files. This makes test data more maintainable and flexible.
