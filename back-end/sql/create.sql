@@ -161,14 +161,14 @@ UPDATE
     ON USER_PROFILE FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Automatically create a profile for new users
+-- NOTE: avatar_url is NULL by default; the API returns the default avatar URL from config
 CREATE
 OR REPLACE FUNCTION create_user_profile() RETURNS TRIGGER AS $$ BEGIN
 INSERT INTO
-    USER_PROFILE (user_id, avatar_url, created_at, updated_at)
+    USER_PROFILE (user_id, created_at, updated_at)
 VALUES
     (
         NEW.id,
-        'media/user/profile/avatar.png',
         NOW(),
         NOW()
     );
