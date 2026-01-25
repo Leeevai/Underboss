@@ -1,6 +1,6 @@
 #
 # Profile Routes - /profile, /profile/avatar, /profile/experiences, /profile/interests
-#                  /user/<user_id>/profile, /user/<user_id>/profile/avatar, etc.
+#                  /user/<username>/profile, /user/<username>/profile/avatar, etc.
 #
 
 import datetime
@@ -418,21 +418,20 @@ def register_routes(app):
         return "", 204
 
     # =========================================================================
-    # OTHER USER PROFILE ROUTES - /user/<user_id>/profile/*
+    # OTHER USER PROFILE ROUTES - /user/<username>/profile/*
     # =========================================================================
 
-    # GET /user/<user_id>/profile - get any user's profile by user_id
-    @app.get("/user/<user_id>/profile", authz="AUTH")
-    def get_user_profile_by_id(user_id: str):
-        """Get any user's profile by user_id."""
-        try:
-            uuid.UUID(user_id)
-        except ValueError:
-            return {"error": "Invalid user_id format"}, 400
+    # GET /user/<username>/profile - get any user's profile by username
+    @app.get("/user/<username>/profile", authz="AUTH")
+    def get_user_profile_by_username(username: str):
+        """Get any user's profile by username."""
+        user = db.get_user_by_username(username=username)
+        if not user:
+            return {"error": f"User not found: {username}"}, 404
 
-        profile = db.get_user_profile(user_id=user_id)
+        profile = db.get_user_profile(user_id=user["id"])
         if not profile:
-            return {"error": "User not found"}, 404
+            return {"error": "Profile not found"}, 404
 
         # Add default avatar if none set
         if profile.get("avatar_url") is None:
@@ -441,23 +440,19 @@ def register_routes(app):
 
         return fsa.jsonify(profile), 200
 
-    # PATCH /user/<user_id>/profile - update user's profile (must be authenticated as that user)
-    @app.patch("/user/<user_id>/profile", authz="AUTH")
-    def patch_user_profile(auth: model.CurrentAuth, user_id: str, first_name: str|None = None, 
+    # PATCH /user/<username>/profile - update user's profile (must be authenticated as that user)
+    @app.patch("/user/<username>/profile", authz="AUTH")
+    def patch_user_profile(auth: model.CurrentAuth, username: str, first_name: str|None = None, 
                           last_name: str|None = None, display_name: str|None = None, bio: str|None = None, 
                           date_of_birth: str|None = None, location_address: str|None = None, 
                           location_lat: float|None = None, location_lng: float|None = None, 
                           timezone: str|None = None, preferred_language: str|None = None):
         """Update user's profile - must be authenticated as that user."""
-        try:
-            uuid.UUID(user_id)
-        except ValueError:
-            return {"error": "Invalid user_id format"}, 400
-
-        # Check user exists and verify it's their own profile
-        profile = db.get_user_profile(user_id=user_id)
-        if not profile:
-            return {"error": "User not found"}, 404
+        user = db.get_user_by_username(username=username)
+        if not user:
+            return {"error": f"User not found: {username}"}, 404
+        
+        user_id = user["id"]
         fsa.checkVal(str(user_id) == str(auth.aid), "can only update your own profile", 403)
         
         _validate_profile_update(location_lat, location_lng, date_of_birth)
@@ -478,50 +473,35 @@ def register_routes(app):
         )
         return "", 204
 
-    # GET /user/<user_id>/profile/avatar - serve another user's avatar image
-    @app.get("/user/<user_id>/profile/avatar", authz="AUTH")
-    def get_user_avatar(user_id: str):
-        """Serve another user's profile avatar image by user_id."""
-        try:
-            uuid.UUID(user_id)
-        except ValueError:
-            return {"error": "Invalid user_id format"}, 400
+    # GET /user/<username>/profile/avatar - serve another user's avatar image
+    @app.get("/user/<username>/profile/avatar", authz="AUTH")
+    def get_user_avatar(username: str):
+        """Serve another user's profile avatar image by username."""
+        user = db.get_user_by_username(username=username)
+        if not user:
+            return {"error": f"User not found: {username}"}, 404
+        return _serve_avatar_for_user_id(user["id"])
 
-        profile = db.get_user_profile(user_id=user_id)
-        if not profile:
-            return {"error": "User not found"}, 404
-        return _serve_avatar_for_user_id(user_id)
-
-    # GET /user/<user_id>/profile/experiences - get a user's experiences (requires auth)
-    @app.get("/user/<user_id>/profile/experiences", authz="AUTH")
-    def get_user_experiences(user_id: str):
-        """Get a user's work experiences by user_id."""
-        try:
-            uuid.UUID(user_id)
-        except ValueError:
-            return {"error": "Invalid user_id format"}, 400
-
-        profile = db.get_user_profile(user_id=user_id)
-        if not profile:
-            return {"error": "User not found"}, 404
+    # GET /user/<username>/profile/experiences - get a user's experiences (requires auth)
+    @app.get("/user/<username>/profile/experiences", authz="AUTH")
+    def get_user_experiences(username: str):
+        """Get a user's work experiences by username."""
+        user = db.get_user_by_username(username=username)
+        if not user:
+            return {"error": f"User not found: {username}"}, 404
         
-        experiences = db.get_user_experiences(user_id=user_id)
+        experiences = db.get_user_experiences(user_id=user["id"])
         return fsa.jsonify(experiences), 200
 
-    # GET /user/<user_id>/profile/interests - get a user's interests (requires auth)
-    @app.get("/user/<user_id>/profile/interests", authz="AUTH")
-    def get_user_interests(user_id: str):
-        """Get a user's interests by user_id."""
-        try:
-            uuid.UUID(user_id)
-        except ValueError:
-            return {"error": "Invalid user_id format"}, 400
-
-        profile = db.get_user_profile(user_id=user_id)
-        if not profile:
-            return {"error": "User not found"}, 404
+    # GET /user/<username>/profile/interests - get a user's interests (requires auth)
+    @app.get("/user/<username>/profile/interests", authz="AUTH")
+    def get_user_interests(username: str):
+        """Get a user's interests by username."""
+        user = db.get_user_by_username(username=username)
+        if not user:
+            return {"error": f"User not found: {username}"}, 404
         
-        interests = db.get_user_interests(user_id=user_id)
+        interests = db.get_user_interests(user_id=user["id"])
         return fsa.jsonify(interests), 200
 
     # =========================================================================
