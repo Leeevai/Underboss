@@ -123,12 +123,16 @@ def register_routes(app):
             # Get user profile to find avatar
             try:
                 profile = db.get_user_profile(user_id=resolved_id)
-                # Delete profile picture if it exists
+                # Delete profile picture if it exists and is NOT the default avatar
                 if profile and profile.get('avatar_url'):
-                    avatar_path = os.path.join(os.getcwd(), profile['avatar_url'].lstrip('/'))
-                    if os.path.exists(avatar_path):
-                        os.remove(avatar_path)
-                        log.info(f"Deleted profile picture: {avatar_path}")
+                    config = app.config.get("MEDIA_CONFIG", {})
+                    default_avatar = config.get("default_avatar_url", "media/user/profile/avatar.png")
+                    # Only delete if it's not the default avatar
+                    if profile['avatar_url'] != default_avatar and not profile['avatar_url'].endswith('/avatar.png'):
+                        avatar_path = os.path.join(os.getcwd(), profile['avatar_url'].lstrip('/'))
+                        if os.path.exists(avatar_path):
+                            os.remove(avatar_path)
+                            log.info(f"Deleted profile picture: {avatar_path}")
             except Exception as e:
                 log.warning(f"Could not delete profile picture for user {user_id}: {e}")
 

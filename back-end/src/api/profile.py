@@ -228,16 +228,23 @@ def register_routes(app):
     # DELETE /user/profile/avatar - remove current user's avatar
     @app.delete("/user/profile/avatar", authz="AUTH")
     def delete_avatar(auth: model.CurrentAuth):
-        """Delete the current user's avatar and reset to default."""
+        """Delete the current user's avatar and reset to default (avatar_url becomes NULL)."""
         from werkzeug.utils import secure_filename
         config = app.config.get("MEDIA_CONFIG", {})
-        default_avatar_url = config.get("default_avatar_url", "/media/user/profile/avatar.png")
+        default_avatar_url = config.get("default_avatar_url", "media/user/profile/avatar.png")
         profile = db.get_user_profile(user_id=auth.aid)
-        if profile and profile.get("avatar_url") and profile["avatar_url"] != default_avatar_url:
-            filename = profile["avatar_url"].split("/")[-1]
-            filepath = PROFILE_IMG_DIR / secure_filename(filename)
-            if filepath.exists():
-                filepath.unlink()
+        # Only delete the file if it's not the default avatar
+        if profile and profile.get("avatar_url"):
+            avatar_url = profile["avatar_url"]
+            # Check it's not the default avatar (with or without leading slash)
+            is_default = (avatar_url == default_avatar_url or 
+                         avatar_url == "/" + default_avatar_url or
+                         avatar_url.endswith("/avatar.png"))
+            if not is_default:
+                filename = avatar_url.split("/")[-1]
+                filepath = PROFILE_IMG_DIR / secure_filename(filename)
+                if filepath.exists():
+                    filepath.unlink()
 
         db.update_user_profile(
             user_id=auth.aid,
