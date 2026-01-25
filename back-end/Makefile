@@ -106,7 +106,7 @@ $(APP).db: .postgres
 
 # Setup test data using Python script
 .PHONY: setup-test-data
-setup-test-data: $(PYTHON_RUN) .postgres
+setup-test-data: $(PYTHON_RUN) .postgres src/version.py
 	###
 	#
 	# Setting up test data (users, profiles, interests, etc.)
