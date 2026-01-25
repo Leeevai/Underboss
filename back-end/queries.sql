@@ -10,16 +10,19 @@ SELECT VERSION();
 -- USER AUTHENTICATION & MANAGEMENT
 -- ============================================
 
+-- name: get_role_id(name)^
+SELECT id FROM ROLE WHERE name = :name;
+
 -- Allow login with username, email, or phone
 -- name: get_user_login(login)^
-SELECT u.password_hash as password, (r.name = 'admin') as is_admin
+SELECT u.username as login, u.password_hash as password, (r.name = 'admin') as is_admin
 FROM "USER" u
 JOIN ROLE r ON u.role_id = r.id
 WHERE u.username = :login OR u.email = :login OR u.phone = :login;
 
 -- CAUTION may be used in several places
 -- name: get_user_login_lock(login)^
-SELECT u.password_hash as password, (r.name = 'admin') as is_admin
+SELECT u.username as login, u.password_hash as password, (r.name = 'admin') as is_admin
 FROM "USER" u
 JOIN ROLE r ON u.role_id = r.id
 WHERE u.username = :login OR u.email = :login OR u.phone = :login
@@ -62,6 +65,9 @@ WHERE u.username = :login OR u.email = :login OR u.phone = :login;
 -- name: get_user_by_id(user_id)^
 SELECT id::text, username, email, phone FROM "USER" WHERE id=:user_id::uuid;
 
+-- name: get_user_by_username(username)^
+SELECT id::text, username, email, phone FROM "USER" WHERE username=:username;
+
 -- Insert with username, email, and optional phone
 -- name: insert_user(username, email, phone, password, is_admin)$
 INSERT INTO "USER"(username, email, phone, password_hash, role_id)
@@ -70,7 +76,7 @@ VALUES (
     :email,
     :phone,
     :password,
-    (SELECT id FROM ROLE WHERE name = CASE WHEN :is_admin THEN 'admin' ELSE 'worker' END)
+    (SELECT id FROM ROLE WHERE name = CASE WHEN :is_admin THEN 'admin' ELSE 'user' END)
 )
 ON CONFLICT DO NOTHING
 RETURNING id::text as aid;
