@@ -191,6 +191,20 @@ ORDER BY display_order, name;
 -- name: get_category_by_id(category_id)^
 SELECT * FROM CATEGORY WHERE id = :category_id::uuid;
 
+-- name: get_category_by_slug(slug)^
+SELECT 
+    id::text,
+    name,
+    slug,
+    description,
+    parent_id::text,
+    icon_url,
+    display_order,
+    is_active,
+    created_at
+FROM CATEGORY 
+WHERE slug = :slug AND is_active = TRUE;
+
 -- name: insert_category(name, slug, description, parent_id, icon_url)$
 INSERT INTO CATEGORY (name, slug, description, parent_id, icon_url)
 VALUES (:name, :slug, :description, :parent_id::uuid, :icon_url)

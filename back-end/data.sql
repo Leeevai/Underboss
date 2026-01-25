@@ -58,16 +58,18 @@ DROP TABLE temp_users;
 -- Users without profile pictures: hassan (uses default)
 -- Profiles are auto-created by trigger, but we need to set avatar_urls for those with images
 
+
+-- Set avatar_url to user_id.jpg for test users with profile pics
 UPDATE USER_PROFILE 
-SET avatar_url = 'media/user/profile/clement.png'
+SET avatar_url = '/media/user/profile/' || (SELECT id::text FROM "USER" WHERE username = 'clement') || '.jpg'
 WHERE user_id = (SELECT id FROM "USER" WHERE username = 'clement');
 
 UPDATE USER_PROFILE 
-SET avatar_url = 'media/user/profile/enrique.png'
+SET avatar_url = '/media/user/profile/' || (SELECT id::text FROM "USER" WHERE username = 'enrique') || '.jpg'
 WHERE user_id = (SELECT id FROM "USER" WHERE username = 'enrique');
 
 UPDATE USER_PROFILE 
-SET avatar_url = 'media/user/profile/osman.png'
+SET avatar_url = '/media/user/profile/' || (SELECT id::text FROM "USER" WHERE username = 'osman') || '.jpg'
 WHERE user_id = (SELECT id FROM "USER" WHERE username = 'osman');
 
 -- hassan and admins without profile pics will use the default avatar
@@ -271,15 +273,13 @@ INSERT INTO PAPS_CATEGORY (paps_id, category_id, is_primary, assigned_at) VALUES
 -- PAPS MEDIA
 -- ============================================
 
+
 INSERT INTO PAPS_MEDIA (paps_id, media_type, media_url, thumbnail_url, file_size_bytes, mime_type, display_order, uploaded_at) VALUES
 -- Full-Stack Web Developer (hassan) - image
-((SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed'), 'image', 'https://example.com/media/post/paps_media_123e4567-e89b-12d3-a456-426614174000_1.png', NULL, 2048576, 'image/png', 1, NOW()),
+((SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed'), 'image', '/media/post/' || (SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed') || '_' || (SELECT id FROM "USER" WHERE username = 'hassan') || '_1.png', NULL, 2048576, 'image/png', 1, NOW()),
 
 -- Mobile App Development (hassan) - video
-((SELECT id FROM PAPS WHERE title = 'Mobile App Development'), 'video', 'https://example.com/media/post/paps_media_123e4567-e89b-12d3-a456-426614174000_2.mp4', 'https://example.com/media/post/paps_media_123e4567-e89b-12d3-a456-426614174000_1.png', 15728640, 'video/mp4', 1, NOW()),
-
--- Video Editing for YouTube Channel (osman) - video
-((SELECT id FROM PAPS WHERE title = 'Video Editing for YouTube Channel'), 'video', 'https://example.com/media/post/paps_media_123e4567-e89b-12d3-a456-426614174000_2.mp4', NULL, 15728640, 'video/mp4', 1, NOW())
+((SELECT id FROM PAPS WHERE title = 'Mobile App Development'), 'video', '/media/post/' || (SELECT id FROM PAPS WHERE title = 'Mobile App Development') || '_' || (SELECT id FROM "USER" WHERE username = 'hassan') || '_1.mp4', NULL, 15728640, 'video/mp4', 1, NOW())
 ON CONFLICT DO NOTHING;
 
 -- ============================================

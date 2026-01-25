@@ -79,7 +79,7 @@ F.src	= $(F.py) $(F.gen) $(F.csv) $(F.sql) $(F.conf) Makefile
 PG		= psql -X -v ON_ERROR_STOP=1 -v name=$(APP)
 PGOPT	=
 DB		= $(APP)
-DB.sql  = drop.sql create.sql data.sql
+DB.sql  = drop.sql create.sql data_minimal.sql
 
 # .postgres file is created by tee
 # FIXME not reintrant
@@ -99,9 +99,56 @@ DB.sql  = drop.sql create.sql data.sql
 	}
 	$(PG) $(PGOPT) $(addprefix -f , $(DB.sql)) $(DB) | tee -a app.log $@
 
-# build the database
+
+# build the database and copy test profile images
 .PHONY: $(APP).db
 $(APP).db: .postgres
+
+# Setup test data using Python script
+.PHONY: setup-test-data
+setup-test-data: $(PYTHON_RUN) .postgres
+	###
+	#
+	# Setting up test data (users, profiles, interests, etc.)
+	#
+	source $(PYTHON_VENV)/bin/activate
+	export APP_NAME=$(APP) APP_SECRET=$(APP.secret) APP_CONFIG=local.conf
+	$(PYTHON) ./setup_test_data.py
+
+# Legacy target - kept for backwards compatibility but not used
+.PHONY: paps-media
+paps-media:
+	@echo "# Copying default PAPS media for test PAPS..."
+	# Example for two PAPS: webdev (hassan), mobile (hassan)
+	webdev_id=$$(psql -t -A -d $(DB) -c "SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed';"); \
+	hassan_id=$$(psql -t -A -d $(DB) -c "SELECT id FROM \"USER\" WHERE username = 'hassan';"); \
+	if [ -n "$$webdev_id" ] && [ -n "$$hassan_id" ]; then \
+	  cp ./test_data/post/webdev1.png ./media/post/$$webdev_id"_"$$hassan_id"_1.png"; \
+	  echo "Copied webdev1.png to ./media/post/$$webdev_id"_"$$hassan_id"_1.png"; \
+	fi
+	mobile_id=$$(psql -t -A -d $(DB) -c "SELECT id FROM PAPS WHERE title = 'Mobile App Development';"); \
+	if [ -n "$$mobile_id" ] && [ -n "$$hassan_id" ]; then \
+	  cp ./test_data/post/mobile1.mp4 ./media/post/$$mobile_id"_"$$hassan_id"_1.mp4"; \
+	  echo "Copied mobile1.mp4 to ./media/post/$$mobile_id"_"$$hassan_id"_1.mp4"; \
+	fi
+
+# Rename test profile images for test users (clement, enrique, osman) to user_id.extension
+.PHONY: profile-pics
+profile-pics:
+	@echo "# Renaming test profile images to user_id.extension format..."
+	# Get user IDs for clement, enrique, osman from the DB and rename files
+	for user in clement enrique osman; do \
+	  uid=$$(psql -t -A -d $(DB) -c "SELECT id FROM \"USER\" WHERE username = '$$user';"); \
+	  ext=jpg; \
+	  src=./test_data/profile/$$user.jpg; \
+	  dest=./media/user/profile/$$uid.$$ext; \
+	  if [ -f "$$src" ] && [ -n "$$uid" ]; then \
+	    cp "$$src" "$$dest"; \
+	    echo "Renamed $$user.jpg to $$uid.$$ext"; \
+	  else \
+	    echo "Warning: missing source or user id for $$user"; \
+	  fi; \
+	done
 
 .PHONY: db
 db: $(APP).db
