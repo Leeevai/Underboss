@@ -7,6 +7,7 @@ from . import auth
 from . import profile
 from . import category
 from . import paps
+from . import spap
 from . import user
 
 def register_routes(app):
@@ -16,4 +17,5 @@ def register_routes(app):
     profile.register_routes(app)
     category.register_routes(app)
     paps.register_routes(app)
+    spap.register_routes(app)
     user.register_routes(app)

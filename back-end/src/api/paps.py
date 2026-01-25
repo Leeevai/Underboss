@@ -138,6 +138,8 @@ def register_routes(app):
         estimated_duration_minutes: int|None = None,
         is_public: bool = True,
         status: str = "draft",
+        publish_at: str|None = None,
+        expires_at: str|None = None,
         categories: list|None = None
     ):
         """Create a new PAPS job posting with optional categories."""
@@ -178,6 +180,28 @@ def register_routes(app):
         if estimated_duration_minutes is not None:
             fsa.checkVal(estimated_duration_minutes > 0, "Duration must be positive", 400)
 
+        # Validate publish_at
+        publish_dt = None
+        if publish_at:
+            try:
+                publish_dt = datetime.datetime.fromisoformat(publish_at.replace('Z', '+00:00'))
+            except ValueError:
+                fsa.checkVal(False, "Invalid publish_at format", 400)
+
+        # Validate expires_at
+        expires_dt = None
+        if expires_at:
+            try:
+                expires_dt = datetime.datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+            except ValueError:
+                fsa.checkVal(False, "Invalid expires_at format", 400)
+
+        # For published status, publish_at and start_datetime are required
+        if status == 'published':
+            fsa.checkVal(start_dt is not None, "start_datetime is required for published status", 400)
+            if publish_dt is None:
+                publish_dt = datetime.datetime.now(datetime.timezone.utc)
+
         # Insert the PAPS
         pid = db.insert_paps(
             owner_id=auth.aid,
@@ -197,7 +221,9 @@ def register_routes(app):
             payment_type=payment_type,
             max_applicants=max_applicants,
             max_assignees=max_assignees,
-            is_public=is_public
+            is_public=is_public,
+            publish_at=publish_dt,
+            expires_at=expires_dt
         )
 
         # Add categories if provided
@@ -318,7 +344,8 @@ def register_routes(app):
     @app.delete("/paps/<paps_id>", authz="AUTH")
     def delete_paps_id(paps_id: str, auth: model.CurrentAuth):
         """Soft delete a PAP. Only owner or admin can delete.
-        Also deletes all associated media files from disk."""
+        Also deletes all associated media files from disk and all applications."""
+        from utils import SPAP_MEDIA_DIR
         try:
             uuid.UUID(paps_id)
         except ValueError:
@@ -331,7 +358,7 @@ def register_routes(app):
         if not auth.is_admin and str(paps['owner_id']) != auth.aid:
             return {"error": "Not authorized to delete this PAP"}, 403
 
-        # Delete all media files from disk before deleting the paps
+        # Delete all PAPS media files from disk
         media_list = list(db.get_paps_media(paps_id=paps_id))
         for media in media_list:
             ext = media.get('file_extension', 'png')
@@ -340,6 +367,21 @@ def register_routes(app):
             if filepath.exists():
                 filepath.unlink()
 
+        # Delete all SPAP media files from disk for all applications
+        spaps = list(db.get_spaps_for_paps(paps_id=paps_id))
+        for spap in spaps:
+            spap_media_list = list(db.get_spap_media(spap_id=str(spap['id'])))
+            for media in spap_media_list:
+                ext = media.get('file_extension', 'png')
+                filename = f"{media['media_id']}.{ext}"
+                filepath = SPAP_MEDIA_DIR / filename
+                if filepath.exists():
+                    filepath.unlink()
+
+        # Delete all SPAPs for this PAPS (cascades to SPAP_MEDIA in DB)
+        db.delete_spaps_for_paps(paps_id=paps_id)
+
+        # Soft delete the PAPS
         db.delete_paps(id=paps_id)
         return "", 204
 

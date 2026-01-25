@@ -12,6 +12,7 @@ MEDIA_DIR = pathlib.Path("media")
 PROFILE_IMG_DIR = MEDIA_DIR / "user" / "profile"
 CATEGORY_IMG_DIR = MEDIA_DIR / "category"
 POST_MEDIA_DIR = MEDIA_DIR / "post"
+SPAP_MEDIA_DIR = MEDIA_DIR / "spap"
 
 # NOTE: ALLOWED_EXTENSIONS and MAX_FILE_SIZE are defined in local.conf
 # They are loaded from app.config at runtime via get_media_config()
@@ -41,6 +42,7 @@ def ensure_media_dir():
     PROFILE_IMG_DIR.mkdir(parents=True, exist_ok=True)
     CATEGORY_IMG_DIR.mkdir(parents=True, exist_ok=True)
     POST_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    SPAP_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 def allowed_file(filename: str, app=None) -> bool:
     """Check if file extension is allowed."""

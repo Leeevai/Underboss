@@ -1117,3 +1117,606 @@ def test_paps_search_filters(api):
     # Note: Can't delete user because soft-deleted paps still reference them
     api.setToken(user, None)
     api.setPass(user, None)
+
+
+# ============================================
+# SPAP (JOB APPLICATIONS) TESTS
+# ============================================
+
+def test_spap_apply(api):
+    """Test applying to a PAPS job posting."""
+    import datetime
+    
+    # Create a user who will own a paps
+    owner = "spap_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    # Create another user who will apply
+    applicant = "spap_applicant"
+    api.setPass(applicant, "Apply123!")
+    res = api.post("/register", 201, json={
+        "username": applicant,
+        "email": f"{applicant}@test.com",
+        "password": "Apply123!"
+    }, login=None)
+    res = api.get("/login", login=applicant, auth="basic")
+    api.setToken(applicant, res.json.get("token"))
+
+    # Owner creates a published paps
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+    res = api.post("/paps", 201, json={
+        "title": "Test Job for Applications",
+        "description": "This is a test job posting for SPAP tests",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "publish_at": now.isoformat(),
+        "start_datetime": start.isoformat(),
+        "max_applicants": 5
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Applicant applies to the paps
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "title": "My Application",
+        "message": "I would love to work on this project!"
+    }, login=applicant)
+    spap_id = res.json["spap_id"]
+    assert spap_id is not None
+
+    # Cannot apply twice
+    api.post(f"/paps/{paps_id}/apply", 409, json={
+        "title": "Another Application",
+        "message": "Trying to apply again but should fail"
+    }, login=applicant)
+
+    # Owner cannot apply to their own paps
+    api.post(f"/paps/{paps_id}/apply", 403, json={
+        "title": "Self Application",
+        "message": "Owner trying to apply to own job"
+    }, login=owner)
+
+    # Get application details
+    res = api.get(f"/spap/{spap_id}", 200, login=applicant)
+    assert res.json["title"] == "My Application"
+    assert res.json["status"] == "pending"
+
+    # Owner can also view the application
+    res = api.get(f"/spap/{spap_id}", 200, login=owner)
+    assert res.json["title"] == "My Application"
+
+    # Get my applications (as applicant)
+    res = api.get("/spap/my", 200, login=applicant)
+    assert res.json["count"] >= 1
+    assert any(a["id"] == spap_id for a in res.json["applications"])
+
+    # Get all applications for paps (as owner)
+    res = api.get(f"/paps/{paps_id}/applications", 200, login=owner)
+    assert res.json["count"] >= 1
+
+    # Applicant cannot view all applications
+    api.get(f"/paps/{paps_id}/applications", 403, login=applicant)
+
+    # Owner updates application status
+    api.put(f"/spap/{spap_id}/status", 204, json={"status": "accepted"}, login=owner)
+    res = api.get(f"/spap/{spap_id}", 200, login=applicant)
+    assert res.json["status"] == "accepted"
+
+    # Cannot withdraw accepted application
+    api.delete(f"/spap/{spap_id}", 400, login=applicant)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(applicant, None)
+    api.setPass(applicant, None)
+
+
+def test_spap_withdraw(api):
+    """Test withdrawing an application."""
+    import datetime
+    
+    # Create owner and applicant
+    owner = "withdraw_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    applicant = "withdraw_applicant"
+    api.setPass(applicant, "Apply123!")
+    res = api.post("/register", 201, json={
+        "username": applicant,
+        "email": f"{applicant}@test.com",
+        "password": "Apply123!"
+    }, login=None)
+    res = api.get("/login", login=applicant, auth="basic")
+    api.setToken(applicant, res.json.get("token"))
+
+    # Create published paps
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+    res = api.post("/paps", 201, json={
+        "title": "Job for Withdrawal Test",
+        "description": "Testing application withdrawal functionality",
+        "payment_type": "hourly",
+        "payment_amount": 50.00,
+        "status": "published",
+        "publish_at": now.isoformat(),
+        "start_datetime": start.isoformat()
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Apply
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "title": "Will Withdraw",
+        "message": "This application will be withdrawn"
+    }, login=applicant)
+    spap_id = res.json["spap_id"]
+
+    # Withdraw application
+    api.delete(f"/spap/{spap_id}", 204, login=applicant)
+
+    # Application should be gone
+    api.get(f"/spap/{spap_id}", 404, login=applicant)
+
+    # Can apply again after withdrawal
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "title": "Reapplication",
+        "message": "Applying again after withdrawal"
+    }, login=applicant)
+    new_spap_id = res.json["spap_id"]
+
+    # Cleanup
+    api.delete(f"/spap/{new_spap_id}", 204, login=applicant)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(applicant, None)
+    api.setPass(applicant, None)
+
+
+def test_spap_max_applicants(api):
+    """Test that max_applicants is enforced."""
+    import datetime
+    
+    owner = "maxapp_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    # Create paps with max_applicants = 1
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+    res = api.post("/paps", 201, json={
+        "title": "Limited Applications Job",
+        "description": "Only one person can apply to this job",
+        "payment_type": "fixed",
+        "payment_amount": 100.00,
+        "status": "published",
+        "publish_at": now.isoformat(),
+        "start_datetime": start.isoformat(),
+        "max_applicants": 1
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # First applicant
+    app1 = "maxapp_app1"
+    api.setPass(app1, "Apply123!")
+    res = api.post("/register", 201, json={
+        "username": app1,
+        "email": f"{app1}@test.com",
+        "password": "Apply123!"
+    }, login=None)
+    res = api.get("/login", login=app1, auth="basic")
+    api.setToken(app1, res.json.get("token"))
+
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "title": "First Application",
+        "message": "I am the first applicant"
+    }, login=app1)
+    spap1_id = res.json["spap_id"]
+
+    # Second applicant should be rejected (max reached)
+    app2 = "maxapp_app2"
+    api.setPass(app2, "Apply123!")
+    res = api.post("/register", 201, json={
+        "username": app2,
+        "email": f"{app2}@test.com",
+        "password": "Apply123!"
+    }, login=None)
+    res = api.get("/login", login=app2, auth="basic")
+    api.setToken(app2, res.json.get("token"))
+
+    api.post(f"/paps/{paps_id}/apply", 400, json={
+        "title": "Second Application",
+        "message": "I should not be able to apply"
+    }, login=app2)
+
+    # First applicant withdraws
+    api.delete(f"/spap/{spap1_id}", 204, login=app1)
+
+    # Now second applicant can apply
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "title": "Second Application",
+        "message": "Now I can apply after the first withdrew"
+    }, login=app2)
+    spap2_id = res.json["spap_id"]
+
+    # Cleanup
+    api.delete(f"/spap/{spap2_id}", 204, login=app2)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(app1, None)
+    api.setPass(app1, None)
+    api.setToken(app2, None)
+    api.setPass(app2, None)
+
+
+def test_spap_media(api):
+    """Test SPAP media upload and management."""
+    import datetime
+    import io
+    
+    owner = "spapmedia_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    applicant = "spapmedia_applicant"
+    api.setPass(applicant, "Apply123!")
+    res = api.post("/register", 201, json={
+        "username": applicant,
+        "email": f"{applicant}@test.com",
+        "password": "Apply123!"
+    }, login=None)
+    res = api.get("/login", login=applicant, auth="basic")
+    api.setToken(applicant, res.json.get("token"))
+
+    # Create published paps
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+    res = api.post("/paps", 201, json={
+        "title": "Job with Media Test",
+        "description": "Testing SPAP media upload functionality",
+        "payment_type": "fixed",
+        "payment_amount": 300.00,
+        "status": "published",
+        "publish_at": now.isoformat(),
+        "start_datetime": start.isoformat()
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Apply
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "title": "Application with Media",
+        "message": "Will upload media to this application"
+    }, login=applicant)
+    spap_id = res.json["spap_id"]
+
+    # Upload media - create a simple test image
+    png_bytes = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82'
+    
+    res = api.post(f"/spap/{spap_id}/media", 201,
+                   data={"media": (io.BytesIO(png_bytes), "test.png", "image/png")},
+                   login=applicant)
+    assert res.json["count"] == 1
+    media_id = res.json["uploaded_media"][0]["media_id"]
+
+    # Get media list
+    res = api.get(f"/spap/{spap_id}/media", 200, login=applicant)
+    assert res.json["media_count"] == 1
+
+    # Owner can also view media
+    res = api.get(f"/spap/{spap_id}/media", 200, login=owner)
+    assert res.json["media_count"] == 1
+
+    # Get media file
+    res = api.get(f"/spap/media/{media_id}", 200, login=applicant)
+    
+    # Delete media
+    api.delete(f"/spap/media/{media_id}", 204, login=applicant)
+
+    # Media should be gone
+    res = api.get(f"/spap/{spap_id}/media", 200, login=applicant)
+    assert res.json["media_count"] == 0
+
+    # Cleanup
+    api.delete(f"/spap/{spap_id}", 204, login=applicant)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(applicant, None)
+    api.setPass(applicant, None)
+
+
+def test_spap_validation_conditions(api):
+    """Test that SPAP can only be created under valid conditions."""
+    import datetime
+    
+    # Create owner and applicant
+    owner = "validation_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    applicant = "validation_applicant"
+    api.setPass(applicant, "Apply123!")
+    res = api.post("/register", 201, json={
+        "username": applicant,
+        "email": f"{applicant}@test.com",
+        "password": "Apply123!"
+    }, login=None)
+    res = api.get("/login", login=applicant, auth="basic")
+    api.setToken(applicant, res.json.get("token"))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+
+    # Test 1: Cannot apply to draft PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Draft Job for Testing",
+        "description": "This is a draft job posting that should not accept applications",
+        "payment_type": "fixed",
+        "payment_amount": 100.00,
+        "status": "draft"
+    }, login=owner)
+    draft_paps_id = res.json["paps_id"]
+
+    api.post(f"/paps/{draft_paps_id}/apply", 400, json={
+        "title": "Application to Draft",
+        "message": "This should fail because PAPS is not published"
+    }, login=applicant)
+
+    # Test 2: Cannot apply to closed PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Closed Job for Testing",
+        "description": "This is a closed job posting that should not accept applications",
+        "payment_type": "fixed",
+        "payment_amount": 100.00,
+        "status": "published",
+        "start_datetime": start.isoformat()
+    }, login=owner)
+    closed_paps_id = res.json["paps_id"]
+    
+    # Close the PAPS
+    api.put(f"/paps/{closed_paps_id}", 204, json={"status": "closed"}, login=owner)
+
+    api.post(f"/paps/{closed_paps_id}/apply", 400, json={
+        "title": "Application to Closed",
+        "message": "This should fail because PAPS is closed"
+    }, login=applicant)
+
+    # Test 3: Cannot apply to cancelled PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Cancelled Job Testing",
+        "description": "This is a cancelled job posting that should not accept applications",
+        "payment_type": "fixed",
+        "payment_amount": 100.00,
+        "status": "published",
+        "start_datetime": start.isoformat()
+    }, login=owner)
+    cancelled_paps_id = res.json["paps_id"]
+    
+    # Cancel the PAPS
+    api.put(f"/paps/{cancelled_paps_id}", 204, json={"status": "cancelled"}, login=owner)
+
+    api.post(f"/paps/{cancelled_paps_id}/apply", 400, json={
+        "title": "Application to Cancelled",
+        "message": "This should fail because PAPS is cancelled"
+    }, login=applicant)
+
+    # Test 4: Cannot apply to non-existent PAPS
+    fake_uuid = "00000000-0000-0000-0000-000000000000"
+    api.post(f"/paps/{fake_uuid}/apply", 404, json={
+        "title": "Application to Nonexistent",
+        "message": "This should fail because PAPS does not exist"
+    }, login=applicant)
+
+    # Test 5: Invalid SPAP ID format
+    api.post("/paps/not-a-uuid/apply", 400, json={
+        "title": "Invalid ID Test",
+        "message": "This should fail because PAPS ID is invalid"
+    }, login=applicant)
+
+    # Cleanup
+    api.delete(f"/paps/{draft_paps_id}", 204, login=owner)
+    api.delete(f"/paps/{closed_paps_id}", 204, login=owner)
+    api.delete(f"/paps/{cancelled_paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(applicant, None)
+    api.setPass(applicant, None)
+
+
+def test_spap_media_cascade_delete(api):
+    """Test that SPAP media is deleted when SPAP is deleted."""
+    import datetime
+    import io
+    
+    owner = "cascade_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    applicant = "cascade_applicant"
+    api.setPass(applicant, "Apply123!")
+    res = api.post("/register", 201, json={
+        "username": applicant,
+        "email": f"{applicant}@test.com",
+        "password": "Apply123!"
+    }, login=None)
+    res = api.get("/login", login=applicant, auth="basic")
+    api.setToken(applicant, res.json.get("token"))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+
+    # Create published paps
+    res = api.post("/paps", 201, json={
+        "title": "Job for Cascade Test",
+        "description": "Testing cascade delete of SPAP and its media",
+        "payment_type": "fixed",
+        "payment_amount": 200.00,
+        "status": "published",
+        "start_datetime": start.isoformat()
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Apply
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "title": "Application for Cascade Test",
+        "message": "This application will have media that should be cascade deleted"
+    }, login=applicant)
+    spap_id = res.json["spap_id"]
+
+    # Upload media
+    png_bytes = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82'
+    
+    res = api.post(f"/spap/{spap_id}/media", 201,
+                   data={"media": (io.BytesIO(png_bytes), "cascade_test.png", "image/png")},
+                   login=applicant)
+    assert res.json["count"] == 1
+    media_id = res.json["uploaded_media"][0]["media_id"]
+
+    # Verify media exists
+    api.get(f"/spap/media/{media_id}", 200, login=applicant)
+
+    # Delete the SPAP (should cascade delete media)
+    api.delete(f"/spap/{spap_id}", 204, login=applicant)
+
+    # SPAP should be gone
+    api.get(f"/spap/{spap_id}", 404, login=applicant)
+
+    # Media should also be gone (404 because SPAP doesn't exist)
+    api.get(f"/spap/media/{media_id}", 404, login=applicant)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(applicant, None)
+    api.setPass(applicant, None)
+
+
+def test_paps_cascade_delete_spap(api):
+    """Test that SPAPs are deleted when PAPS is deleted (cascade)."""
+    import datetime
+    
+    owner = "paps_cascade_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    applicant1 = "paps_cascade_app1"
+    api.setPass(applicant1, "Apply123!")
+    res = api.post("/register", 201, json={
+        "username": applicant1,
+        "email": f"{applicant1}@test.com",
+        "password": "Apply123!"
+    }, login=None)
+    res = api.get("/login", login=applicant1, auth="basic")
+    api.setToken(applicant1, res.json.get("token"))
+
+    applicant2 = "paps_cascade_app2"
+    api.setPass(applicant2, "Apply123!")
+    res = api.post("/register", 201, json={
+        "username": applicant2,
+        "email": f"{applicant2}@test.com",
+        "password": "Apply123!"
+    }, login=None)
+    res = api.get("/login", login=applicant2, auth="basic")
+    api.setToken(applicant2, res.json.get("token"))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+
+    # Create published paps
+    res = api.post("/paps", 201, json={
+        "title": "Job for PAPS Cascade Test",
+        "description": "Testing cascade delete of PAPS deletes all SPAPs",
+        "payment_type": "fixed",
+        "payment_amount": 300.00,
+        "status": "published",
+        "start_datetime": start.isoformat(),
+        "max_applicants": 5
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Create multiple applications
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "title": "First Application",
+        "message": "First applicant for cascade delete test"
+    }, login=applicant1)
+    spap1_id = res.json["spap_id"]
+
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "title": "Second Application",
+        "message": "Second applicant for cascade delete test"
+    }, login=applicant2)
+    spap2_id = res.json["spap_id"]
+
+    # Verify both applications exist
+    api.get(f"/spap/{spap1_id}", 200, login=applicant1)
+    api.get(f"/spap/{spap2_id}", 200, login=applicant2)
+
+    # Verify applications show up in paps applications
+    res = api.get(f"/paps/{paps_id}/applications", 200, login=owner)
+    assert res.json["count"] == 2
+
+    # Delete the PAPS (should cascade delete all SPAPs)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+
+    # PAPS should be soft deleted (returns 404 for normal lookup)
+    api.get(f"/paps/{paps_id}", 404, login=owner)
+
+    # SPAPs should be cascade deleted (404)
+    api.get(f"/spap/{spap1_id}", 404, login=applicant1)
+    api.get(f"/spap/{spap2_id}", 404, login=applicant2)
+
+    # Cleanup tokens
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(applicant1, None)
+    api.setPass(applicant1, None)
+    api.setToken(applicant2, None)
+    api.setPass(applicant2, None)

@@ -426,19 +426,19 @@ WHERE p.status = 'published'
   )
 ORDER BY p.created_at DESC;
 
--- name: insert_paps(owner_id, title, subtitle, description, status, location_address, location_lat, location_lng, location_timezone, start_datetime, end_datetime, estimated_duration_minutes, payment_amount, payment_currency, payment_type, max_applicants, max_assignees, is_public)$
+-- name: insert_paps(owner_id, title, subtitle, description, status, location_address, location_lat, location_lng, location_timezone, start_datetime, end_datetime, estimated_duration_minutes, payment_amount, payment_currency, payment_type, max_applicants, max_assignees, is_public, publish_at, expires_at)$
 INSERT INTO PAPS (
     owner_id, title, subtitle, description, status,
     location_address, location_lat, location_lng, location_timezone,
     start_datetime, end_datetime, estimated_duration_minutes,
     payment_amount, payment_currency, payment_type,
-    max_applicants, max_assignees, is_public
+    max_applicants, max_assignees, is_public, publish_at, expires_at
 ) VALUES (
     :owner_id::uuid, :title, :subtitle, :description, :status,
     :location_address, :location_lat, :location_lng, :location_timezone,
     :start_datetime, :end_datetime, :estimated_duration_minutes,
     :payment_amount, :payment_currency, :payment_type,
-    :max_applicants, :max_assignees, :is_public
+    :max_applicants, :max_assignees, :is_public, :publish_at, :expires_at
 )
 RETURNING id::text;
 
@@ -731,3 +731,78 @@ WHERE paps_id = :paps_id::uuid AND deleted_at IS NULL;
 
 -- name: get_paps_applications_count(paps_id)$
 SELECT COUNT(*) FROM SPAP WHERE paps_id = :paps_id::uuid;
+
+-- ============================================
+-- SPAP (JOB APPLICATIONS) QUERIES
+-- ============================================
+
+-- name: get_spap_by_id(spap_id)^
+SELECT s.*, u.username as applicant_username
+FROM SPAP s
+JOIN "USER" u ON s.applicant_id = u.id
+WHERE s.id = :spap_id::uuid;
+
+-- name: get_spaps_for_paps(paps_id)
+SELECT s.*, u.username as applicant_username
+FROM SPAP s
+JOIN "USER" u ON s.applicant_id = u.id
+WHERE s.paps_id = :paps_id::uuid
+ORDER BY s.applied_at DESC;
+
+-- name: get_spaps_by_applicant(applicant_id)
+SELECT s.*, p.title as paps_title
+FROM SPAP s
+JOIN PAPS p ON s.paps_id = p.id
+WHERE s.applicant_id = :applicant_id::uuid
+ORDER BY s.applied_at DESC;
+
+-- name: get_spap_by_paps_and_applicant(paps_id, applicant_id)^
+SELECT * FROM SPAP
+WHERE paps_id = :paps_id::uuid AND applicant_id = :applicant_id::uuid;
+
+-- name: insert_spap(paps_id, applicant_id, title, subtitle, message, proposed_payment_amount, location_address, location_lat, location_lng, location_timezone)$
+INSERT INTO SPAP (paps_id, applicant_id, title, subtitle, message, proposed_payment_amount, 
+                  location_address, location_lat, location_lng, location_timezone)
+VALUES (:paps_id::uuid, :applicant_id::uuid, :title, :subtitle, :message, :proposed_payment_amount,
+        :location_address, :location_lat, :location_lng, :location_timezone)
+RETURNING id;
+
+-- name: update_spap_status(spap_id, status, reviewed_at, accepted_at, rejected_at)!
+UPDATE SPAP SET
+    status = COALESCE(:status, status),
+    reviewed_at = COALESCE(:reviewed_at, reviewed_at),
+    accepted_at = COALESCE(:accepted_at, accepted_at),
+    rejected_at = COALESCE(:rejected_at, rejected_at)
+WHERE id = :spap_id::uuid;
+
+-- name: delete_spap(spap_id)!
+DELETE FROM SPAP WHERE id = :spap_id::uuid;
+
+-- name: delete_spaps_for_paps(paps_id)!
+DELETE FROM SPAP WHERE paps_id = :paps_id::uuid;
+
+-- ============================================
+-- SPAP_MEDIA QUERIES
+-- ============================================
+
+-- name: get_spap_media(spap_id)
+SELECT id as media_id, spap_id, media_type, file_extension, file_size_bytes, mime_type, display_order, uploaded_at
+FROM SPAP_MEDIA
+WHERE spap_id = :spap_id::uuid
+ORDER BY display_order ASC;
+
+-- name: get_spap_media_by_id(media_id)^
+SELECT id as media_id, spap_id, media_type, file_extension, file_size_bytes, mime_type, display_order, uploaded_at
+FROM SPAP_MEDIA
+WHERE id = :media_id::uuid;
+
+-- name: insert_spap_media(spap_id, media_type, file_extension, file_size_bytes, mime_type, display_order)$
+INSERT INTO SPAP_MEDIA (spap_id, media_type, file_extension, file_size_bytes, mime_type, display_order)
+VALUES (:spap_id::uuid, :media_type, :file_extension, :file_size_bytes, :mime_type, :display_order)
+RETURNING id;
+
+-- name: delete_spap_media(media_id)!
+DELETE FROM SPAP_MEDIA WHERE id = :media_id::uuid;
+
+-- name: get_next_spap_media_order(spap_id)$
+SELECT COALESCE(MAX(display_order), -1) + 1 FROM SPAP_MEDIA WHERE spap_id = :spap_id::uuid;

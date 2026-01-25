@@ -463,14 +463,46 @@ CREATE TABLE SPAP (
     paps_id UUID NOT NULL,
     applicant_id UUID NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
-    applicant_message TEXT,
+    title VARCHAR(200) NOT NULL,
+    subtitle VARCHAR(300),
+    message TEXT NOT NULL,
     proposed_payment_amount DECIMAL(10, 2),
+    location_address TEXT,
+    location_lat DECIMAL(10, 8),
+    location_lng DECIMAL(11, 8),
+    location_timezone VARCHAR(50),
     applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewed_at TIMESTAMP,
     accepted_at TIMESTAMP,
     rejected_at TIMESTAMP,
-    CONSTRAINT spap_paps_fk FOREIGN KEY (paps_id) REFERENCES PAPS(id) ON DELETE RESTRICT,
+    CONSTRAINT spap_paps_fk FOREIGN KEY (paps_id) REFERENCES PAPS(id) ON DELETE CASCADE,
     CONSTRAINT spap_applicant_fk FOREIGN KEY (applicant_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
+    CONSTRAINT spap_title_check CHECK (LENGTH(TRIM(title)) >= 3),
+    CONSTRAINT spap_message_check CHECK (LENGTH(TRIM(message)) >= 10),
+    CONSTRAINT spap_location_consistency CHECK (
+        (
+            location_lat IS NULL
+            AND location_lng IS NULL
+        )
+        OR (
+            location_lat IS NOT NULL
+            AND location_lng IS NOT NULL
+        )
+    ),
+    CONSTRAINT spap_lat_check CHECK (
+        location_lat IS NULL
+        OR (
+            location_lat >= -90
+            AND location_lat <= 90
+        )
+    ),
+    CONSTRAINT spap_lng_check CHECK (
+        location_lng IS NULL
+        OR (
+            location_lng >= -180
+            AND location_lng <= 180
+        )
+    ),
     CONSTRAINT spap_status_check CHECK (
         status IN ('pending', 'accepted', 'rejected', 'withdrawn')
     ),
@@ -537,16 +569,18 @@ CREATE TABLE SPAP_MEDIA (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     spap_id UUID NOT NULL,
     media_type VARCHAR(20) NOT NULL,
-    media_url VARCHAR(500) NOT NULL,
-    thumbnail_url VARCHAR(500),
-    caption TEXT,
+    file_extension VARCHAR(10) NOT NULL,
+    file_size_bytes INTEGER,
+    mime_type VARCHAR(100),
     display_order INTEGER NOT NULL DEFAULT 0,
     uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT SPAP_MEDIA_spap_fk FOREIGN KEY (spap_id) REFERENCES SPAP(id) ON DELETE CASCADE,
-    CONSTRAINT SPAP_MEDIA_type_check CHECK (
-        media_type IN ('image', 'video', 'document', 'certificate')
+    CONSTRAINT SPAP_MEDIA_type_check CHECK (media_type IN ('image', 'video', 'document')),
+    CONSTRAINT SPAP_MEDIA_file_size_check CHECK (
+        file_size_bytes IS NULL
+        OR file_size_bytes > 0
     ),
-    CONSTRAINT SPAP_MEDIA_url_check CHECK (media_url ~* '^https?://')
+    CONSTRAINT SPAP_MEDIA_extension_check CHECK (file_extension ~ '^[a-z0-9]+$')
 );
 
 -- ============================================
