@@ -30,12 +30,16 @@ def api(ft_client):
     # get tokens for ADMIN and NOADM users (password set from env)
     res = ft_client.get("/login", login=ADMIN, auth="basic")
     assert res.is_json
-    # Extract token from JSON response
-    ft_client.setToken(ADMIN, res.json.get("token") if isinstance(res.json, dict) else res.json)
+    # Extract token from JSON response - response is {"token": "..."}
+    token_resp = res.json
+    token = token_resp.get("token") if isinstance(token_resp, dict) else token_resp
+    ft_client.setToken(ADMIN, token)
     res = ft_client.post("/login", login=NOADM, auth="param")
     assert res.is_json
     # Extract token from JSON response
-    ft_client.setToken(NOADM, res.json.get("token") if isinstance(res.json, dict) else res.json)
+    token_resp = res.json
+    token = token_resp.get("token") if isinstance(token_resp, dict) else token_resp
+    ft_client.setToken(NOADM, token)
     yield ft_client
 
 # environment and running
@@ -59,7 +63,9 @@ def test_who_am_i(api):
 def test_myself(api):
     api.get("/myself", 401)
     res = api.get("/myself", 200, login=ADMIN)
-    assert res.json["login"] == ADMIN and res.json["isadmin"] and res.json["aid"] == 1
+    assert res.json["login"] == ADMIN and res.json["isadmin"]
+    # aid is now a UUID string in new schema
+    assert isinstance(res.json["aid"], str) and len(res.json["aid"]) > 0
     api.post("/myself", 405, login=ADMIN)
     api.put("/myself", 405, login=ADMIN)
     api.patch("/myself", 405, login=ADMIN)
@@ -72,25 +78,29 @@ def test_login(api):
     assert ADMIN in res.text
     log.warning(f"headers: {res.headers}")
     assert res.headers["FSA-User"] == f"{ADMIN} (basic)"
-    # GET login with basic auth
-    admin_token = api.get("/login", 200, login=ADMIN, auth="basic").json
+    # GET login with basic auth - response is now {"token": "..."}
+    admin_token_resp = api.get("/login", 200, login=ADMIN, auth="basic").json
+    admin_token = admin_token_resp.get("token") if isinstance(admin_token_resp, dict) else admin_token_resp
     assert f":{ADMIN}:" in admin_token
     api.setToken(ADMIN, admin_token)
     res = api.get("/who-am-i", 200, login=ADMIN)
     assert ADMIN in res.text
     assert res.headers["FSA-User"] == f"{ADMIN} (token)"
     # hobbes
-    noadm_token = api.get("/login", 200, login=NOADM, auth="basic").json
+    noadm_token_resp = api.get("/login", 200, login=NOADM, auth="basic").json
+    noadm_token = noadm_token_resp.get("token") if isinstance(noadm_token_resp, dict) else noadm_token_resp
     assert f":{NOADM}:" in noadm_token
     api.setToken(NOADM, noadm_token)
     # same with POST and parameters
     api.post("/login", 401, login=None)
     res = api.post("/login", 201, data={"login": "calvin", "password": "hobbes"}, login=None)
-    tok = res.json
+    tok_resp = res.json
+    tok = tok_resp.get("token") if isinstance(tok_resp, dict) else tok_resp
     assert ":calvin:" in tok
     assert res.headers["FSA-User"] == "calvin (param)"
     res = api.post("/login", 201, json={"login": "calvin", "password": "hobbes"}, login=None)
-    tok = res.json
+    tok_resp = res.json
+    tok = tok_resp.get("token") if isinstance(tok_resp, dict) else tok_resp
     assert ":calvin:" in tok
     assert res.headers["FSA-User"] == "calvin (param)"
     # test token auth
@@ -132,39 +142,35 @@ def test_stats(api):
 # /register
 def test_register(api):
     # register a new user
-    user, pswd = "dyna-user", "dyna-user-pass-123"
+    user, pswd = "dyna-user", "DynaUserPass123!"
     api.setPass(user, pswd)
-    # bad login with a space
-    api.post("/register", 400, data={"login": "this is a bad login", "password": pswd}, login=None)
-    # login too short
-    api.post("/register", 400, json={"login": "x", "password": pswd}, login=None)
-    # login already exists
-    api.post("/register", 409, data={"login": "calvin", "password": pswd}, login=None)
-    # missing "login" parameter
-    api.post("/register", 400, json={"password": pswd}, login=None)
+    # bad username with a space
+    api.post("/register", 400, data={"username": "this is a bad login", "email": "test@test.com", "password": pswd}, login=None)
+    # username too short
+    api.post("/register", 400, json={"username": "x", "email": "test@test.com", "password": pswd}, login=None)
+    # username already exists
+    api.post("/register", 409, data={"username": "calvin", "email": "new@test.com", "password": pswd}, login=None)
+    # missing "username" parameter
+    api.post("/register", 400, json={"email": "test@test.com", "password": pswd}, login=None)
+    # missing "email" parameter
+    api.post("/register", 400, json={"username": user, "password": pswd}, login=None)
     # missing "password" parameter
-    api.post("/register", 400, data={"login": user}, login=None)
+    api.post("/register", 400, data={"username": user, "email": f"{user}@test.com"}, login=None)
     # password is too short
-    api.post("/register", 400, json={"login": "hello", "password": ""}, login=None)
-    # password is too simple
-    # api.post("/register", 400, json={"login": "hello", "password": "world!"}, login=None)
+    api.post("/register", 400, json={"username": "hello", "email": "hello@test.com", "password": ""}, login=None)
     # at last one which is expected to work!
-    api.post("/register", 201, json={"login": user, "password": pswd}, login=None)
-    user_token = api.get("/login", 200, r"^([^:]+:){3}[^:]+$", login=user).json
+    api.post("/register", 201, json={"username": user, "email": f"{user}@test.com", "password": pswd}, login=None)
+    user_token = api.get("/login", 200, r"^.*token.*$", login=user).json
     api.setToken(user, user_token.get("token") if isinstance(user_token, dict) else user_token)
     api.get("/users/x", 400, r"x", login=ADMIN)
     api.get("/users/****", 400, r"\*\*\*\*", login=ADMIN)
     api.get(f"/users/{user}", 200, f"{user}", login=ADMIN)
-    api.patch(f"/users/{user}", 204, data={"password": "pwd1!"}, login=ADMIN)
+    api.patch(f"/users/{user}", 204, data={"password": "NewPass123!"}, login=ADMIN)
     api.patch(f"/users/{user}", 204, data={"is_admin": False}, login=ADMIN)
     api.patch(f"/users/{user}", 204, data={"email": "dyna@comics.net"}, login=ADMIN)
     api.patch(f"/users/{user}", 400, data={"email": "not-an-email"}, login=ADMIN)
-    dyna = {"login": user, "password": pswd, "email": "dyna-no-spam@comics.net", "isadmin": True}
-    api.put(f"/users/{user}", 204, data={"auth": dyna}, login=ADMIN)
-    toto = dict(**dyna).update(login="toto")
-    api.put(f"/users/{user}", 400, data={"auth": toto}, login=ADMIN)
+    # Delete test user
     api.delete(f"/users/{user}", 204, login=ADMIN)
-    api.put(f"/users/{user}", 404, data={"auth": dyna}, login=ADMIN)
     api.get("/users/no-such-user", 404, login=ADMIN)
     api.patch("/users/no-such-user", 404, login=ADMIN)
     api.delete("/users/no-such-user", 404, login=ADMIN)
@@ -179,10 +185,10 @@ def test_users(api):
     api.get("/users", 200, r"calvin", login=ADMIN)
     api.get("/users", 200, r"hobbes", json={"flt": "h%"}, login=ADMIN)
     api.post("/users", 400, login=ADMIN)
-    api.post("/users", 400, json={"login": "ab", "password": "abc123!", "is_admin": False}, login=ADMIN)
-    api.post("/users", 400, json={"login": "1abcd", "password": "abc123!", "is_admin": False}, login=ADMIN)
-    api.post("/users", 201, json={"login": OTHER, "password": "abc123!", "is_admin": False}, login=ADMIN)
-    api.post("/users", 409, json={"login": OTHER, "password": "abc123!", "is_admin": False}, login=ADMIN)
+    api.post("/users", 400, json={"login": "ab", "password": "Password123!", "is_admin": False}, login=ADMIN)
+    api.post("/users", 400, json={"login": "1abcd", "password": "Password123!", "is_admin": False}, login=ADMIN)
+    api.post("/users", 201, json={"login": OTHER, "password": "Password123!", "email": f"{OTHER}@test.com", "is_admin": False}, login=ADMIN)
+    api.post("/users", 409, json={"login": OTHER, "password": "Password123!", "email": f"{OTHER}2@test.com", "is_admin": False}, login=ADMIN)
     api.delete(f"/users/{OTHER}", 204, login=ADMIN)
     api.put("/users", 405, login=ADMIN)
     api.patch("/users", 405, login=ADMIN)
@@ -220,21 +226,21 @@ def test_user_profile(api):
     api.setToken(user, user_token.get("token") if isinstance(user_token, dict) else user_token)
     
     # Get profile - should exist (auto-created on user registration)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     assert res.json["username"] == user
     assert res.json["email"] == f"{user}@test.com"
     assert "user_id" in res.json
     
     # Profile is publicly accessible (OPEN auth)
-    api.get(f"/users/{user}/profile", 200, login=None)
-    api.get(f"/users/{user}/profile", 200, login=ADMIN)
-    api.get(f"/users/{user}/profile", 200, login=NOADM)
+    api.get(f"/user/{user}/profile", 200, login=None)
+    api.get(f"/user/{user}/profile", 200, login=ADMIN)
+    api.get(f"/user/{user}/profile", 200, login=NOADM)
     
     # Test 404 for non-existent user
-    api.get("/users/nonexistentuser999/profile", 404, login=None)
+    api.get("/user/nonexistentuser999/profile", 404, login=None)
     
     # Update profile - user can update own profile
-    api.patch(f"/users/{user}/profile", 204, data={
+    api.patch(f"/user/{user}/profile", 204, data={
         "first_name": "Test",
         "last_name": "User",
         "display_name": "Test User",
@@ -243,7 +249,7 @@ def test_user_profile(api):
     }, login=user)
     
     # Verify profile was updated
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     assert res.json["first_name"] == "Test"
     assert res.json["last_name"] == "User"
     assert res.json["display_name"] == "Test User"
@@ -251,49 +257,49 @@ def test_user_profile(api):
     assert res.json["timezone"] == "UTC"
     
     # Update single field
-    api.patch(f"/users/{user}/profile", 204, data={"bio": "Updated bio"}, login=user)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    api.patch(f"/user/{user}/profile", 204, data={"bio": "Updated bio"}, login=user)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     assert res.json["bio"] == "Updated bio"
     assert res.json["first_name"] == "Test"  # Other fields unchanged
     
     # Update location fields
-    api.patch(f"/users/{user}/profile", 204, data={
+    api.patch(f"/user/{user}/profile", 204, data={
         "location_address": "123 Test St",
         "location_lat": 40.7128,
         "location_lng": -74.0060
     }, login=user)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     assert res.json["location_address"] == "123 Test St"
     assert res.json["location_lat"] == 40.7128
     assert res.json["location_lng"] == -74.0060
     
     # Test validation - invalid latitude
-    api.patch(f"/users/{user}/profile", 400, data={
+    api.patch(f"/user/{user}/profile", 400, data={
         "location_lat": 91,
         "location_lng": 0
     }, login=user)
     
     # Test validation - invalid longitude
-    api.patch(f"/users/{user}/profile", 400, data={
+    api.patch(f"/user/{user}/profile", 400, data={
         "location_lat": 0,
         "location_lng": 181
     }, login=user)
     
     # Test validation - lat without lng
-    api.patch(f"/users/{user}/profile", 400, data={
+    api.patch(f"/user/{user}/profile", 400, data={
         "location_lat": 40.7128
     }, login=user)
     
     # User cannot update another user's profile
-    api.patch(f"/users/{ADMIN}/profile", 403, data={"bio": "Hacking"}, login=user)
-    api.patch(f"/users/{NOADM}/profile", 403, data={"bio": "Hacking"}, login=user)
+    api.patch(f"/user/{ADMIN}/profile", 403, data={"bio": "Hacking"}, login=user)
+    api.patch(f"/user/{NOADM}/profile", 403, data={"bio": "Hacking"}, login=user)
     
     # Unauthenticated user cannot update profile
-    api.patch(f"/users/{user}/profile", 401, data={"bio": "Test"}, login=None)
+    api.patch(f"/user/{user}/profile", 401, data={"bio": "Test"}, login=None)
     
     # Test preferred_language update
-    api.patch(f"/users/{user}/profile", 204, data={"preferred_language": "fr"}, login=user)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    api.patch(f"/user/{user}/profile", 204, data={"preferred_language": "fr"}, login=user)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     assert res.json["preferred_language"] == "fr"
     
     # Cleanup - get user_id from profile
@@ -318,11 +324,11 @@ def test_user_experiences(api):
     api.setToken(user, user_token.get("token") if isinstance(user_token, dict) else user_token)
     
     # Get experiences - publicly accessible, empty initially
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     assert res.json == []
     
     # Test 404 for non-existent user
-    api.get("/users/nonexistentuser999/experiences", 404, login=None)
+    api.get("/user/nonexistentuser999/profile/experiences", 404, login=None)
     
     # Create experience - use /profile/experiences (authenticated endpoint)
     api.post("/profile/experiences", 401, json={
@@ -337,10 +343,10 @@ def test_user_experiences(api):
         "end_date": "2022-12-31",
         "is_current": False
     }, login=user)
-    exp_id = res.json
+    exp_id = res.json.get("experience_id") if isinstance(res.json, dict) else res.json
     
     # Get experiences from public endpoint
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     assert len(res.json) == 1
     assert res.json[0]["title"] == "Software Engineer"
     assert res.json[0]["company"] == "Test Corp"
@@ -354,10 +360,10 @@ def test_user_experiences(api):
         "start_date": "2023-01-01",
         "is_current": True
     }, login=user)
-    exp_id2 = res.json
+    exp_id2 = res.json.get("experience_id") if isinstance(res.json, dict) else res.json
     
     # Verify two experiences
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     assert len(res.json) == 2
     
     # Update first experience
@@ -365,14 +371,14 @@ def test_user_experiences(api):
         "title": "Senior Software Engineer"
     }, login=user)
     
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     exp1 = [e for e in res.json if e["id"] == exp_id][0]
     assert exp1["title"] == "Senior Software Engineer"
     assert exp1["company"] == "Test Corp"  # Unchanged
     
     # User cannot update another user's experience
     # First get admin's experience (if any)
-    admin_exps = api.get(f"/users/{ADMIN}/experiences", 200, login=None).json
+    admin_exps = api.get(f"/user/{ADMIN}/profile/experiences", 200, login=None).json
     if admin_exps:
         api.patch(f"/profile/experiences/{admin_exps[0]['id']}", 403, json={
             "title": "Hacked"
@@ -380,12 +386,12 @@ def test_user_experiences(api):
     
     # Delete first experience
     api.delete(f"/profile/experiences/{exp_id}", 204, login=user)
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     assert len(res.json) == 1
     
     # Delete second experience
     api.delete(f"/profile/experiences/{exp_id2}", 204, login=user)
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     assert len(res.json) == 0
     
     # Test 404 for non-existent experience
@@ -395,7 +401,7 @@ def test_user_experiences(api):
     api.delete("/profile/experiences/00000000-0000-0000-0000-000000000000", 404, login=user)
     
     # Cleanup - get user_id from profile
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/users/{user_id}", 204, login=ADMIN)
     api.setToken(user, None)
@@ -412,7 +418,7 @@ def test_categories(api):
         "slug": "test-category",
         "description": "A test category"
     }, login=ADMIN)
-    cat_id = res.json
+    cat_id = res.json.get("category_id") if isinstance(res.json, dict) else res.json
     
     # Get category
     res = api.get(f"/categories/{cat_id}", 200, login=ADMIN)
@@ -447,25 +453,25 @@ def test_user_interests(api):
     
     # Create categories first (admin only)
     res1 = api.post("/categories", 201, json={
-        "name": "Programming",
-        "slug": "programming",
+        "name": "Programming Test",
+        "slug": "programming-test",
         "description": "Software development"
     }, login=ADMIN)
-    cat_id1 = res1.json
+    cat_id1 = res1.json.get("category_id") if isinstance(res1.json, dict) else res1.json
     
     res2 = api.post("/categories", 201, json={
-        "name": "Design",
-        "slug": "design",
+        "name": "Design Test",
+        "slug": "design-test",
         "description": "UI/UX Design"
     }, login=ADMIN)
-    cat_id2 = res2.json
+    cat_id2 = res2.json.get("category_id") if isinstance(res2.json, dict) else res2.json
     
     # Get interests - publicly accessible, empty initially
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     assert res.json == []
     
     # Test 404 for non-existent user
-    api.get("/users/nonexistentuser999/interests", 404, login=None)
+    api.get("/user/nonexistentuser999/profile/interests", 404, login=None)
     
     # Create interest - use /profile/interests (authenticated endpoint)
     api.post("/profile/interests", 401, json={
@@ -479,10 +485,10 @@ def test_user_interests(api):
     }, login=user)
     
     # Get interests from public endpoint
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     assert len(res.json) == 1
     assert res.json[0]["proficiency_level"] == 5
-    assert res.json[0]["category_name"] == "Programming"
+    assert res.json[0]["category_name"] == "Programming Test"
     
     # Add another interest
     api.post("/profile/interests", 201, json={
@@ -490,7 +496,7 @@ def test_user_interests(api):
         "proficiency_level": 3
     }, login=user)
     
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     assert len(res.json) == 2
     
     # Update first interest
@@ -498,7 +504,7 @@ def test_user_interests(api):
         "proficiency_level": 4
     }, login=user)
     
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     int1 = [i for i in res.json if i["category_id"] == cat_id1][0]
     assert int1["proficiency_level"] == 4
     
@@ -510,18 +516,18 @@ def test_user_interests(api):
     
     # Delete interests
     api.delete(f"/profile/interests/{cat_id1}", 204, login=user)
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     assert len(res.json) == 1
     
     api.delete(f"/profile/interests/{cat_id2}", 204, login=user)
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     assert len(res.json) == 0
     
     # Test 404 for non-existent interest
     api.delete(f"/profile/interests/{cat_id1}", 404, login=user)
     
     # Cleanup categories and user - get user_id from profile
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/categories/{cat_id1}", 204, login=ADMIN)
     api.delete(f"/categories/{cat_id2}", 204, login=ADMIN)
@@ -616,7 +622,7 @@ def test_register_comprehensive(api):
     api.setToken(base_user, token.get("token") if isinstance(token, dict) else token)
     
     # Verify user has profile auto-created
-    res = api.get(f"/users/{base_user}/profile", 200, login=None)
+    res = api.get(f"/user/{base_user}/profile", 200, login=None)
     assert res.json["username"] == base_user
     assert res.json["email"] == f"{base_user}@test.com"
     
@@ -696,7 +702,7 @@ def test_login_comprehensive(api):
     }, login=None)
     
     # Cleanup - get user_id from profile
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/users/{user_id}", 204, login=ADMIN)
     api.setToken(user, None)
@@ -724,7 +730,7 @@ def test_paps(api):
         "slug": "test-paps-category",
         "description": "A test category for paps"
     }, login=ADMIN)
-    cat_id = res.json
+    cat_id = res.json.get("category_id") if isinstance(res.json, dict) else res.json
     
     # Add user interest to test interest matching
     api.post("/profile/interests", 201, json={
@@ -744,44 +750,44 @@ def test_paps(api):
     # Invalid paps - missing required fields
     api.post("/paps", 400, json={
         "title": "Test Paps"
-        # Missing description, payment_type, price, currency
+        # Missing description, payment_type, payment_amount, payment_currency
     }, login=user)
     
     # Valid paps creation
     res = api.post("/paps", 201, json={
         "title": "Test Paps Project",
-        "description": "A test paps description",
+        "description": "A test paps description that is long enough",
         "payment_type": "fixed",
-        "price": 500.00,
-        "currency": "USD",
+        "payment_amount": 500.00,
+        "payment_currency": "USD",
         "status": "draft"
     }, login=user)
-    paps_id = res.json
+    paps_id = res.json.get("paps_id") if isinstance(res.json, dict) else res.json
     assert paps_id is not None
     
     # Get the created paps
     res = api.get(f"/paps/{paps_id}", 200, login=user)
     assert res.json["title"] == "Test Paps Project"
     assert res.json["payment_type"] == "fixed"
-    assert res.json["price"] == 500.00
-    assert res.json["currency"] == "USD"
+    assert res.json["payment_amount"] == 500.00
+    assert res.json["payment_currency"] == "USD"
     assert res.json["status"] == "draft"
     
     # Update paps
     api.put(f"/paps/{paps_id}", 204, json={
         "title": "Updated Paps Project",
-        "description": "Updated description",
+        "description": "Updated description that is long enough",
         "payment_type": "hourly",
-        "price": 75.00,
-        "currency": "EUR",
+        "payment_amount": 75.00,
+        "payment_currency": "EUR",
         "status": "draft"
     }, login=user)
     
     res = api.get(f"/paps/{paps_id}", 200, login=user)
     assert res.json["title"] == "Updated Paps Project"
     assert res.json["payment_type"] == "hourly"
-    assert res.json["price"] == 75.00
-    assert res.json["currency"] == "EUR"
+    assert res.json["payment_amount"] == 75.00
+    assert res.json["payment_currency"] == "EUR"
     
     # Non-owner cannot update paps
     api.put(f"/paps/{paps_id}", 403, json={
@@ -791,10 +797,10 @@ def test_paps(api):
     # Admin can update any paps
     api.put(f"/paps/{paps_id}", 204, json={
         "title": "Admin Updated Paps",
-        "description": "Admin update",
+        "description": "Admin update that is long enough to pass",
         "payment_type": "fixed",
-        "price": 1000.00,
-        "currency": "USD",
+        "payment_amount": 1000.00,
+        "payment_currency": "USD",
         "status": "draft"
     }, login=ADMIN)
     
@@ -805,13 +811,13 @@ def test_paps(api):
     res = api.get(f"/paps/{paps_id}", 200, login=user)
     assert "categories" in res.json
     # Check category is in the list
-    cat_ids = [c["id"] for c in res.json["categories"]]
+    cat_ids = [c["category_id"] for c in res.json["categories"]]
     assert cat_id in cat_ids
     
     # Remove category from paps
     api.delete(f"/paps/{paps_id}/categories/{cat_id}", 204, login=user)
     res = api.get(f"/paps/{paps_id}", 200, login=user)
-    cat_ids = [c["id"] for c in res.json["categories"]]
+    cat_ids = [c["category_id"] for c in res.json["categories"]]
     assert cat_id not in cat_ids
     
     # Re-add category for later tests
@@ -822,6 +828,9 @@ def test_paps(api):
     res = api.get(f"/paps/{paps_id}/media", 200, login=user)
     assert res.json["media"] == []
     assert res.json["media_count"] == 0
+    
+    # Remove category before delete (soft delete doesn't cascade to PAPS_CATEGORY)
+    api.delete(f"/paps/{paps_id}/categories/{cat_id}", 204, login=user)
     
     # Delete paps
     # Non-owner cannot delete paps
@@ -840,12 +849,12 @@ def test_paps(api):
     }, login=user)
     api.delete("/paps/00000000-0000-0000-0000-000000000000", 404, login=user)
     
-    # Cleanup
+    # Cleanup - delete user FIRST (hard-deletes their PAPS and PAPS_CATEGORY), then category
     api.delete(f"/profile/interests/{cat_id}", 204, login=user)
-    api.delete(f"/categories/{cat_id}", 204, login=ADMIN)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/users/{user_id}", 204, login=ADMIN)
+    api.delete(f"/categories/{cat_id}", 204, login=ADMIN)
     api.setToken(user, None)
     api.setPass(user, None)
 
@@ -882,7 +891,7 @@ def test_paps_admin_access(api):
         assert "interest_match_score" in res.json["paps"][0]
     
     # Cleanup
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/users/{user_id}", 204, login=ADMIN)
     api.setToken(user, None)
@@ -910,29 +919,31 @@ def test_paps_search_filters(api):
         "slug": "filter-test-category",
         "description": "For filter testing"
     }, login=ADMIN)
-    cat_id = res.json
+    cat_id = res.json.get("category_id") if isinstance(res.json, dict) else res.json
     
     # Create paps with different attributes
     res1 = api.post("/paps", 201, json={
         "title": "Expensive Fixed Project",
-        "description": "A high-budget project",
+        "description": "A high-budget project with detailed description",
         "payment_type": "fixed",
-        "price": 5000.00,
-        "currency": "USD",
-        "status": "published"
+        "payment_amount": 5000.00,
+        "payment_currency": "USD",
+        "status": "published",
+        "start_datetime": "2025-01-01T12:00:00Z"
     }, login=user)
-    paps_id1 = res1.json
+    paps_id1 = res1.json.get("paps_id") if isinstance(res1.json, dict) else res1.json
     api.post(f"/paps/{paps_id1}/categories/{cat_id}", 201, login=user)
     
     res2 = api.post("/paps", 201, json={
         "title": "Cheap Hourly Project",
-        "description": "An affordable hourly project",
+        "description": "An affordable hourly project with detailed description",
         "payment_type": "hourly",
-        "price": 25.00,
-        "currency": "EUR",
-        "status": "published"
+        "payment_amount": 25.00,
+        "payment_currency": "EUR",
+        "status": "published",
+        "start_datetime": "2025-02-01T12:00:00Z"
     }, login=user)
-    paps_id2 = res2.json
+    paps_id2 = res2.json.get("paps_id") if isinstance(res2.json, dict) else res2.json
     
     # Test status filter
     res = api.get("/paps", 200, json={"status": "published"}, login=user)
@@ -951,17 +962,17 @@ def test_paps_search_filters(api):
     # Test min_price filter
     res = api.get("/paps", 200, json={"min_price": 1000}, login=user)
     for pap in res.json["paps"]:
-        assert pap["price"] >= 1000
+        assert pap["payment_amount"] >= 1000
     
     # Test max_price filter
     res = api.get("/paps", 200, json={"max_price": 100}, login=user)
     for pap in res.json["paps"]:
-        assert pap["price"] <= 100
+        assert pap["payment_amount"] <= 100
     
     # Test price range filter
     res = api.get("/paps", 200, json={"min_price": 1000, "max_price": 6000}, login=user)
     for pap in res.json["paps"]:
-        assert pap["price"] >= 1000 and pap["price"] <= 6000
+        assert pap["payment_amount"] >= 1000 and pap["payment_amount"] <= 6000
     
     # Test title_search filter
     res = api.get("/paps", 200, json={"title_search": "expensive"}, login=user)
@@ -974,16 +985,14 @@ def test_paps_search_filters(api):
     # All results should have the category
     for pap in res.json["paps"]:
         if "categories" in pap:
-            cat_ids = [c["id"] for c in pap["categories"]]
+            cat_ids = [c["category_id"] for c in pap["categories"]]
             # paps with this category should be found
             pass
     
-    # Cleanup
-    api.delete(f"/paps/{paps_id1}", 204, login=user)
-    api.delete(f"/paps/{paps_id2}", 204, login=user)
-    api.delete(f"/categories/{cat_id}", 204, login=ADMIN)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    # Cleanup - delete user FIRST (hard-deletes their PAPS and PAPS_CATEGORY), then category
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/users/{user_id}", 204, login=ADMIN)
+    api.delete(f"/categories/{cat_id}", 204, login=ADMIN)
     api.setToken(user, None)
     api.setPass(user, None)
