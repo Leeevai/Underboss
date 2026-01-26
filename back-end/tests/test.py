@@ -1166,7 +1166,6 @@ def test_spap_apply(api):
 
     # Applicant applies to the paps
     res = api.post(f"/paps/{paps_id}/apply", 201, json={
-        "title": "My Application",
         "message": "I would love to work on this project!"
     }, login=applicant)
     spap_id = res.json["spap_id"]
@@ -1174,24 +1173,20 @@ def test_spap_apply(api):
 
     # Cannot apply twice
     api.post(f"/paps/{paps_id}/apply", 409, json={
-        "title": "Another Application",
         "message": "Trying to apply again but should fail"
     }, login=applicant)
 
     # Owner cannot apply to their own paps
     api.post(f"/paps/{paps_id}/apply", 403, json={
-        "title": "Self Application",
         "message": "Owner trying to apply to own job"
     }, login=owner)
 
     # Get application details
     res = api.get(f"/spap/{spap_id}", 200, login=applicant)
-    assert res.json["title"] == "My Application"
     assert res.json["status"] == "pending"
 
     # Owner can also view the application
     res = api.get(f"/spap/{spap_id}", 200, login=owner)
-    assert res.json["title"] == "My Application"
 
     # Get my applications (as applicant)
     res = api.get("/spap/my", 200, login=applicant)
@@ -1262,7 +1257,6 @@ def test_spap_withdraw(api):
 
     # Apply
     res = api.post(f"/paps/{paps_id}/apply", 201, json={
-        "title": "Will Withdraw",
         "message": "This application will be withdrawn"
     }, login=applicant)
     spap_id = res.json["spap_id"]
@@ -1275,7 +1269,6 @@ def test_spap_withdraw(api):
 
     # Can apply again after withdrawal
     res = api.post(f"/paps/{paps_id}/apply", 201, json={
-        "title": "Reapplication",
         "message": "Applying again after withdrawal"
     }, login=applicant)
     new_spap_id = res.json["spap_id"]
@@ -1330,7 +1323,6 @@ def test_spap_max_applicants(api):
     api.setToken(app1, res.json.get("token"))
 
     res = api.post(f"/paps/{paps_id}/apply", 201, json={
-        "title": "First Application",
         "message": "I am the first applicant"
     }, login=app1)
     spap1_id = res.json["spap_id"]
@@ -1347,7 +1339,6 @@ def test_spap_max_applicants(api):
     api.setToken(app2, res.json.get("token"))
 
     api.post(f"/paps/{paps_id}/apply", 400, json={
-        "title": "Second Application",
         "message": "I should not be able to apply"
     }, login=app2)
 
@@ -1356,7 +1347,6 @@ def test_spap_max_applicants(api):
 
     # Now second applicant can apply
     res = api.post(f"/paps/{paps_id}/apply", 201, json={
-        "title": "Second Application",
         "message": "Now I can apply after the first withdrew"
     }, login=app2)
     spap2_id = res.json["spap_id"]
@@ -1413,7 +1403,6 @@ def test_spap_media(api):
 
     # Apply
     res = api.post(f"/paps/{paps_id}/apply", 201, json={
-        "title": "Application with Media",
         "message": "Will upload media to this application"
     }, login=applicant)
     spap_id = res.json["spap_id"]
@@ -1493,7 +1482,6 @@ def test_spap_validation_conditions(api):
     draft_paps_id = res.json["paps_id"]
 
     api.post(f"/paps/{draft_paps_id}/apply", 400, json={
-        "title": "Application to Draft",
         "message": "This should fail because PAPS is not published"
     }, login=applicant)
 
@@ -1512,7 +1500,6 @@ def test_spap_validation_conditions(api):
     api.put(f"/paps/{closed_paps_id}", 204, json={"status": "closed"}, login=owner)
 
     api.post(f"/paps/{closed_paps_id}/apply", 400, json={
-        "title": "Application to Closed",
         "message": "This should fail because PAPS is closed"
     }, login=applicant)
 
@@ -1531,20 +1518,17 @@ def test_spap_validation_conditions(api):
     api.put(f"/paps/{cancelled_paps_id}", 204, json={"status": "cancelled"}, login=owner)
 
     api.post(f"/paps/{cancelled_paps_id}/apply", 400, json={
-        "title": "Application to Cancelled",
         "message": "This should fail because PAPS is cancelled"
     }, login=applicant)
 
     # Test 4: Cannot apply to non-existent PAPS
     fake_uuid = "00000000-0000-0000-0000-000000000000"
     api.post(f"/paps/{fake_uuid}/apply", 404, json={
-        "title": "Application to Nonexistent",
         "message": "This should fail because PAPS does not exist"
     }, login=applicant)
 
     # Test 5: Invalid SPAP ID format
     api.post("/paps/not-a-uuid/apply", 400, json={
-        "title": "Invalid ID Test",
         "message": "This should fail because PAPS ID is invalid"
     }, login=applicant)
 
@@ -1599,7 +1583,6 @@ def test_spap_media_cascade_delete(api):
 
     # Apply
     res = api.post(f"/paps/{paps_id}/apply", 201, json={
-        "title": "Application for Cascade Test",
         "message": "This application will have media that should be cascade deleted"
     }, login=applicant)
     spap_id = res.json["spap_id"]
@@ -1684,13 +1667,11 @@ def test_paps_cascade_delete_spap(api):
 
     # Create multiple applications
     res = api.post(f"/paps/{paps_id}/apply", 201, json={
-        "title": "First Application",
         "message": "First applicant for cascade delete test"
     }, login=applicant1)
     spap1_id = res.json["spap_id"]
 
     res = api.post(f"/paps/{paps_id}/apply", 201, json={
-        "title": "Second Application",
         "message": "Second applicant for cascade delete test"
     }, login=applicant2)
     spap2_id = res.json["spap_id"]

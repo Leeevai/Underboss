@@ -463,54 +463,17 @@ CREATE TABLE SPAP (
     paps_id UUID NOT NULL,
     applicant_id UUID NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
-    title VARCHAR(200) NOT NULL,
-    subtitle VARCHAR(300),
-    message TEXT NOT NULL,
-    proposed_payment_amount DECIMAL(10, 2),
-    location_address TEXT,
-    location_lat DECIMAL(10, 8),
-    location_lng DECIMAL(11, 8),
-    location_timezone VARCHAR(50),
+    message TEXT,
     applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewed_at TIMESTAMP,
     accepted_at TIMESTAMP,
     rejected_at TIMESTAMP,
     CONSTRAINT spap_paps_fk FOREIGN KEY (paps_id) REFERENCES PAPS(id) ON DELETE CASCADE,
     CONSTRAINT spap_applicant_fk FOREIGN KEY (applicant_id) REFERENCES "USER"(id) ON DELETE RESTRICT,
-    CONSTRAINT spap_title_check CHECK (LENGTH(TRIM(title)) >= 3),
-    CONSTRAINT spap_message_check CHECK (LENGTH(TRIM(message)) >= 10),
-    CONSTRAINT spap_location_consistency CHECK (
-        (
-            location_lat IS NULL
-            AND location_lng IS NULL
-        )
-        OR (
-            location_lat IS NOT NULL
-            AND location_lng IS NOT NULL
-        )
-    ),
-    CONSTRAINT spap_lat_check CHECK (
-        location_lat IS NULL
-        OR (
-            location_lat >= -90
-            AND location_lat <= 90
-        )
-    ),
-    CONSTRAINT spap_lng_check CHECK (
-        location_lng IS NULL
-        OR (
-            location_lng >= -180
-            AND location_lng <= 180
-        )
-    ),
     CONSTRAINT spap_status_check CHECK (
         status IN ('pending', 'accepted', 'rejected', 'withdrawn')
     ),
     CONSTRAINT spap_unique_application UNIQUE (paps_id, applicant_id),
-    CONSTRAINT spap_proposed_payment_check CHECK (
-        proposed_payment_amount IS NULL
-        OR proposed_payment_amount >= 0
-    ),
     -- Status-based timestamp constraints
     CONSTRAINT spap_pending_check CHECK (
         status != 'pending'

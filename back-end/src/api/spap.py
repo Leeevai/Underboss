@@ -50,34 +50,13 @@ def register_routes(app):
     def apply_to_paps(
         paps_id: str,
         auth: model.CurrentAuth,
-        title: str,
-        message: str,
-        subtitle: str | None = None,
-        proposed_payment_amount: float | None = None,
-        location_address: str | None = None,
-        location_lat: float | None = None,
-        location_lng: float | None = None,
-        location_timezone: str | None = None
+        message: str | None = None
     ):
         """Apply to a PAPS job posting. User cannot apply to their own paps."""
         try:
             uuid.UUID(paps_id)
         except ValueError:
             return {"error": "Invalid PAPS ID format"}, 400
-
-        # Validate inputs
-        fsa.checkVal(len(title.strip()) >= 3, "Title must be at least 3 characters", 400)
-        fsa.checkVal(len(message.strip()) >= 10, "Message must be at least 10 characters", 400)
-
-        # Validate location coordinates if provided
-        if location_lat is not None or location_lng is not None:
-            fsa.checkVal(location_lat is not None and location_lng is not None,
-                         "Both lat and lng must be provided together", 400)
-            fsa.checkVal(-90 <= location_lat <= 90, "Invalid latitude", 400)
-            fsa.checkVal(-180 <= location_lng <= 180, "Invalid longitude", 400)
-
-        if proposed_payment_amount is not None:
-            fsa.checkVal(proposed_payment_amount >= 0, "Proposed payment must be non-negative", 400)
 
         # Get paps
         paps = db.get_paps_by_id_admin(id=paps_id)
@@ -106,14 +85,7 @@ def register_routes(app):
         spap_id = db.insert_spap(
             paps_id=paps_id,
             applicant_id=auth.aid,
-            title=title.strip(),
-            subtitle=subtitle.strip() if subtitle else None,
-            message=message.strip(),
-            proposed_payment_amount=proposed_payment_amount,
-            location_address=location_address.strip() if location_address else None,
-            location_lat=location_lat,
-            location_lng=location_lng,
-            location_timezone=location_timezone
+            message=message.strip() if message else None
         )
 
         return fsa.jsonify({"spap_id": spap_id}), 201

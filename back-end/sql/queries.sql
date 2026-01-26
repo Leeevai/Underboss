@@ -760,11 +760,9 @@ ORDER BY s.applied_at DESC;
 SELECT * FROM SPAP
 WHERE paps_id = :paps_id::uuid AND applicant_id = :applicant_id::uuid;
 
--- name: insert_spap(paps_id, applicant_id, title, subtitle, message, proposed_payment_amount, location_address, location_lat, location_lng, location_timezone)$
-INSERT INTO SPAP (paps_id, applicant_id, title, subtitle, message, proposed_payment_amount, 
-                  location_address, location_lat, location_lng, location_timezone)
-VALUES (:paps_id::uuid, :applicant_id::uuid, :title, :subtitle, :message, :proposed_payment_amount,
-        :location_address, :location_lat, :location_lng, :location_timezone)
+-- name: insert_spap(paps_id, applicant_id, message)$
+INSERT INTO SPAP (paps_id, applicant_id, message)
+VALUES (:paps_id::uuid, :applicant_id::uuid, :message)
 RETURNING id;
 
 -- name: update_spap_status(spap_id, status, reviewed_at, accepted_at, rejected_at)!
