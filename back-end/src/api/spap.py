@@ -76,9 +76,11 @@ def register_routes(app):
         if current_count >= paps['max_applicants']:
             return {"error": "Maximum number of applications reached"}, 400
 
-        # Check if user already applied
+        # Check if user already applied or was previously rejected
         existing = db.get_spap_by_paps_and_applicant(paps_id=paps_id, applicant_id=auth.aid)
         if existing:
+            if existing['status'] == 'rejected':
+                return {"error": "You were previously rejected from this PAPS and cannot reapply"}, 403
             return {"error": "You have already applied to this PAPS"}, 409
 
         # Create application

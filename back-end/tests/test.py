@@ -1216,6 +1216,72 @@ def test_spap_apply(api):
     api.setPass(applicant, None)
 
 
+def test_spap_rejected_cannot_reapply(api):
+    """Test that a rejected user cannot reapply to the same PAPS."""
+    import datetime
+    
+    owner = "reject_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    applicant = "reject_applicant"
+    api.setPass(applicant, "Apply123!")
+    res = api.post("/register", 201, json={
+        "username": applicant,
+        "email": f"{applicant}@test.com",
+        "password": "Apply123!"
+    }, login=None)
+    res = api.get("/login", login=applicant, auth="basic")
+    api.setToken(applicant, res.json.get("token"))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+
+    # Create published paps
+    res = api.post("/paps", 201, json={
+        "title": "Job for Rejection Test",
+        "description": "Testing that rejected users cannot reapply",
+        "payment_type": "fixed",
+        "payment_amount": 200.00,
+        "status": "published",
+        "start_datetime": start.isoformat(),
+        "max_applicants": 10
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Applicant applies
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "message": "Please hire me!"
+    }, login=applicant)
+    spap_id = res.json["spap_id"]
+
+    # Owner rejects the application
+    api.put(f"/spap/{spap_id}/status", 204, json={"status": "rejected"}, login=owner)
+
+    # Verify rejection
+    res = api.get(f"/spap/{spap_id}", 200, login=applicant)
+    assert res.json["status"] == "rejected"
+
+    # Rejected user tries to reapply - should fail with 403
+    res = api.post(f"/paps/{paps_id}/apply", 403, json={
+        "message": "Please give me another chance!"
+    }, login=applicant)
+    assert "rejected" in res.json["error"].lower()
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(applicant, None)
+    api.setPass(applicant, None)
+
+
 def test_spap_withdraw(api):
     """Test withdrawing an application."""
     import datetime
