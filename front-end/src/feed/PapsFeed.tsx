@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { View, FlatList, ActivityIndicator, Text, StyleSheet, RefreshControl } from 'react-native'
-import axios from 'axios'
+import { serv, ApiError } from '../serve'
 import PapsPost from './PapsPost'
 
 export default function PapsFeed() {
@@ -11,13 +11,14 @@ export default function PapsFeed() {
 
   const fetchPaps = async () => {
     try {
-      const response = await axios.get('/paps')
-      // Assuming API returns newest first, no need to reverse
-      setPaps(response.data)
+      const response = await serv('paps.list')
+      // serv returns { paps: [], total_count: number }
+      setPaps(response.paps)
       setError('')
     } catch (err) {
       console.error('Failed to fetch paps', err)
-      setError('Failed to load feed.')
+      const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load feed.'
+      setError(msg)
     } finally {
       setLoading(false)
       setRefreshing(false)
