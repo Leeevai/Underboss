@@ -782,6 +782,114 @@ DELETE FROM SPAP WHERE id = :spap_id::uuid;
 DELETE FROM SPAP WHERE paps_id = :paps_id::uuid;
 
 -- ============================================
+-- COMMENT QUERIES (Instagram-style: flat with single-level replies)
+-- ============================================
+
+-- Get all top-level comments for a paps (parent_id IS NULL)
+-- name: get_paps_comments(paps_id)
+SELECT 
+    c.id::text as comment_id,
+    c.paps_id::text,
+    c.user_id::text,
+    c.parent_id::text,
+    c.content,
+    c.is_edited,
+    c.created_at,
+    c.updated_at,
+    c.deleted_at,
+    u.username as author_username,
+    up.display_name as author_display_name,
+    up.avatar_url as author_avatar,
+    (SELECT COUNT(*) FROM COMMENT r WHERE r.parent_id = c.id AND r.deleted_at IS NULL) as reply_count
+FROM COMMENT c
+JOIN "USER" u ON c.user_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+WHERE c.paps_id = :paps_id::uuid
+  AND c.parent_id IS NULL
+  AND c.deleted_at IS NULL
+ORDER BY c.created_at DESC;
+
+-- Get a specific comment by ID
+-- name: get_comment_by_id(comment_id)^
+SELECT 
+    c.id::text as comment_id,
+    c.paps_id::text,
+    c.user_id::text,
+    c.parent_id::text,
+    c.content,
+    c.is_edited,
+    c.created_at,
+    c.updated_at,
+    c.deleted_at,
+    u.username as author_username,
+    up.display_name as author_display_name,
+    up.avatar_url as author_avatar,
+    (SELECT COUNT(*) FROM COMMENT r WHERE r.parent_id = c.id AND r.deleted_at IS NULL) as reply_count
+FROM COMMENT c
+JOIN "USER" u ON c.user_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+WHERE c.id = :comment_id::uuid;
+
+-- Get replies to a comment (single level deep only)
+-- name: get_comment_replies(comment_id)
+SELECT 
+    c.id::text as comment_id,
+    c.paps_id::text,
+    c.user_id::text,
+    c.parent_id::text,
+    c.content,
+    c.is_edited,
+    c.created_at,
+    c.updated_at,
+    c.deleted_at,
+    u.username as author_username,
+    up.display_name as author_display_name,
+    up.avatar_url as author_avatar
+FROM COMMENT c
+JOIN "USER" u ON c.user_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+WHERE c.parent_id = :comment_id::uuid
+  AND c.deleted_at IS NULL
+ORDER BY c.created_at ASC;
+
+-- Insert a new comment
+-- name: insert_comment(paps_id, user_id, content, parent_id)$
+INSERT INTO COMMENT (paps_id, user_id, content, parent_id)
+VALUES (:paps_id::uuid, :user_id::uuid, :content, :parent_id::uuid)
+RETURNING id;
+
+-- Update comment content
+-- name: update_comment(comment_id, content)!
+UPDATE COMMENT SET
+    content = :content,
+    is_edited = TRUE
+WHERE id = :comment_id::uuid AND deleted_at IS NULL;
+
+-- Soft delete a comment
+-- name: delete_comment(comment_id)!
+UPDATE COMMENT SET deleted_at = CURRENT_TIMESTAMP WHERE id = :comment_id::uuid;
+
+-- Get comment count for a paps
+-- name: get_paps_comment_count(paps_id)$
+SELECT COUNT(*) FROM COMMENT 
+WHERE paps_id = :paps_id::uuid AND deleted_at IS NULL;
+
+-- Get top-level comment count for a paps
+-- name: get_paps_top_comment_count(paps_id)$
+SELECT COUNT(*) FROM COMMENT 
+WHERE paps_id = :paps_id::uuid AND parent_id IS NULL AND deleted_at IS NULL;
+
+-- Soft delete all comments for a paps
+-- name: delete_comments_for_paps(paps_id)!
+UPDATE COMMENT SET deleted_at = CURRENT_TIMESTAMP 
+WHERE paps_id = :paps_id::uuid AND deleted_at IS NULL;
+
+-- Soft delete replies when parent comment is deleted
+-- name: delete_comment_replies(parent_id)!
+UPDATE COMMENT SET deleted_at = CURRENT_TIMESTAMP 
+WHERE parent_id = :parent_id::uuid AND deleted_at IS NULL;
+
+-- ============================================
 -- SPAP_MEDIA QUERIES
 -- ============================================
 

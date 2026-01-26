@@ -13,3 +13,4 @@ venv
 
 app.log
 app.pid
+media/category/*

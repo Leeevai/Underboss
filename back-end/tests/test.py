@@ -1720,3 +1720,507 @@ def test_paps_cascade_delete_spap(api):
     api.setPass(applicant1, None)
     api.setToken(applicant2, None)
     api.setPass(applicant2, None)
+
+
+# ============================================
+# COMMENT TESTS (Instagram-style)
+# ============================================
+
+def test_paps_comments_basic(api):
+    """Test basic comment operations: create, read, update, delete."""
+    import datetime
+    
+    # Create a user who will own a paps
+    owner = "comment_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    # Create another user who will comment
+    commenter = "comment_user"
+    api.setPass(commenter, "Comment123!")
+    res = api.post("/register", 201, json={
+        "username": commenter,
+        "email": f"{commenter}@test.com",
+        "password": "Comment123!"
+    }, login=None)
+    res = api.get("/login", login=commenter, auth="basic")
+    api.setToken(commenter, res.json.get("token"))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+
+    # Create a published paps
+    res = api.post("/paps", 201, json={
+        "title": "Job for Comment Testing",
+        "description": "Testing the comment functionality on PAPS",
+        "payment_type": "fixed",
+        "payment_amount": 200.00,
+        "status": "published",
+        "start_datetime": start.isoformat()
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Get comments (should be empty)
+    res = api.get(f"/paps/{paps_id}/comments", 200, login=commenter)
+    assert res.json["count"] == 0
+    assert res.json["total_count"] == 0
+
+    # Create a comment
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "This is my first comment!"
+    }, login=commenter)
+    comment_id = res.json["comment_id"]
+    assert comment_id is not None
+
+    # Get comments (should have 1)
+    res = api.get(f"/paps/{paps_id}/comments", 200, login=commenter)
+    assert res.json["count"] == 1
+    assert res.json["comments"][0]["content"] == "This is my first comment!"
+    assert res.json["comments"][0]["author_username"] == commenter
+    assert res.json["comments"][0]["reply_count"] == 0
+
+    # Get specific comment
+    res = api.get(f"/comments/{comment_id}", 200, login=commenter)
+    assert res.json["content"] == "This is my first comment!"
+    assert res.json["is_edited"] == False
+
+    # Edit comment
+    api.put(f"/comments/{comment_id}", 204, json={
+        "content": "This is my edited comment!"
+    }, login=commenter)
+
+    # Verify edit
+    res = api.get(f"/comments/{comment_id}", 200, login=commenter)
+    assert res.json["content"] == "This is my edited comment!"
+    assert res.json["is_edited"] == True
+
+    # Non-author cannot edit
+    api.put(f"/comments/{comment_id}", 403, json={
+        "content": "Hacked!"
+    }, login=owner)
+
+    # Delete comment (author can delete)
+    api.delete(f"/comments/{comment_id}", 204, login=commenter)
+
+    # Comment should be gone (soft deleted)
+    api.get(f"/comments/{comment_id}", 404, login=commenter)
+
+    # Get comments (should be empty again)
+    res = api.get(f"/paps/{paps_id}/comments", 200, login=commenter)
+    assert res.json["count"] == 0
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(commenter, None)
+    api.setPass(commenter, None)
+
+
+def test_paps_comments_replies(api):
+    """Test Instagram-style replies: single-level only."""
+    import datetime
+    
+    owner = "reply_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    commenter1 = "replier1"
+    api.setPass(commenter1, "Reply123!")
+    res = api.post("/register", 201, json={
+        "username": commenter1,
+        "email": f"{commenter1}@test.com",
+        "password": "Reply123!"
+    }, login=None)
+    res = api.get("/login", login=commenter1, auth="basic")
+    api.setToken(commenter1, res.json.get("token"))
+
+    commenter2 = "replier2"
+    api.setPass(commenter2, "Reply123!")
+    res = api.post("/register", 201, json={
+        "username": commenter2,
+        "email": f"{commenter2}@test.com",
+        "password": "Reply123!"
+    }, login=None)
+    res = api.get("/login", login=commenter2, auth="basic")
+    api.setToken(commenter2, res.json.get("token"))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+
+    # Create paps
+    res = api.post("/paps", 201, json={
+        "title": "Job for Reply Testing",
+        "description": "Testing Instagram-style replies on comments",
+        "payment_type": "fixed",
+        "payment_amount": 150.00,
+        "status": "published",
+        "start_datetime": start.isoformat()
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Create top-level comment
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "This is a top-level comment"
+    }, login=commenter1)
+    parent_comment_id = res.json["comment_id"]
+
+    # Reply to the comment
+    res = api.post(f"/comments/{parent_comment_id}/replies", 201, json={
+        "content": "This is a reply to the comment"
+    }, login=commenter2)
+    reply_id = res.json["comment_id"]
+    assert reply_id is not None
+
+    # Check reply count on parent
+    res = api.get(f"/comments/{parent_comment_id}", 200, login=commenter1)
+    assert res.json["reply_count"] == 1
+
+    # Get replies
+    res = api.get(f"/comments/{parent_comment_id}/replies", 200, login=commenter1)
+    assert res.json["count"] == 1
+    assert res.json["replies"][0]["content"] == "This is a reply to the comment"
+    assert res.json["replies"][0]["author_username"] == commenter2
+
+    # Instagram-style: Cannot reply to a reply
+    api.post(f"/comments/{reply_id}/replies", 400, json={
+        "content": "Trying to reply to a reply - should fail"
+    }, login=commenter1)
+
+    # Cannot get replies of a reply
+    api.get(f"/comments/{reply_id}/replies", 400, login=commenter1)
+
+    # Get comment thread (parent + all replies)
+    res = api.get(f"/comments/{parent_comment_id}/thread", 200, login=commenter1)
+    assert res.json["is_reply"] == False
+    assert res.json["comment"]["comment_id"] == parent_comment_id
+    assert len(res.json["replies"]) == 1
+
+    # Get thread for a reply (should show it's a reply)
+    res = api.get(f"/comments/{reply_id}/thread", 200, login=commenter2)
+    assert res.json["is_reply"] == True
+    assert len(res.json["replies"]) == 0
+
+    # Multiple replies
+    res = api.post(f"/comments/{parent_comment_id}/replies", 201, json={
+        "content": "Another reply"
+    }, login=owner)
+    reply2_id = res.json["comment_id"]
+
+    res = api.get(f"/comments/{parent_comment_id}/replies", 200, login=commenter1)
+    assert res.json["count"] == 2
+
+    # Total count includes replies
+    res = api.get(f"/paps/{paps_id}/comments", 200, login=owner)
+    assert res.json["count"] == 1  # Only top-level
+    assert res.json["total_count"] == 3  # 1 top-level + 2 replies
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(commenter1, None)
+    api.setPass(commenter1, None)
+    api.setToken(commenter2, None)
+    api.setPass(commenter2, None)
+
+
+def test_paps_comments_permissions(api):
+    """Test comment permissions: who can delete comments."""
+    import datetime
+    
+    owner = "perm_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    commenter = "perm_commenter"
+    api.setPass(commenter, "Comment123!")
+    res = api.post("/register", 201, json={
+        "username": commenter,
+        "email": f"{commenter}@test.com",
+        "password": "Comment123!"
+    }, login=None)
+    res = api.get("/login", login=commenter, auth="basic")
+    api.setToken(commenter, res.json.get("token"))
+
+    other = "perm_other"
+    api.setPass(other, "Other123!")
+    res = api.post("/register", 201, json={
+        "username": other,
+        "email": f"{other}@test.com",
+        "password": "Other123!"
+    }, login=None)
+    res = api.get("/login", login=other, auth="basic")
+    api.setToken(other, res.json.get("token"))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+
+    # Create paps
+    res = api.post("/paps", 201, json={
+        "title": "Job for Permission Testing",
+        "description": "Testing comment delete permissions",
+        "payment_type": "fixed",
+        "payment_amount": 100.00,
+        "status": "published",
+        "start_datetime": start.isoformat()
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Commenter creates a comment
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "Test comment for permissions"
+    }, login=commenter)
+    comment_id = res.json["comment_id"]
+
+    # Other user cannot delete
+    api.delete(f"/comments/{comment_id}", 403, login=other)
+
+    # PAPS owner CAN delete (moderation)
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "Another comment to delete"
+    }, login=commenter)
+    comment2_id = res.json["comment_id"]
+    api.delete(f"/comments/{comment2_id}", 204, login=owner)
+
+    # Admin can delete any comment
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "Admin will delete this"
+    }, login=commenter)
+    comment3_id = res.json["comment_id"]
+    api.delete(f"/comments/{comment3_id}", 204, login=ADMIN)
+
+    # Cleanup
+    api.delete(f"/comments/{comment_id}", 204, login=commenter)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(commenter, None)
+    api.setPass(commenter, None)
+    api.setToken(other, None)
+    api.setPass(other, None)
+
+
+def test_paps_comments_validation(api):
+    """Test comment validation: empty, too long, invalid IDs."""
+    import datetime
+    
+    owner = "val_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+
+    # Create paps
+    res = api.post("/paps", 201, json={
+        "title": "Job for Validation Testing",
+        "description": "Testing comment validation rules",
+        "payment_type": "fixed",
+        "payment_amount": 100.00,
+        "status": "published",
+        "start_datetime": start.isoformat()
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Empty comment
+    api.post(f"/paps/{paps_id}/comments", 400, json={
+        "content": ""
+    }, login=owner)
+
+    # Whitespace only
+    api.post(f"/paps/{paps_id}/comments", 400, json={
+        "content": "   "
+    }, login=owner)
+
+    # Too long comment (>2000 chars)
+    api.post(f"/paps/{paps_id}/comments", 400, json={
+        "content": "x" * 2001
+    }, login=owner)
+
+    # Valid comment at max length
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "x" * 2000
+    }, login=owner)
+    long_comment_id = res.json["comment_id"]
+
+    # Invalid PAPS ID format
+    api.get("/paps/not-a-uuid/comments", 400, login=owner)
+    api.post("/paps/not-a-uuid/comments", 400, json={"content": "test"}, login=owner)
+
+    # Non-existent PAPS
+    fake_uuid = "00000000-0000-0000-0000-000000000000"
+    api.get(f"/paps/{fake_uuid}/comments", 404, login=owner)
+    api.post(f"/paps/{fake_uuid}/comments", 404, json={"content": "test"}, login=owner)
+
+    # Invalid comment ID format
+    api.get("/comments/not-a-uuid", 400, login=owner)
+    api.put("/comments/not-a-uuid", 400, json={"content": "test"}, login=owner)
+    api.delete("/comments/not-a-uuid", 400, login=owner)
+
+    # Non-existent comment
+    api.get(f"/comments/{fake_uuid}", 404, login=owner)
+    api.put(f"/comments/{fake_uuid}", 404, json={"content": "test"}, login=owner)
+    api.delete(f"/comments/{fake_uuid}", 404, login=owner)
+
+    # Cleanup
+    api.delete(f"/comments/{long_comment_id}", 204, login=owner)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+
+
+def test_paps_comments_cascade_delete(api):
+    """Test that comments are deleted when PAPS is deleted."""
+    import datetime
+    
+    owner = "cascade_comment_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    commenter = "cascade_commenter"
+    api.setPass(commenter, "Comment123!")
+    res = api.post("/register", 201, json={
+        "username": commenter,
+        "email": f"{commenter}@test.com",
+        "password": "Comment123!"
+    }, login=None)
+    res = api.get("/login", login=commenter, auth="basic")
+    api.setToken(commenter, res.json.get("token"))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+
+    # Create paps
+    res = api.post("/paps", 201, json={
+        "title": "Job for Cascade Comment Test",
+        "description": "Testing that comments are deleted with PAPS",
+        "payment_type": "fixed",
+        "payment_amount": 100.00,
+        "status": "published",
+        "start_datetime": start.isoformat()
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Create comments and replies
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "Top-level comment"
+    }, login=commenter)
+    comment_id = res.json["comment_id"]
+
+    res = api.post(f"/comments/{comment_id}/replies", 201, json={
+        "content": "Reply to comment"
+    }, login=owner)
+    reply_id = res.json["comment_id"]
+
+    # Verify comments exist
+    api.get(f"/comments/{comment_id}", 200, login=commenter)
+    api.get(f"/comments/{reply_id}", 200, login=owner)
+
+    # Delete PAPS (comments should cascade)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+
+    # Comments should be gone (PAPS CASCADE DELETE)
+    api.get(f"/comments/{comment_id}", 404, login=commenter)
+    api.get(f"/comments/{reply_id}", 404, login=owner)
+
+    # Cleanup
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(commenter, None)
+    api.setPass(commenter, None)
+
+
+def test_paps_comments_reply_cascade_delete(api):
+    """Test that replies are deleted when parent comment is deleted."""
+    import datetime
+    
+    owner = "reply_cascade_owner"
+    api.setPass(owner, "Owner123!")
+    res = api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": "Owner123!"
+    }, login=None)
+    res = api.get("/login", login=owner, auth="basic")
+    api.setToken(owner, res.json.get("token"))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now + datetime.timedelta(days=7)
+
+    # Create paps
+    res = api.post("/paps", 201, json={
+        "title": "Job for Reply Cascade Test",
+        "description": "Testing that replies are deleted with parent comment",
+        "payment_type": "fixed",
+        "payment_amount": 100.00,
+        "status": "published",
+        "start_datetime": start.isoformat()
+    }, login=owner)
+    paps_id = res.json["paps_id"]
+
+    # Create parent comment
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "Parent comment"
+    }, login=owner)
+    parent_id = res.json["comment_id"]
+
+    # Create multiple replies
+    res = api.post(f"/comments/{parent_id}/replies", 201, json={
+        "content": "Reply 1"
+    }, login=owner)
+    reply1_id = res.json["comment_id"]
+
+    res = api.post(f"/comments/{parent_id}/replies", 201, json={
+        "content": "Reply 2"
+    }, login=owner)
+    reply2_id = res.json["comment_id"]
+
+    # Verify replies exist
+    res = api.get(f"/comments/{parent_id}/replies", 200, login=owner)
+    assert res.json["count"] == 2
+
+    # Delete parent comment (replies should cascade soft-delete)
+    api.delete(f"/comments/{parent_id}", 204, login=owner)
+
+    # Parent is soft-deleted
+    api.get(f"/comments/{parent_id}", 404, login=owner)
+
+    # Replies should also be soft-deleted
+    api.get(f"/comments/{reply1_id}", 404, login=owner)
+    api.get(f"/comments/{reply2_id}", 404, login=owner)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.setToken(owner, None)
+    api.setPass(owner, None)

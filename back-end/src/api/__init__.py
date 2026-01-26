@@ -9,6 +9,7 @@ from . import category
 from . import paps
 from . import spap
 from . import user
+from . import comment
 
 def register_routes(app):
     """Register all API route modules with the Flask app."""
@@ -19,3 +20,4 @@ def register_routes(app):
     paps.register_routes(app)
     spap.register_routes(app)
     user.register_routes(app)
+    comment.register_routes(app)

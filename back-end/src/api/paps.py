@@ -381,6 +381,9 @@ def register_routes(app):
         # Delete all SPAPs for this PAPS (cascades to SPAP_MEDIA in DB)
         db.delete_spaps_for_paps(paps_id=paps_id)
 
+        # Soft delete all comments for this PAPS
+        db.delete_comments_for_paps(paps_id=paps_id)
+
         # Soft delete the PAPS
         db.delete_paps(id=paps_id)
         return "", 204
