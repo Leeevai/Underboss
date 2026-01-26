@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { View, StyleSheet, Text, Button } from 'react-native'
-import axios from 'axios'
-import { baseUrl } from './common/const'
 import Login from './login/Login'
 import MainView from './main/MainView'
 import Header from './header/Header'
 import AppSettings from './AppSettings'
+import { serv, ApiError } from './serve'
 
 const styles = StyleSheet.create({
   container: {
@@ -14,9 +13,6 @@ const styles = StyleSheet.create({
     height: '100%',
   }
 })
-
-// Configure axios defaults
-axios.defaults.baseURL = baseUrl
 
 // --- Placeholder for ProfileSetup ---
 const ProfileSetup = ({ onComplete }: { onComplete: () => void }) => (
@@ -51,11 +47,8 @@ export default function Root() {
 
   const checkProfileStatus = async () => {
     try {
-      const response = await axios.get('/profile', {
-        headers: { Authorization: `Bearer ${AppSettings.token}` }
-      })
-      
-      const profile = response.data
+      // serv auto-caches profile in AppSettings
+      const profile = await serv('profile.get')
       
       // Check if essential profile fields are filled
       const isComplete = !!(
@@ -66,14 +59,12 @@ export default function Root() {
       )
       
       AppSettings.isProfileComplete = isComplete
-      AppSettings.userProfile = profile
-      AppSettings.userId = profile.id
       setIsProfileComplete(isComplete)
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to check profile status:', error)
       
       // If we get an authentication error, the token is invalid
-      if (error.response?.status === 401 || error.response?.status === 403) {
+      if (error instanceof ApiError && error.isAuthError()) {
         console.log('Token invalid, logging out')
         AppSettings.clearSession()
         setIsAuthenticated(false)
