@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, FlatList, ActivityIndicator, Text, StyleSheet, RefreshControl } from 'react-native'
+import { View, FlatList, ActivityIndicator, Text, StyleSheet, RefreshControl, TouchableWithoutFeedback, TextInput } from 'react-native'
 import { serv, ApiError } from '../serve'
 import PapsPost from './PapsPost'
 
@@ -53,15 +53,20 @@ export default function PapsFeed() {
 
   return (
     <View style={styles.container}>
+      <View style ={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#ccc', }}>
+        <TextInput style = {{borderWidth: 1, borderColor : '#646464',borderRadius:30, margin:10, backgroundColor : '#ecf1f2', color:'#5074b2'}} placeholder = '🔍 Research a job ...' ></TextInput>
+      </View>
       <FlatList
         data={paps}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => <PapsPost pap={item} />}
+        horizontal={true}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh}/>
         }
         contentContainerStyle={{ paddingBottom: 20 }}
       />
+      
     </View>
   )
 }
@@ -69,7 +74,8 @@ export default function PapsFeed() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff' // White background for that clean look
+    backgroundColor: '#dce9e9' // White background for that clean look
+    
   },
   center: {
     flex: 1,

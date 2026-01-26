@@ -43,12 +43,12 @@ export default function PapsPost({ pap }: PapsPostProps) {
         </TouchableOpacity>
       </View>
 
-      {/* Media Content */}
-      <Image 
-        source={{ uri: imageUrl }} 
-        style={styles.media}
-        resizeMode="cover"
-      />
+      
+      {/* Description / Caption */}
+      <View style={styles.content}>
+          <Text style={styles.boldUsername}>{pap.title} </Text>
+          <Text style={styles.timestamp}>{pap.status.toUpperCase()}</Text>
+      </View>
 
       {/* Actions Bar */}
       <View style={styles.actions}>
@@ -57,21 +57,13 @@ export default function PapsPost({ pap }: PapsPostProps) {
           <TouchableOpacity style={styles.actionButton}><Text style={styles.actionIcon}>💬</Text></TouchableOpacity>
           <TouchableOpacity style={styles.actionButton}><Text style={styles.actionIcon}>✈️</Text></TouchableOpacity>
         </View>
-        <View style={styles.rightActions}>
+        
+      </View>
+      <View style={styles.rightActions}>
            <Text style={styles.priceTag}>
              {pap.payment_amount ? `${pap.payment_amount} ${pap.payment_currency}` : 'TBD'}
            </Text>
         </View>
-      </View>
-
-      {/* Description / Caption */}
-      <View style={styles.content}>
-        <Text style={styles.title}>
-          <Text style={styles.boldUsername}>{pap.title} </Text>
-          {pap.description}
-        </Text>
-        <Text style={styles.timestamp}>{pap.status.toUpperCase()}</Text>
-      </View>
     </View>
   )
 }
@@ -79,9 +71,13 @@ export default function PapsPost({ pap }: PapsPostProps) {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#fff',
-    marginBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EFEFEF'
+    borderColor : '#7c849a',
+    borderRadius: 10,
+    marginHorizontal: 4,
+    borderWidth: 1,
+    padding :10,
+    width: 200,
+    height: 350
   },
   header: {
     flexDirection: 'row',
