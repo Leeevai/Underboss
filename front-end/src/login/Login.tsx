@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { View, Button, StyleSheet, Text, Alert, TouchableOpacity } from 'react-native'
-import axios from 'axios'
+import { serv, ApiError } from '../serve'
+import AppSettings from '../AppSettings'
 
 // Reusing your existing common components
 import KivTextInput from '../common/KivTextInput'
@@ -88,24 +89,19 @@ export default function Login({ onLogUser }: LoginProps) {
     setErrorMessage('')
 
     try {
-      // Login with Basic Auth
-      const response = await axios.get('/login', {
-        auth: { username, password }
+      // serv('login') auto-saves token and returns clean UserInfo
+      const user = await serv('login', {
+        login: username,
+        password: password
       })
 
-      // Extract token (handling string or object response)
-      const token = typeof response.data === 'string' 
-        ? response.data 
-        : response.data?.token
-
-      if (!token) throw new Error('No token received from server')
-
-      onLogUser(username, token)
-    } catch (error: any) {
+      // Token is auto-saved by serv, just pass username to parent
+      onLogUser(user.username, AppSettings.token)
+    } catch (error) {
       console.error('Login error:', error)
-      const msg = error.response?.data?.error || 
-                  error.response?.data?.message || 
-                  'Invalid username or password'
+      const msg = error instanceof ApiError 
+        ? error.getUserMessage()
+        : 'Invalid username or password'
       setErrorMessage(msg)
     } finally {
       setIsLoading(false)
@@ -122,45 +118,27 @@ export default function Login({ onLogUser }: LoginProps) {
     setErrorMessage('')
 
     try {
-      // 1. Create Account
-      // FIXED: Changed 'login' to 'username' to match API requirements
-      await axios.post('/register', {
+      // 1. Create Account using serv
+      await serv('register', {
         username: username, 
         email: email,
         password: password
       })
 
-      // 2. Auto-login on success
-      const loginResponse = await axios.get('/login', {
-        auth: { username, password }
+      // 2. Auto-login on success - serv saves token automatically
+      const user = await serv('login', {
+        login: username,
+        password: password
       })
 
-      const token = typeof loginResponse.data === 'string' 
-        ? loginResponse.data 
-        : loginResponse.data?.token
+      onLogUser(user.username, AppSettings.token)
 
-      if (!token) {// --- Placeholder for ProfileSetup ---
-        const ProfileSetup = ({ onComplete }: { onComplete: () => void }) => (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-            <Text style={{ fontSize: 18, marginBottom: 20 }}>Profile Setup Required</Text>
-            <Text style={{ textAlign: 'center', marginBottom: 20, color: '#666' }}>
-              (This is a placeholder. Build your profile form here.)
-            </Text>
-            <Button title="Complete Profile" onPress={onComplete} />
-          </View>
-        )
-        Alert.alert('Account Created', 'Please log in manually.')
-        setIsLoginMode(true)
-      } else {
-        onLogUser(username, token)
-      }
-
-    } catch (error: any) {
+    } catch (error) {
       console.error('Registration error:', error)
       // Display the exact error from backend if available
-      const msg = error.response?.data?.error || 
-                  error.response?.data?.message || 
-                  'Failed to create account. Username or email might be taken.'
+      const msg = error instanceof ApiError
+        ? error.getUserMessage()
+        : 'Failed to create account. Username or email might be taken.'
       setErrorMessage(msg)
     } finally {
       setIsLoading(false)
