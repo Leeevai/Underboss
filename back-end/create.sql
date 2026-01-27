@@ -355,7 +355,7 @@ CREATE TABLE ASAP_MEDIA (
 -- PAYMENT: Payment records for completed work
 CREATE TABLE PAYMENT (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    asap_id UUID NOT NULL REFERENCES ASAP(id) ON DELETE CASCADE,
+    paps_id UUID NOT NULL REFERENCES PAPS(id) ON DELETE RESTRICT,
     payer_id UUID NOT NULL REFERENCES "USER"(id) ON DELETE RESTRICT,
     payee_id UUID NOT NULL REFERENCES "USER"(id) ON DELETE RESTRICT,
     -- Payment details
@@ -499,7 +499,7 @@ CREATE INDEX idx_asap_completed ON ASAP(completed_at) WHERE completed_at IS NOT 
 CREATE INDEX idx_asap_expires ON ASAP(expires_at) WHERE expires_at IS NOT NULL;
 
 -- Payment indexes
-CREATE INDEX idx_payment_asap ON PAYMENT(asap_id);
+CREATE INDEX idx_payment_paps ON PAYMENT(paps_id);
 CREATE INDEX idx_payment_payer ON PAYMENT(payer_id);
 CREATE INDEX idx_payment_payee ON PAYMENT(payee_id);
 CREATE INDEX idx_payment_status ON PAYMENT(status);
