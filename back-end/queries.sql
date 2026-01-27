@@ -1134,7 +1134,7 @@ SELECT COALESCE(MAX(display_order), -1) + 1 FROM ASAP_MEDIA WHERE asap_id = :asa
 -- name: get_payment_by_id(payment_id)^
 SELECT 
     p.id::text as payment_id,
-    p.asap_id::text,
+    p.paps_id::text,
     p.payer_id::text,
     p.payee_id::text,
     p.amount,
@@ -1153,11 +1153,11 @@ JOIN "USER" payer ON p.payer_id = payer.id
 JOIN "USER" payee ON p.payee_id = payee.id
 WHERE p.id = :payment_id::uuid;
 
--- Get payments for an ASAP
--- name: get_payments_for_asap(asap_id)
+-- Get payments for a PAPS
+-- name: get_payments_for_paps(paps_id)
 SELECT 
     p.id::text as payment_id,
-    p.asap_id::text,
+    p.paps_id::text,
     p.payer_id::text,
     p.payee_id::text,
     p.amount,
@@ -1167,14 +1167,14 @@ SELECT
     p.created_at,
     p.paid_at
 FROM PAYMENT p
-WHERE p.asap_id = :asap_id::uuid
+WHERE p.paps_id = :paps_id::uuid
 ORDER BY p.created_at DESC;
 
 -- Get payments by user (as payer or payee)
 -- name: get_payments_by_user(user_id)
 SELECT 
     p.id::text as payment_id,
-    p.asap_id::text,
+    p.paps_id::text,
     p.payer_id::text,
     p.payee_id::text,
     p.amount,
@@ -1184,16 +1184,16 @@ SELECT
     p.created_at,
     p.paid_at,
     CASE WHEN p.payer_id = :user_id::uuid THEN 'payer' ELSE 'payee' END as user_role,
-    a.title as asap_title
+    paps.title as paps_title
 FROM PAYMENT p
-JOIN ASAP a ON p.asap_id = a.id
+JOIN PAPS paps ON p.paps_id = paps.id
 WHERE p.payer_id = :user_id::uuid OR p.payee_id = :user_id::uuid
 ORDER BY p.created_at DESC;
 
 -- Insert new payment
--- name: insert_payment(asap_id, payer_id, payee_id, amount, currency, payment_method)$
-INSERT INTO PAYMENT (asap_id, payer_id, payee_id, amount, currency, payment_method)
-VALUES (:asap_id::uuid, :payer_id::uuid, :payee_id::uuid, :amount, :currency, :payment_method)
+-- name: insert_payment(paps_id, payer_id, payee_id, amount, currency, payment_method)$
+INSERT INTO PAYMENT (paps_id, payer_id, payee_id, amount, currency, payment_method)
+VALUES (:paps_id::uuid, :payer_id::uuid, :payee_id::uuid, :amount, :currency, :payment_method)
 RETURNING id::text;
 
 -- Update payment status
