@@ -17,6 +17,108 @@ def register_routes(app):
     media_handler = get_media_handler(app)
 
     # ============================================
+    # HELPER FUNCTIONS
+    # ============================================
+
+    def create_chat_thread_for_spap(paps_id: str, spap_id: str, applicant_id: str, owner_id: str):
+        """Create a chat thread for a new SPAP and add participants."""
+        thread_id = db.insert_chat_thread_for_spap(paps_id=paps_id, spap_id=spap_id)
+        db.insert_chat_participant(thread_id=thread_id, user_id=applicant_id, role='applicant')
+        db.insert_chat_participant(thread_id=thread_id, user_id=owner_id, role='owner')
+        return thread_id
+
+    def accept_application(spap: dict, paps: dict, auth: model.CurrentAuth):
+        """
+        Accept a SPAP application:
+        1. Check if max_assignees is not reached
+        2. Create ASAP
+        3. Transfer chat thread from SPAP to ASAP
+        4. Delete the SPAP
+        5. If max_assignees reached, close PAPS and delete remaining SPAPs
+        """
+        paps_id = str(spap['paps_id'])
+        applicant_id = str(spap['applicant_id'])
+        owner_id = str(paps['owner_id'])
+        spap_id = str(spap['id'])
+        
+        # Check current ASAP count
+        current_asaps = db.get_asap_count_for_paps(paps_id=paps_id)
+        max_assignees = paps.get('max_assignees', 1)
+        
+        if current_asaps >= max_assignees:
+            return None, "Maximum number of assignees already reached"
+        
+        # Create ASAP
+        asap_id = db.insert_asap(
+            paps_id=paps_id,
+            accepted_user_id=applicant_id,
+            owner_id=owner_id,
+            title=paps.get('title'),
+            subtitle=paps.get('subtitle'),
+            location_address=paps.get('location_address'),
+            location_lat=paps.get('location_lat'),
+            location_lng=paps.get('location_lng'),
+            location_timezone=paps.get('location_timezone'),
+            due_at=paps.get('end_datetime')
+        )
+        
+        # Transfer chat thread from SPAP to ASAP
+        chat_thread = db.get_chat_thread_by_spap(spap_id=spap_id)
+        if chat_thread:
+            db.transfer_chat_thread_to_asap(thread_id=chat_thread['thread_id'], asap_id=asap_id)
+            # Update participant role from applicant to assignee
+            db.insert_chat_participant(thread_id=chat_thread['thread_id'], user_id=applicant_id, role='assignee')
+        else:
+            # Create new chat thread for ASAP if none exists
+            thread_id = db.insert_chat_thread_for_asap(paps_id=paps_id, asap_id=asap_id, thread_type='asap_discussion')
+            db.insert_chat_participant(thread_id=thread_id, user_id=applicant_id, role='assignee')
+            db.insert_chat_participant(thread_id=thread_id, user_id=owner_id, role='owner')
+        
+        # Delete SPAP media files from disk
+        media_list = list(db.get_spap_media(spap_id=spap_id))
+        media_handler.delete_media_batch(MediaType.SPAP, media_list)
+        
+        # Delete the SPAP (cascades to media in DB)
+        db.delete_spap(spap_id=spap_id)
+        
+        # Check if we've reached max_assignees
+        new_asap_count = current_asaps + 1
+        if new_asap_count >= max_assignees:
+            # Close the PAPS
+            db.update_paps_status(paps_id=paps_id, status='closed')
+            
+            # Delete all remaining pending SPAPs and their chat threads
+            remaining_spaps = list(db.get_spaps_for_paps(paps_id=paps_id))
+            for remaining_spap in remaining_spaps:
+                # Delete SPAP media
+                remaining_media = list(db.get_spap_media(spap_id=str(remaining_spap['id'])))
+                media_handler.delete_media_batch(MediaType.SPAP, remaining_media)
+            
+            # Delete all remaining SPAPs (cascades to media and chat threads in DB)
+            db.delete_pending_spaps_for_paps(paps_id=paps_id)
+            
+            # Create group chat if multiple assignees
+            if max_assignees > 1:
+                all_asaps = list(db.get_asaps_for_paps(paps_id=paps_id))
+                if len(all_asaps) > 1:
+                    group_thread_id = db.insert_chat_thread_for_asap(
+                        paps_id=paps_id, 
+                        asap_id=asap_id,  # Link to the latest ASAP
+                        thread_type='group_chat'
+                    )
+                    # Add owner as participant
+                    db.insert_chat_participant(thread_id=group_thread_id, user_id=owner_id, role='owner')
+                    # Add all assignees as participants
+                    for a in all_asaps:
+                        db.insert_chat_participant(
+                            thread_id=group_thread_id, 
+                            user_id=str(a['accepted_user_id']), 
+                            role='assignee'
+                        )
+        
+        return asap_id, None
+
+    # ============================================
     # SPAP (APPLICATION) MANAGEMENT
     # ============================================
 
@@ -53,9 +155,22 @@ def register_routes(app):
     def apply_to_paps(
         paps_id: str,
         auth: model.CurrentAuth,
-        message: str | None = None
+        message: str | None = None,
+        title: str | None = None,
+        subtitle: str | None = None,
+        proposed_payment: float | None = None,
+        location_address: str | None = None,
+        location_lat: float | None = None,
+        location_lng: float | None = None,
+        location_timezone: str | None = None
     ):
-        """Apply to a PAPS job posting. User cannot apply to their own paps."""
+        """
+        Apply to a PAPS job posting.
+        - User cannot apply to their own paps
+        - PAPS must be in 'open' status
+        - Number of ASAPs must be less than max_assignees
+        - Creates a chat thread between applicant and owner
+        """
         try:
             uuid.UUID(paps_id)
         except ValueError:
@@ -70,21 +185,35 @@ def register_routes(app):
         if str(paps['owner_id']) == auth.aid:
             return {"error": "Cannot apply to your own PAPS"}, 403
 
-        # Check if paps is published
-        if paps['status'] != 'published':
+        # Check if paps is open (accepting applications)
+        if paps['status'] not in ('open', 'published'):  # 'published' for backward compat
             return {"error": "PAPS is not accepting applications"}, 400
 
-        # Check if max_applicants reached
-        current_count = db.get_paps_applications_count(paps_id=paps_id)
-        if current_count >= paps['max_applicants']:
-            return {"error": "Maximum number of applications reached"}, 400
+        # Check if max_assignees already reached
+        current_asaps = db.get_asap_count_for_paps(paps_id=paps_id)
+        if current_asaps >= paps.get('max_assignees', 1):
+            return {"error": "Maximum number of assignees already reached"}, 400
 
-        # Check if user already applied or was previously rejected
+        # Check if user already applied
         existing = db.get_spap_by_paps_and_applicant(paps_id=paps_id, applicant_id=auth.aid)
         if existing:
-            if existing['status'] == 'rejected':
-                return {"error": "You were previously rejected from this PAPS and cannot reapply"}, 403
             return {"error": "You have already applied to this PAPS"}, 409
+
+        # Check if user was already accepted (has ASAP)
+        existing_asap = db.get_asap_by_paps_and_user(paps_id=paps_id, user_id=auth.aid)
+        if existing_asap:
+            return {"error": "You are already assigned to this PAPS"}, 409
+
+        # Validate coordinates if provided
+        if location_lat is not None or location_lng is not None:
+            fsa.checkVal(location_lat is not None and location_lng is not None,
+                        "Both lat and lng must be provided", 400)
+            fsa.checkVal(-90 <= location_lat <= 90, "Invalid latitude", 400)
+            fsa.checkVal(-180 <= location_lng <= 180, "Invalid longitude", 400)
+
+        # Validate proposed_payment if provided
+        if proposed_payment is not None:
+            fsa.checkVal(proposed_payment >= 0, "Proposed payment must be non-negative", 400)
 
         # Create application
         spap_id = db.insert_spap(
@@ -93,7 +222,18 @@ def register_routes(app):
             message=message.strip() if message else None
         )
 
-        return fsa.jsonify({"spap_id": spap_id}), 201
+        # Create chat thread for this application
+        chat_thread_id = create_chat_thread_for_spap(
+            paps_id=paps_id,
+            spap_id=str(spap_id),
+            applicant_id=auth.aid,
+            owner_id=str(paps['owner_id'])
+        )
+
+        return fsa.jsonify({
+            "spap_id": str(spap_id),
+            "chat_thread_id": chat_thread_id
+        }), 201
 
     # GET /spap/<spap_id> - get application details
     @app.get("/spap/<spap_id>", authz="AUTH")
@@ -117,6 +257,11 @@ def register_routes(app):
         if not auth.is_admin and not is_applicant and not is_owner:
             return {"error": "Not authorized to view this application"}, 403
 
+        # Include chat thread info
+        chat_thread = db.get_chat_thread_by_spap(spap_id=spap_id)
+        if chat_thread:
+            spap['chat_thread_id'] = chat_thread['thread_id']
+
         return fsa.jsonify(spap), 200
 
     # DELETE /spap/<spap_id> - withdraw application (applicant only)
@@ -136,56 +281,91 @@ def register_routes(app):
         if not auth.is_admin and str(spap['applicant_id']) != auth.aid:
             return {"error": "Not authorized to withdraw this application"}, 403
 
-        # Cannot withdraw if already accepted or rejected
-        if spap['status'] in ('accepted', 'rejected'):
-            return {"error": f"Cannot withdraw application with status: {spap['status']}"}, 400
+        # Cannot withdraw if already accepted (shouldn't happen as SPAP is deleted on accept)
+        if spap['status'] == 'accepted':
+            return {"error": "Cannot withdraw accepted application"}, 400
 
         # Delete media files from disk using MediaHandler
         media_list = list(db.get_spap_media(spap_id=spap_id))
         media_handler.delete_media_batch(MediaType.SPAP, media_list)
 
-        # Delete application (cascades to media in DB)
+        # Delete application (cascades to media and chat thread in DB)
         db.delete_spap(spap_id=spap_id)
         return "", 204
 
-    # PUT /spap/<spap_id>/status - update application status (owner/admin only)
-    @app.put("/spap/<spap_id>/status", authz="AUTH")
-    def update_spap_status(spap_id: str, auth: model.CurrentAuth, status: str):
-        """Update application status. Only paps owner or admin can update."""
+    # PUT /spap/<spap_id>/accept - accept an application (owner only)
+    @app.put("/spap/<spap_id>/accept", authz="AUTH")
+    def accept_spap(spap_id: str, auth: model.CurrentAuth):
+        """
+        Accept an application.
+        - Creates an ASAP
+        - Transfers chat thread to ASAP
+        - Deletes the SPAP
+        - If max_assignees reached: closes PAPS and deletes remaining SPAPs
+        """
         try:
             uuid.UUID(spap_id)
         except ValueError:
             return {"error": "Invalid SPAP ID format"}, 400
 
-        fsa.checkVal(status in ('pending', 'accepted', 'rejected', 'withdrawn'),
-                     "Invalid status. Must be: pending, accepted, rejected, withdrawn", 400)
-
         spap = db.get_spap_by_id(spap_id=spap_id)
         if not spap:
             return {"error": "Application not found"}, 404
+
+        if spap['status'] != 'pending':
+            return {"error": f"Cannot accept application with status: {spap['status']}"}, 400
 
         # Get paps to check ownership
         paps = db.get_paps_by_id_admin(id=spap['paps_id'])
         if not paps:
             return {"error": "PAPS not found"}, 404
 
-        # Only paps owner or admin can update status
+        # Only paps owner or admin can accept
         if not auth.is_admin and str(paps['owner_id']) != auth.aid:
-            return {"error": "Not authorized to update this application"}, 403
+            return {"error": "Not authorized to accept applications"}, 403
 
-        # Set timestamps based on status
-        now = datetime.datetime.now(datetime.timezone.utc)
-        reviewed_at = now if status in ('accepted', 'rejected') else None
-        accepted_at = now if status == 'accepted' else None
-        rejected_at = now if status == 'rejected' else None
+        # Accept the application
+        asap_id, error = accept_application(spap, paps, auth)
+        if error:
+            return {"error": error}, 400
 
-        db.update_spap_status(
-            spap_id=spap_id,
-            status=status,
-            reviewed_at=reviewed_at,
-            accepted_at=accepted_at,
-            rejected_at=rejected_at
-        )
+        return fsa.jsonify({"asap_id": asap_id}), 200
+
+    # PUT /spap/<spap_id>/reject - reject an application (owner only)
+    @app.put("/spap/<spap_id>/reject", authz="AUTH")
+    def reject_spap(spap_id: str, auth: model.CurrentAuth):
+        """
+        Reject an application.
+        - Deletes the SPAP
+        - Deletes the associated chat thread
+        """
+        try:
+            uuid.UUID(spap_id)
+        except ValueError:
+            return {"error": "Invalid SPAP ID format"}, 400
+
+        spap = db.get_spap_by_id(spap_id=spap_id)
+        if not spap:
+            return {"error": "Application not found"}, 404
+
+        if spap['status'] != 'pending':
+            return {"error": f"Cannot reject application with status: {spap['status']}"}, 400
+
+        # Get paps to check ownership
+        paps = db.get_paps_by_id_admin(id=spap['paps_id'])
+        if not paps:
+            return {"error": "PAPS not found"}, 404
+
+        # Only paps owner or admin can reject
+        if not auth.is_admin and str(paps['owner_id']) != auth.aid:
+            return {"error": "Not authorized to reject applications"}, 403
+
+        # Delete SPAP media files from disk
+        media_list = list(db.get_spap_media(spap_id=spap_id))
+        media_handler.delete_media_batch(MediaType.SPAP, media_list)
+
+        # Delete the SPAP (cascades to media and chat thread in DB)
+        db.delete_spap(spap_id=spap_id)
 
         return "", 204
 

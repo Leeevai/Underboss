@@ -68,6 +68,7 @@ def register_routes(app):
         @app.patch("/users/<user_id>", authz="ADMIN")
         def patch_users_id(user_id: str, password: str|None = None, email: str|None = None,
                            phone: str|None = None, is_admin: bool|None = None):
+            import re
             try:
                 user_data, resolved_id = resolve_user_id(user_id)
             except ValueError as e:
@@ -78,6 +79,9 @@ def register_routes(app):
             if password is not None:
                 db.set_user_password(user_id=resolved_id, password=app.hash_password(password))
             if email is not None:
+                # Validate email format
+                email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+                fsa.checkVal(re.match(email_pattern, email), f"Invalid email format: {email}", 400)
                 db.set_user_email(user_id=resolved_id, email=email)
             if phone is not None:
                 db.set_user_phone(user_id=resolved_id, phone=phone)
