@@ -27,6 +27,7 @@ class MediaType(Enum):
     AVATAR = "avatar"
     PAPS = "paps"
     SPAP = "spap"
+    ASAP = "asap"
     CATEGORY = "category"
 
 
@@ -89,6 +90,7 @@ class MediaHandler:
         "avatar_dir": "user/profile",
         "paps_dir": "post",
         "spap_dir": "spap",
+        "asap_dir": "asap",
         "category_dir": "category",
         
         # Default files
@@ -123,6 +125,7 @@ class MediaHandler:
             MediaType.AVATAR: self._base_dir / self._config["avatar_dir"],
             MediaType.PAPS: self._base_dir / self._config["paps_dir"],
             MediaType.SPAP: self._base_dir / self._config["spap_dir"],
+            MediaType.ASAP: self._base_dir / self._config["asap_dir"],
             MediaType.CATEGORY: self._base_dir / self._config["category_dir"],
         }
     
@@ -167,6 +170,8 @@ class MediaHandler:
             return f"/paps/media/{media_id}"
         elif media_type == MediaType.SPAP:
             return f"/spap/media/{media_id}"
+        elif media_type == MediaType.ASAP:
+            return f"/asap/media/{media_id}"
         elif media_type == MediaType.CATEGORY:
             return f"/media/category/{media_id}.{extension}"
         return f"/media/{media_id}.{extension}"
@@ -501,6 +506,21 @@ class MediaHandler:
         """
         return self.store_file(data, extension, MediaType.SPAP, compress=compress)
     
+    def store_asap_media(self, data: Union[bytes, BinaryIO], extension: str,
+                         compress: bool = True) -> MediaResult:
+        """
+        Store ASAP media file.
+        
+        Args:
+            data: File data
+            extension: File extension
+            compress: Whether to compress images
+            
+        Returns:
+            MediaResult
+        """
+        return self.store_file(data, extension, MediaType.ASAP, compress=compress)
+    
     def store_category_icon(self, data: Union[bytes, BinaryIO], extension: str,
                             category_id: str) -> MediaResult:
         """
@@ -579,6 +599,10 @@ class MediaHandler:
     def delete_spap_media(self, media_id: str, extension: str) -> bool:
         """Delete SPAP media."""
         return self.delete_file(MediaType.SPAP, media_id, extension)
+    
+    def delete_asap_media(self, media_id: str, extension: str) -> bool:
+        """Delete ASAP media."""
+        return self.delete_file(MediaType.ASAP, media_id, extension)
     
     def delete_category_icon(self, category_id: str, extension: str) -> bool:
         """Delete category icon."""
