@@ -193,7 +193,7 @@ def register_routes(app):
             paps = db.get_paps_by_id_admin(id=asap['paps_id'])
             if paps and paps['payment_amount']:
                 db.insert_payment(
-                    asap_id=asap_id,
+                    paps_id=asap['paps_id'],
                     payer_id=asap['owner_id'],
                     payee_id=asap['accepted_user_id'],
                     amount=paps['payment_amount'],
