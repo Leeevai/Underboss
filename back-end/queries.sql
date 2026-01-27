@@ -232,7 +232,7 @@ SELECT
     ui.user_id::text,
     ui.category_id::text,
     ui.proficiency_level,
-    ui.added_at,
+    ui.created_at as added_at,
     c.name as category_name,
     c.slug as category_slug,
     c.icon_url as category_icon
@@ -928,3 +928,556 @@ DELETE FROM SPAP_MEDIA WHERE id = :media_id::uuid;
 
 -- name: get_next_spap_media_order(spap_id)$
 SELECT COALESCE(MAX(display_order), -1) + 1 FROM SPAP_MEDIA WHERE spap_id = :spap_id::uuid;
+
+-- ============================================
+-- ASAP (ASSIGNED JOB) QUERIES
+-- ============================================
+
+-- Get all ASAPs for a PAPS
+-- name: get_asaps_for_paps(paps_id)
+SELECT 
+    a.id::text as asap_id,
+    a.paps_id::text,
+    a.accepted_user_id::text,
+    a.owner_id::text,
+    a.title,
+    a.subtitle,
+    a.location_address,
+    a.location_lat,
+    a.location_lng,
+    a.location_timezone,
+    a.status,
+    a.assigned_at,
+    a.started_at,
+    a.due_at,
+    a.completed_at,
+    a.expires_at,
+    a.created_at,
+    a.updated_at,
+    u.username as accepted_user_username,
+    up.display_name as accepted_user_display_name,
+    up.avatar_url as accepted_user_avatar
+FROM ASAP a
+JOIN "USER" u ON a.accepted_user_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+WHERE a.paps_id = :paps_id::uuid
+ORDER BY a.assigned_at DESC;
+
+-- Get ASAP by ID
+-- name: get_asap_by_id(asap_id)^
+SELECT 
+    a.id::text as asap_id,
+    a.paps_id::text,
+    a.accepted_user_id::text,
+    a.owner_id::text,
+    a.title,
+    a.subtitle,
+    a.location_address,
+    a.location_lat,
+    a.location_lng,
+    a.location_timezone,
+    a.status,
+    a.assigned_at,
+    a.started_at,
+    a.due_at,
+    a.completed_at,
+    a.expires_at,
+    a.created_at,
+    a.updated_at,
+    u.username as accepted_user_username,
+    up.display_name as accepted_user_display_name,
+    up.avatar_url as accepted_user_avatar,
+    p.title as paps_title,
+    p.payment_amount,
+    p.payment_currency,
+    owner.username as owner_username
+FROM ASAP a
+JOIN "USER" u ON a.accepted_user_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+JOIN PAPS p ON a.paps_id = p.id
+JOIN "USER" owner ON a.owner_id = owner.id
+WHERE a.id = :asap_id::uuid;
+
+-- Get ASAPs by accepted user
+-- name: get_asaps_by_user(user_id)
+SELECT 
+    a.id::text as asap_id,
+    a.paps_id::text,
+    a.accepted_user_id::text,
+    a.owner_id::text,
+    a.title,
+    a.subtitle,
+    a.status,
+    a.assigned_at,
+    a.started_at,
+    a.due_at,
+    a.completed_at,
+    p.title as paps_title,
+    p.payment_amount,
+    p.payment_currency,
+    owner.username as owner_username,
+    owner_profile.display_name as owner_display_name
+FROM ASAP a
+JOIN PAPS p ON a.paps_id = p.id
+JOIN "USER" owner ON a.owner_id = owner.id
+LEFT JOIN USER_PROFILE owner_profile ON owner.id = owner_profile.user_id
+WHERE a.accepted_user_id = :user_id::uuid
+ORDER BY a.assigned_at DESC;
+
+-- Get ASAPs by PAPS owner
+-- name: get_asaps_by_owner(owner_id)
+SELECT 
+    a.id::text as asap_id,
+    a.paps_id::text,
+    a.accepted_user_id::text,
+    a.owner_id::text,
+    a.title,
+    a.subtitle,
+    a.status,
+    a.assigned_at,
+    a.started_at,
+    a.due_at,
+    a.completed_at,
+    p.title as paps_title,
+    p.payment_amount,
+    p.payment_currency,
+    u.username as accepted_user_username,
+    up.display_name as accepted_user_display_name
+FROM ASAP a
+JOIN PAPS p ON a.paps_id = p.id
+JOIN "USER" u ON a.accepted_user_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+WHERE a.owner_id = :owner_id::uuid
+ORDER BY a.assigned_at DESC;
+
+-- Count ASAPs for a PAPS
+-- name: get_asap_count_for_paps(paps_id)$
+SELECT COUNT(*) FROM ASAP WHERE paps_id = :paps_id::uuid;
+
+-- Check if user already has ASAP for a PAPS
+-- name: get_asap_by_paps_and_user(paps_id, user_id)^
+SELECT id::text as asap_id, status FROM ASAP 
+WHERE paps_id = :paps_id::uuid AND accepted_user_id = :user_id::uuid;
+
+-- Insert new ASAP (when accepting an application)
+-- name: insert_asap(paps_id, accepted_user_id, owner_id, title, subtitle, location_address, location_lat, location_lng, location_timezone, due_at)$
+INSERT INTO ASAP (paps_id, accepted_user_id, owner_id, title, subtitle, location_address, location_lat, location_lng, location_timezone, due_at)
+VALUES (:paps_id::uuid, :accepted_user_id::uuid, :owner_id::uuid, :title, :subtitle, :location_address, :location_lat, :location_lng, :location_timezone, :due_at)
+RETURNING id::text;
+
+-- Update ASAP status
+-- name: update_asap_status(asap_id, status, started_at, completed_at, expires_at)!
+UPDATE ASAP SET
+    status = COALESCE(:status, status),
+    started_at = COALESCE(:started_at, started_at),
+    completed_at = COALESCE(:completed_at, completed_at),
+    expires_at = COALESCE(:expires_at, expires_at)
+WHERE id = :asap_id::uuid;
+
+-- Update ASAP details
+-- name: update_asap(asap_id, title, subtitle, location_address, location_lat, location_lng, location_timezone, due_at)!
+UPDATE ASAP SET
+    title = COALESCE(:title, title),
+    subtitle = COALESCE(:subtitle, subtitle),
+    location_address = COALESCE(:location_address, location_address),
+    location_lat = COALESCE(:location_lat, location_lat),
+    location_lng = COALESCE(:location_lng, location_lng),
+    location_timezone = COALESCE(:location_timezone, location_timezone),
+    due_at = COALESCE(:due_at, due_at)
+WHERE id = :asap_id::uuid;
+
+-- Delete ASAP
+-- name: delete_asap(asap_id)!
+DELETE FROM ASAP WHERE id = :asap_id::uuid;
+
+-- Delete all ASAPs for a PAPS
+-- name: delete_asaps_for_paps(paps_id)!
+DELETE FROM ASAP WHERE paps_id = :paps_id::uuid;
+
+-- Get expired ASAPs (for cleanup job)
+-- name: get_expired_asaps()
+SELECT id::text as asap_id, paps_id::text, accepted_user_id::text
+FROM ASAP 
+WHERE expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP;
+
+-- ============================================
+-- ASAP_MEDIA QUERIES
+-- ============================================
+
+-- name: get_asap_media(asap_id)
+SELECT id::text as media_id, asap_id::text, media_type, file_extension, file_size_bytes, mime_type, display_order, uploaded_at
+FROM ASAP_MEDIA
+WHERE asap_id = :asap_id::uuid
+ORDER BY display_order ASC;
+
+-- name: get_asap_media_by_id(media_id)^
+SELECT id::text as media_id, asap_id::text, media_type, file_extension, file_size_bytes, mime_type, display_order, uploaded_at
+FROM ASAP_MEDIA
+WHERE id = :media_id::uuid;
+
+-- name: insert_asap_media(asap_id, media_type, file_extension, file_size_bytes, mime_type, display_order)$
+INSERT INTO ASAP_MEDIA (asap_id, media_type, file_extension, file_size_bytes, mime_type, display_order)
+VALUES (:asap_id::uuid, :media_type, :file_extension, :file_size_bytes, :mime_type, :display_order)
+RETURNING id::text;
+
+-- name: delete_asap_media(media_id)!
+DELETE FROM ASAP_MEDIA WHERE id = :media_id::uuid;
+
+-- name: get_next_asap_media_order(asap_id)$
+SELECT COALESCE(MAX(display_order), -1) + 1 FROM ASAP_MEDIA WHERE asap_id = :asap_id::uuid;
+
+-- ============================================
+-- PAYMENT QUERIES
+-- ============================================
+
+-- Get payment by ID
+-- name: get_payment_by_id(payment_id)^
+SELECT 
+    p.id::text as payment_id,
+    p.asap_id::text,
+    p.payer_id::text,
+    p.payee_id::text,
+    p.amount,
+    p.currency,
+    p.payment_method,
+    p.status,
+    p.external_reference,
+    p.transaction_id,
+    p.created_at,
+    p.updated_at,
+    p.paid_at,
+    payer.username as payer_username,
+    payee.username as payee_username
+FROM PAYMENT p
+JOIN "USER" payer ON p.payer_id = payer.id
+JOIN "USER" payee ON p.payee_id = payee.id
+WHERE p.id = :payment_id::uuid;
+
+-- Get payments for an ASAP
+-- name: get_payments_for_asap(asap_id)
+SELECT 
+    p.id::text as payment_id,
+    p.asap_id::text,
+    p.payer_id::text,
+    p.payee_id::text,
+    p.amount,
+    p.currency,
+    p.payment_method,
+    p.status,
+    p.created_at,
+    p.paid_at
+FROM PAYMENT p
+WHERE p.asap_id = :asap_id::uuid
+ORDER BY p.created_at DESC;
+
+-- Get payments by user (as payer or payee)
+-- name: get_payments_by_user(user_id)
+SELECT 
+    p.id::text as payment_id,
+    p.asap_id::text,
+    p.payer_id::text,
+    p.payee_id::text,
+    p.amount,
+    p.currency,
+    p.payment_method,
+    p.status,
+    p.created_at,
+    p.paid_at,
+    CASE WHEN p.payer_id = :user_id::uuid THEN 'payer' ELSE 'payee' END as user_role,
+    a.title as asap_title
+FROM PAYMENT p
+JOIN ASAP a ON p.asap_id = a.id
+WHERE p.payer_id = :user_id::uuid OR p.payee_id = :user_id::uuid
+ORDER BY p.created_at DESC;
+
+-- Insert new payment
+-- name: insert_payment(asap_id, payer_id, payee_id, amount, currency, payment_method)$
+INSERT INTO PAYMENT (asap_id, payer_id, payee_id, amount, currency, payment_method)
+VALUES (:asap_id::uuid, :payer_id::uuid, :payee_id::uuid, :amount, :currency, :payment_method)
+RETURNING id::text;
+
+-- Update payment status
+-- name: update_payment_status(payment_id, status, paid_at, transaction_id, external_reference)!
+UPDATE PAYMENT SET
+    status = COALESCE(:status, status),
+    paid_at = COALESCE(:paid_at, paid_at),
+    transaction_id = COALESCE(:transaction_id, transaction_id),
+    external_reference = COALESCE(:external_reference, external_reference)
+WHERE id = :payment_id::uuid;
+
+-- Delete payment
+-- name: delete_payment(payment_id)!
+DELETE FROM PAYMENT WHERE id = :payment_id::uuid;
+
+-- ============================================
+-- CHAT THREAD QUERIES
+-- ============================================
+
+-- Get chat thread by ID
+-- name: get_chat_thread_by_id(thread_id)^
+SELECT 
+    ct.id::text as thread_id,
+    ct.paps_id::text,
+    ct.spap_id::text,
+    ct.asap_id::text,
+    ct.thread_type,
+    ct.created_at,
+    ct.updated_at,
+    p.title as paps_title
+FROM CHAT_THREAD ct
+JOIN PAPS p ON ct.paps_id = p.id
+WHERE ct.id = :thread_id::uuid;
+
+-- Get chat thread by SPAP
+-- name: get_chat_thread_by_spap(spap_id)^
+SELECT 
+    ct.id::text as thread_id,
+    ct.paps_id::text,
+    ct.spap_id::text,
+    ct.asap_id::text,
+    ct.thread_type,
+    ct.created_at
+FROM CHAT_THREAD ct
+WHERE ct.spap_id = :spap_id::uuid;
+
+-- Get chat thread by ASAP
+-- name: get_chat_thread_by_asap(asap_id)^
+SELECT 
+    ct.id::text as thread_id,
+    ct.paps_id::text,
+    ct.spap_id::text,
+    ct.asap_id::text,
+    ct.thread_type,
+    ct.created_at
+FROM CHAT_THREAD ct
+WHERE ct.asap_id = :asap_id::uuid;
+
+-- Get all chat threads for a PAPS
+-- name: get_chat_threads_for_paps(paps_id)
+SELECT 
+    ct.id::text as thread_id,
+    ct.paps_id::text,
+    ct.spap_id::text,
+    ct.asap_id::text,
+    ct.thread_type,
+    ct.created_at,
+    (SELECT COUNT(*) FROM CHAT_MESSAGE cm WHERE cm.thread_id = ct.id) as message_count,
+    (SELECT MAX(sent_at) FROM CHAT_MESSAGE cm WHERE cm.thread_id = ct.id) as last_message_at
+FROM CHAT_THREAD ct
+WHERE ct.paps_id = :paps_id::uuid
+ORDER BY ct.created_at DESC;
+
+-- Get chat threads for a user (where they are participant)
+-- name: get_chat_threads_for_user(user_id)
+SELECT 
+    ct.id::text as thread_id,
+    ct.paps_id::text,
+    ct.spap_id::text,
+    ct.asap_id::text,
+    ct.thread_type,
+    ct.created_at,
+    p.title as paps_title,
+    cp.role as user_role,
+    (SELECT COUNT(*) FROM CHAT_MESSAGE cm WHERE cm.thread_id = ct.id AND cm.is_read = FALSE AND cm.sender_id != :user_id::uuid) as unread_count,
+    (SELECT MAX(sent_at) FROM CHAT_MESSAGE cm WHERE cm.thread_id = ct.id) as last_message_at
+FROM CHAT_THREAD ct
+JOIN CHAT_PARTICIPANT cp ON ct.id = cp.thread_id
+JOIN PAPS p ON ct.paps_id = p.id
+WHERE cp.user_id = :user_id::uuid AND cp.left_at IS NULL
+ORDER BY last_message_at DESC NULLS LAST;
+
+-- Insert chat thread (for SPAP)
+-- name: insert_chat_thread_for_spap(paps_id, spap_id)$
+INSERT INTO CHAT_THREAD (paps_id, spap_id, thread_type)
+VALUES (:paps_id::uuid, :spap_id::uuid, 'spap_discussion')
+RETURNING id::text;
+
+-- Insert chat thread (for ASAP)
+-- name: insert_chat_thread_for_asap(paps_id, asap_id, thread_type)$
+INSERT INTO CHAT_THREAD (paps_id, asap_id, thread_type)
+VALUES (:paps_id::uuid, :asap_id::uuid, :thread_type)
+RETURNING id::text;
+
+-- Transfer chat thread from SPAP to ASAP
+-- name: transfer_chat_thread_to_asap(thread_id, asap_id)!
+UPDATE CHAT_THREAD SET
+    spap_id = NULL,
+    asap_id = :asap_id::uuid,
+    thread_type = 'asap_discussion'
+WHERE id = :thread_id::uuid;
+
+-- Delete chat thread
+-- name: delete_chat_thread(thread_id)!
+DELETE FROM CHAT_THREAD WHERE id = :thread_id::uuid;
+
+-- ============================================
+-- CHAT PARTICIPANT QUERIES
+-- ============================================
+
+-- Get participants for a thread
+-- name: get_chat_participants(thread_id)
+SELECT 
+    cp.id::text as participant_id,
+    cp.thread_id::text,
+    cp.user_id::text,
+    cp.role,
+    cp.joined_at,
+    cp.left_at,
+    u.username,
+    up.display_name,
+    up.avatar_url
+FROM CHAT_PARTICIPANT cp
+JOIN "USER" u ON cp.user_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+WHERE cp.thread_id = :thread_id::uuid
+ORDER BY cp.joined_at;
+
+-- Check if user is participant
+-- name: is_user_participant(thread_id, user_id)^
+SELECT id::text as participant_id, role, left_at
+FROM CHAT_PARTICIPANT
+WHERE thread_id = :thread_id::uuid AND user_id = :user_id::uuid;
+
+-- Add participant to thread
+-- name: insert_chat_participant(thread_id, user_id, role)$
+INSERT INTO CHAT_PARTICIPANT (thread_id, user_id, role)
+VALUES (:thread_id::uuid, :user_id::uuid, :role)
+ON CONFLICT (thread_id, user_id) DO UPDATE SET left_at = NULL, role = :role
+RETURNING id::text;
+
+-- Remove participant from thread (soft leave)
+-- name: leave_chat_thread(thread_id, user_id)!
+UPDATE CHAT_PARTICIPANT SET left_at = CURRENT_TIMESTAMP
+WHERE thread_id = :thread_id::uuid AND user_id = :user_id::uuid;
+
+-- ============================================
+-- CHAT MESSAGE QUERIES
+-- ============================================
+
+-- Get messages for a thread
+-- name: get_chat_messages(thread_id, limit_count, offset_count)
+SELECT 
+    cm.id::text as message_id,
+    cm.thread_id::text,
+    cm.sender_id::text,
+    cm.content,
+    cm.message_type,
+    cm.attachment_url,
+    cm.is_read,
+    cm.read_at,
+    cm.sent_at,
+    cm.edited_at,
+    u.username as sender_username,
+    up.display_name as sender_display_name,
+    up.avatar_url as sender_avatar
+FROM CHAT_MESSAGE cm
+LEFT JOIN "USER" u ON cm.sender_id = u.id
+LEFT JOIN USER_PROFILE up ON u.id = up.user_id
+WHERE cm.thread_id = :thread_id::uuid
+ORDER BY cm.sent_at DESC
+LIMIT :limit_count::integer OFFSET :offset_count::integer;
+
+-- Get single message
+-- name: get_chat_message_by_id(message_id)^
+SELECT 
+    cm.id::text as message_id,
+    cm.thread_id::text,
+    cm.sender_id::text,
+    cm.content,
+    cm.message_type,
+    cm.attachment_url,
+    cm.is_read,
+    cm.sent_at
+FROM CHAT_MESSAGE cm
+WHERE cm.id = :message_id::uuid;
+
+-- Insert message
+-- name: insert_chat_message(thread_id, sender_id, content, message_type, attachment_url)$
+INSERT INTO CHAT_MESSAGE (thread_id, sender_id, content, message_type, attachment_url)
+VALUES (:thread_id::uuid, :sender_id::uuid, :content, :message_type, :attachment_url)
+RETURNING id::text;
+
+-- Mark message as read
+-- name: mark_message_read(message_id)!
+UPDATE CHAT_MESSAGE SET is_read = TRUE, read_at = CURRENT_TIMESTAMP
+WHERE id = :message_id::uuid AND is_read = FALSE;
+
+-- Mark all messages in thread as read for user
+-- name: mark_thread_messages_read(thread_id, user_id)!
+UPDATE CHAT_MESSAGE SET is_read = TRUE, read_at = CURRENT_TIMESTAMP
+WHERE thread_id = :thread_id::uuid AND sender_id != :user_id::uuid AND is_read = FALSE;
+
+-- Get unread count for user in thread
+-- name: get_unread_count(thread_id, user_id)$
+SELECT COUNT(*) FROM CHAT_MESSAGE 
+WHERE thread_id = :thread_id::uuid AND sender_id != :user_id::uuid AND is_read = FALSE;
+
+-- ============================================
+-- RATING QUERIES (Moving Average Only)
+-- ============================================
+
+-- Update user's rating average (moving average calculation)
+-- This is called after each new rating, but individual ratings are not stored
+-- name: update_user_rating(user_id, new_rating)!
+UPDATE USER_PROFILE SET
+    rating_average = (rating_average * rating_count + :new_rating) / (rating_count + 1),
+    rating_count = rating_count + 1
+WHERE user_id = :user_id::uuid;
+
+-- Get user's rating info
+-- name: get_user_rating(user_id)^
+SELECT rating_average, rating_count
+FROM USER_PROFILE
+WHERE user_id = :user_id::uuid;
+
+-- Check if rating is allowed (ASAP must be completed)
+-- name: can_rate_asap(asap_id, rater_id)^
+SELECT 
+    a.id::text as asap_id,
+    a.status,
+    a.accepted_user_id::text,
+    a.owner_id::text,
+    CASE 
+        WHEN a.owner_id = :rater_id::uuid THEN a.accepted_user_id
+        WHEN a.accepted_user_id = :rater_id::uuid THEN a.owner_id
+        ELSE NULL
+    END as can_rate_user_id
+FROM ASAP a
+WHERE a.id = :asap_id::uuid AND a.status = 'completed';
+
+-- ============================================
+-- PAPS STATUS HELPER QUERIES
+-- ============================================
+
+-- Get pending SPAP count for a PAPS
+-- name: get_pending_spap_count(paps_id)$
+SELECT COUNT(*) FROM SPAP WHERE paps_id = :paps_id::uuid AND status = 'pending';
+
+-- Update PAPS status (used when max_assignees reached)
+-- name: update_paps_status(paps_id, status)!
+UPDATE PAPS SET status = :status WHERE id = :paps_id::uuid;
+
+-- Delete all pending SPAPs for a PAPS (when closing)
+-- name: delete_pending_spaps_for_paps(paps_id)!
+DELETE FROM SPAP WHERE paps_id = :paps_id::uuid AND status = 'pending';
+
+-- Get group chat thread for a PAPS (for multiple assignees)
+-- name: get_group_chat_for_paps(paps_id)^
+SELECT id::text as thread_id
+FROM CHAT_THREAD
+WHERE paps_id = :paps_id::uuid AND thread_type = 'group_chat';
+
+-- ============================================
+-- CLEANUP QUERIES
+-- ============================================
+
+-- Get ASAPs completed more than 30 days ago (for deletion)
+-- name: get_asaps_for_cleanup(days_old)
+SELECT 
+    a.id::text as asap_id,
+    a.paps_id::text,
+    a.accepted_user_id::text
+FROM ASAP a
+WHERE a.status = 'completed' 
+  AND a.completed_at IS NOT NULL 
+  AND a.completed_at < CURRENT_TIMESTAMP - (:days_old || ' days')::interval;

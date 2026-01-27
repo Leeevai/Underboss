@@ -201,6 +201,8 @@ INSERT INTO PAPS_MEDIA (id, paps_id, media_type, file_extension, file_size_bytes
 
 -- ============================================
 -- SPAP (Job Applications)
+-- Note: Only pending/withdrawn/rejected SPAPs exist here
+-- Accepted SPAPs are deleted when ASAP is created (per business rules)
 -- ============================================
 -- Clement applies to Hassan's e-commerce job
 INSERT INTO SPAP (id, paps_id, applicant_id, status, message) VALUES
@@ -210,9 +212,8 @@ INSERT INTO SPAP (id, paps_id, applicant_id, status, message) VALUES
 INSERT INTO SPAP (id, paps_id, applicant_id, status, message) VALUES
   ('00000000-0000-0000-0004-000000000002', '00000000-0000-0000-0003-000000000002', '00000000-0000-0000-0000-000000000203', 'pending', 'I can help with the backend and data aspects of your mobile app.');
 
--- Hassan applies to Clement's brand job
-INSERT INTO SPAP (id, paps_id, applicant_id, status, message, reviewed_at, accepted_at) VALUES
-  ('00000000-0000-0000-0004-000000000003', '00000000-0000-0000-0003-000000000003', '00000000-0000-0000-0000-000000000201', 'accepted', 'I have design experience as well and would love to help with web aspects of branding.', NOW(), NOW());
+-- Note: Hassan's application to Clement's brand job was ACCEPTED
+-- The SPAP was deleted and an ASAP was created instead (see ASAP section)
 
 -- Enrique applies to Osman's data job
 INSERT INTO SPAP (id, paps_id, applicant_id, status, message) VALUES
@@ -245,37 +246,72 @@ INSERT INTO COMMENT (id, paps_id, user_id, parent_id, content) VALUES
 
 -- ============================================
 -- ASAP (Assigned Jobs) - For accepted applications
+-- Note: ASAP no longer references SPAP, only contains accepted_user_id
 -- ============================================
-INSERT INTO ASAP (id, paps_id, accepted_spap_id, assigned_at, status) VALUES
-  ('00000000-0000-0000-0006-000000000001', '00000000-0000-0000-0003-000000000003', '00000000-0000-0000-0004-000000000003', NOW(), 'assigned');
+INSERT INTO ASAP (id, paps_id, accepted_user_id, owner_id, title, subtitle, status, assigned_at) VALUES
+  ('00000000-0000-0000-0006-000000000001', '00000000-0000-0000-0003-000000000003', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000202', 'Brand Identity Redesign', 'Complete brand refresh project', 'active', NOW());
 
 -- ============================================
--- ASAP ASSIGNEES
+-- PAYMENTS (for completed ASAPs)
 -- ============================================
-INSERT INTO ASAP_ASSIGNEE (asap_id, user_id, role) VALUES
-  ('00000000-0000-0000-0006-000000000001', '00000000-0000-0000-0000-000000000201', 'lead');
+-- No payments yet since no ASAP is completed
 
 -- ============================================
 -- CHAT THREADS
+-- Note: Chat threads reference EITHER spap_id OR asap_id (mutually exclusive)
 -- ============================================
--- Chat thread for Hassan's application to Clement's job
+-- Chat thread for pending application (clement -> hassan's e-commerce job)
 INSERT INTO CHAT_THREAD (id, paps_id, spap_id, thread_type, created_at) VALUES
-  ('00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0003-000000000003', '00000000-0000-0000-0004-000000000003', 'spap_discussion', NOW());
+  ('00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0003-000000000001', '00000000-0000-0000-0004-000000000001', 'spap_discussion', NOW());
+
+-- Chat thread for pending application (osman -> hassan's mobile job)
+INSERT INTO CHAT_THREAD (id, paps_id, spap_id, thread_type, created_at) VALUES
+  ('00000000-0000-0000-0007-000000000002', '00000000-0000-0000-0003-000000000002', '00000000-0000-0000-0004-000000000002', 'spap_discussion', NOW());
+
+-- Chat thread for ACCEPTED assignment (hassan's work on clement's brand job) - linked to ASAP now
+INSERT INTO CHAT_THREAD (id, paps_id, asap_id, thread_type, created_at) VALUES
+  ('00000000-0000-0000-0007-000000000003', '00000000-0000-0000-0003-000000000003', '00000000-0000-0000-0006-000000000001', 'asap_discussion', NOW());
+
+-- Chat thread for pending application (enrique -> osman's data job)
+INSERT INTO CHAT_THREAD (id, paps_id, spap_id, thread_type, created_at) VALUES
+  ('00000000-0000-0000-0007-000000000004', '00000000-0000-0000-0003-000000000005', '00000000-0000-0000-0004-000000000004', 'spap_discussion', NOW());
 
 -- ============================================
 -- CHAT PARTICIPANTS
 -- ============================================
+-- Participants for clement -> hassan's e-commerce job chat
 INSERT INTO CHAT_PARTICIPANT (thread_id, user_id, role, joined_at) VALUES
-  ('00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0000-000000000201', 'applicant', NOW()),
-  ('00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0000-000000000202', 'owner', NOW());
+  ('00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0000-000000000202', 'applicant', NOW()),
+  ('00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0000-000000000201', 'owner', NOW());
+
+-- Participants for osman -> hassan's mobile job chat
+INSERT INTO CHAT_PARTICIPANT (thread_id, user_id, role, joined_at) VALUES
+  ('00000000-0000-0000-0007-000000000002', '00000000-0000-0000-0000-000000000203', 'applicant', NOW()),
+  ('00000000-0000-0000-0007-000000000002', '00000000-0000-0000-0000-000000000201', 'owner', NOW());
+
+-- Participants for hassan's accepted work on clement's brand job (ASAP chat)
+INSERT INTO CHAT_PARTICIPANT (thread_id, user_id, role, joined_at) VALUES
+  ('00000000-0000-0000-0007-000000000003', '00000000-0000-0000-0000-000000000201', 'assignee', NOW()),
+  ('00000000-0000-0000-0007-000000000003', '00000000-0000-0000-0000-000000000202', 'owner', NOW());
+
+-- Participants for enrique -> osman's data job chat
+INSERT INTO CHAT_PARTICIPANT (thread_id, user_id, role, joined_at) VALUES
+  ('00000000-0000-0000-0007-000000000004', '00000000-0000-0000-0000-000000000204', 'applicant', NOW()),
+  ('00000000-0000-0000-0007-000000000004', '00000000-0000-0000-0000-000000000203', 'owner', NOW());
 
 -- ============================================
 -- CHAT MESSAGES
 -- ============================================
+-- Messages in clement -> hassan's e-commerce job chat
 INSERT INTO CHAT_MESSAGE (id, thread_id, sender_id, content, sent_at) VALUES
-  ('00000000-0000-0000-0008-000000000001', '00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0000-000000000202', 'Hi Hassan! Thanks for applying. When can you start?', NOW() - INTERVAL '2 hours'),
-  ('00000000-0000-0000-0008-000000000002', '00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0000-000000000201', 'Hi Clement! I can start next week.', NOW() - INTERVAL '1 hour'),
-  ('00000000-0000-0000-0008-000000000003', '00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0000-000000000202', 'Perfect! Let me send you the details.', NOW() - INTERVAL '30 minutes');
+  ('00000000-0000-0000-0008-000000000001', '00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0000-000000000202', 'Hi Hassan! I''m interested in helping with the UI design for your e-commerce project.', NOW() - INTERVAL '3 hours'),
+  ('00000000-0000-0000-0008-000000000002', '00000000-0000-0000-0007-000000000001', '00000000-0000-0000-0000-000000000201', 'Hi Clement! Thanks for applying. Can you share some of your previous work?', NOW() - INTERVAL '2 hours');
+
+-- Messages in hassan's accepted work on clement's brand job
+INSERT INTO CHAT_MESSAGE (id, thread_id, sender_id, content, sent_at) VALUES
+  ('00000000-0000-0000-0008-000000000003', '00000000-0000-0000-0007-000000000003', '00000000-0000-0000-0000-000000000202', 'Welcome to the project Hassan! When can you start?', NOW() - INTERVAL '2 hours'),
+  ('00000000-0000-0000-0008-000000000004', '00000000-0000-0000-0007-000000000003', '00000000-0000-0000-0000-000000000201', 'Hi Clement! I can start next week. Looking forward to it!', NOW() - INTERVAL '1 hour'),
+  ('00000000-0000-0000-0008-000000000005', '00000000-0000-0000-0007-000000000003', '00000000-0000-0000-0000-000000000202', 'Perfect! I''ll send you the brand guidelines and assets.', NOW() - INTERVAL '30 minutes');
 
 -- ============================================
 -- End of static test data
