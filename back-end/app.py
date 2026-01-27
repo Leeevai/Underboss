@@ -90,6 +90,10 @@ database.init_app(app)
 import auth
 auth.init_app(app)
 
+# Initialize media handler for centralized media management
+import mediator
+mediator.init_media_handler(app)
+
 # Register all API routes from modular structure
 import api
 api.register_routes(app)

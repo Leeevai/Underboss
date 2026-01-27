@@ -5,15 +5,16 @@
 
 import datetime
 import uuid
-from io import BytesIO
 import FlaskSimpleAuth as fsa
-from PIL import Image
+from mediator import get_media_handler, MediaType
 
 def register_routes(app):
     """Register profile routes with the Flask app."""
     from database import db
-    from utils import ensure_media_dir, PROFILE_IMG_DIR
     import model
+    
+    # Get the media handler instance
+    media_handler = get_media_handler()
 
     # =========================================================================
     # CURRENT USER PROFILE ROUTES - /profile/*
@@ -91,9 +92,6 @@ def register_routes(app):
     def post_avatar(auth: model.CurrentAuth):
         """Upload a profile avatar image. Accepts binary image data or multipart form data."""
         from flask import request
-        from werkzeug.utils import secure_filename
-        ensure_media_dir()
-        config = app.config.get("MEDIA_CONFIG", {})
 
         # Try to get image from multipart files first, then from raw body
         image_data = None
@@ -118,51 +116,19 @@ def register_routes(app):
         else:
             fsa.checkVal(False, "No image data provided", 400)
 
-        # Validate file type - only images for avatars
-        avatar_extensions = config.get("avatar_extensions", {"jpg", "jpeg", "png", "gif", "webp"})
-        ext = filename.rsplit(".", 1)[1].lower() if "." in filename else "png"
-        fsa.checkVal(ext in avatar_extensions,
-                    f"File type not allowed for avatars. Allowed: {', '.join(avatar_extensions)}", 415)
+        # Validate upload using MediaHandler
+        valid, error, ext = media_handler.validate_upload(
+            filename, len(image_data), MediaType.AVATAR
+        )
+        fsa.checkVal(valid, error, 415 if "type" in error.lower() else 413)
 
-        # Compress before storage
-        max_size = config.get("max_avatar_size", 5 * 1024 * 1024)
-        def compress_avatar(data: bytes, ext: str) -> bytes:
-            try:
-                img = Image.open(BytesIO(data))
-            except Exception:
-                fsa.checkVal(False, "Invalid image data", 400)
-            img_format = {
-                "jpg": "JPEG",
-                "jpeg": "JPEG",
-                "png": "PNG",
-                "gif": "GIF",
-                "webp": "WEBP",
-            }.get(ext, "PNG")
-            if img_format == "JPEG" and img.mode in ("RGBA", "P"):
-                img = img.convert("RGB")
-            if img_format in ("JPEG", "WEBP"):
-                quality = int(config.get("avatar_quality", 85))
-                for q in [quality, 80, 75, 70, 60, 50]:
-                    out = BytesIO()
-                    img.save(out, format=img_format, quality=q, optimize=True)
-                    if out.tell() <= max_size:
-                        return out.getvalue()
-                return out.getvalue()
-            out = BytesIO()
-            img.save(out, format=img_format, optimize=True)
-            return out.getvalue()
-
-        image_data = compress_avatar(image_data, ext)
-        fsa.checkVal(len(image_data) <= max_size,
-                    f"File too large (max {max_size / 1024 / 1024}MB)", 413)
-
-        # Save file with user_id as name to ensure uniqueness
-        filename = secure_filename(f"{auth.aid}.{ext}")
-        filepath = PROFILE_IMG_DIR / filename
-        filepath.write_bytes(image_data)
+        # Store avatar using MediaHandler (uses user_id as media_id)
+        # Avatar compression is automatic in store_file for MediaType.AVATAR
+        result = media_handler.store_avatar(image_data, ext, auth.aid)
+        fsa.checkVal(result.success, result.error or "Failed to store avatar", 400)
 
         # Update avatar_url in database
-        avatar_url = f"/media/user/profile/{filename}"
+        avatar_url = result.url
         db.update_user_profile(
             user_id=auth.aid,
             first_name=None,
@@ -183,10 +149,10 @@ def register_routes(app):
     @app.delete("/profile/avatar", authz="AUTH")
     def delete_avatar(auth: model.CurrentAuth):
         """Delete the current user's avatar and reset to default (avatar_url becomes NULL)."""
-        from werkzeug.utils import secure_filename
         config = app.config.get("MEDIA_CONFIG", {})
         default_avatar_url = config.get("default_avatar_url", "media/user/profile/avatar.png")
         profile = db.get_user_profile(user_id=auth.aid)
+        
         # Only delete the file if it's not the default avatar
         if profile and profile.get("avatar_url"):
             avatar_url = profile["avatar_url"]
@@ -195,10 +161,11 @@ def register_routes(app):
                          avatar_url == "/" + default_avatar_url or
                          avatar_url.endswith("/avatar.png"))
             if not is_default:
+                # Extract extension from URL and delete using MediaHandler
                 filename = avatar_url.split("/")[-1]
-                filepath = PROFILE_IMG_DIR / secure_filename(filename)
-                if filepath.exists():
-                    filepath.unlink()
+                if "." in filename:
+                    ext = filename.rsplit(".", 1)[1].lower()
+                    media_handler.delete_avatar(auth.aid, ext)
 
         db.update_user_profile(
             user_id=auth.aid,
@@ -527,7 +494,7 @@ def register_routes(app):
     def _serve_avatar_for_user_id(user_id: str):
         """Serve avatar image for a given user id without exposing filename."""
         from flask import send_file
-        from werkzeug.utils import secure_filename
+        from pathlib import Path
 
         profile = db.get_user_profile(user_id=user_id)
         if not profile:
@@ -535,24 +502,20 @@ def register_routes(app):
 
         avatar_url = profile.get("avatar_url")
         if avatar_url:
-            filename = secure_filename(avatar_url.split("/")[-1])
-            filepath = PROFILE_IMG_DIR / filename
-        else:
-            filepath = PROFILE_IMG_DIR / "avatar.png"
-
-        if not filepath.exists():
+            filename = avatar_url.split("/")[-1]
+            if "." in filename:
+                ext = filename.rsplit(".", 1)[1].lower()
+                filepath = media_handler.get_file_path(MediaType.AVATAR, user_id, ext)
+                if filepath:
+                    mimetype = media_handler.get_mime_type(ext)
+                    return send_file(filepath, mimetype=mimetype)
+        
+        # Fallback to default avatar
+        config = app.config.get("MEDIA_CONFIG", {})
+        default_avatar_dir = config.get("avatar_directory", "media/user/profile")
+        default_path = Path(default_avatar_dir) / "avatar.png"
+        
+        if not default_path.exists():
             return {"error": "Avatar not found"}, 404
 
-        ext = filepath.suffix[1:]
-        if ext in {"jpg", "jpeg"}:
-            mimetype = "image/jpeg"
-        elif ext == "png":
-            mimetype = "image/png"
-        elif ext == "gif":
-            mimetype = "image/gif"
-        elif ext == "webp":
-            mimetype = "image/webp"
-        else:
-            mimetype = "application/octet-stream"
-
-        return send_file(filepath, mimetype=mimetype)
+        return send_file(default_path, mimetype="image/png")

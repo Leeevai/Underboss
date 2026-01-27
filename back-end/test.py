@@ -996,3 +996,505 @@ def test_paps_search_filters(api):
     api.delete(f"/categories/{cat_id}", 204, login=ADMIN)
     api.setToken(user, None)
     api.setPass(user, None)
+
+
+# /paps - edge case and validation tests
+def test_paps_edge_cases(api):
+    user = "testpapsedge"
+    pswd = "test123!ABC"
+    api.setPass(user, pswd)
+    
+    # Register user
+    api.post("/register", 201, json={
+        "username": user,
+        "email": f"{user}@test.com",
+        "password": pswd
+    }, login=None)
+    user_token = api.get("/login", 200, login=user).json
+    api.setToken(user, user_token.get("token") if isinstance(user_token, dict) else user_token)
+    
+    # Test max_distance validation - should require lat and lng
+    api.get("/paps", 400, json={"max_distance": 100}, login=user)  # Missing lat/lng
+    api.get("/paps", 400, json={"max_distance": 100, "lat": 40.7128}, login=user)  # Missing lng
+    api.get("/paps", 400, json={"max_distance": 100, "lng": -74.0060}, login=user)  # Missing lat
+    
+    # Test max_distance with valid lat/lng
+    res = api.get("/paps", 200, json={"max_distance": 100, "lat": 40.7128, "lng": -74.0060}, login=user)
+    assert "paps" in res.json
+    
+    # Test max_distance must be positive
+    api.get("/paps", 400, json={"max_distance": -100, "lat": 40.7128, "lng": -74.0060}, login=user)
+    api.get("/paps", 400, json={"max_distance": 0, "lat": 40.7128, "lng": -74.0060}, login=user)
+    
+    # Test lat/lng validation
+    api.get("/paps", 400, json={"lat": 100, "lng": -74.0060}, login=user)  # Invalid lat > 90
+    api.get("/paps", 400, json={"lat": -100, "lng": -74.0060}, login=user)  # Invalid lat < -90
+    api.get("/paps", 400, json={"lat": 40.7128, "lng": 200}, login=user)  # Invalid lng > 180
+    api.get("/paps", 400, json={"lat": 40.7128, "lng": -200}, login=user)  # Invalid lng < -180
+    
+    # Test invalid payment_type filter
+    api.get("/paps", 400, json={"payment_type": "invalid"}, login=user)
+    
+    # Test invalid UUID format for paps_id
+    api.get("/paps/not-a-uuid", 400, login=user)
+    api.put("/paps/not-a-uuid", 400, json={"title": "Test"}, login=user)
+    api.delete("/paps/not-a-uuid", 400, login=user)
+    
+    # Test invalid category_id format
+    api.post("/paps/00000000-0000-0000-0000-000000000001/categories/not-a-uuid", 400, login=user)
+    api.delete("/paps/00000000-0000-0000-0000-000000000001/categories/not-a-uuid", 400, login=user)
+    
+    # Test paps creation validation
+    # Title too short
+    api.post("/paps", 400, json={
+        "title": "Test",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00
+    }, login=user)
+    
+    # Description too short
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "Too short",
+        "payment_type": "fixed",
+        "payment_amount": 500.00
+    }, login=user)
+    
+    # Invalid payment amount (zero)
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 0
+    }, login=user)
+    
+    # Invalid payment amount (negative)
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": -100
+    }, login=user)
+    
+    # Invalid payment type
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "invalid",
+        "payment_amount": 500.00
+    }, login=user)
+    
+    # Invalid status
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "invalid"
+    }, login=user)
+    
+    # Invalid max_applicants
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "max_applicants": 0
+    }, login=user)
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "max_applicants": 200
+    }, login=user)
+    
+    # Invalid location (partial lat/lng)
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "location_lat": 40.7128
+        # Missing location_lng
+    }, login=user)
+    
+    # Invalid location ranges
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "location_lat": 100,  # Invalid > 90
+        "location_lng": -74.0060
+    }, login=user)
+    
+    # Test paps media - invalid paps_id format
+    api.get("/paps/not-a-uuid/media", 400, login=user)
+    api.get("/paps/media/not-a-uuid", 400, login=user)
+    api.delete("/paps/media/not-a-uuid", 400, login=user)
+    
+    # Test media for non-existent paps
+    api.get("/paps/00000000-0000-0000-0000-000000000000/media", 404, login=user)
+    api.get("/paps/media/00000000-0000-0000-0000-000000000000", 404, login=user)
+    api.delete("/paps/media/00000000-0000-0000-0000-000000000000", 404, login=user)
+    
+    # Cleanup
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    user_id = res.json["user_id"]
+    api.delete(f"/users/{user_id}", 204, login=ADMIN)
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+
+def test_media_handler_via_api(api):
+    """
+    Comprehensive tests for the MediaHandler class through the API.
+    Tests media upload, retrieval, deletion for:
+    - Profile avatars
+    - PAPS media (images, documents)
+    - SPAP media
+    """
+    import base64
+    import requests
+    from io import BytesIO
+    
+    # Get the base URL from environment
+    base_url = os.environ.get("FLASK_TESTER_APP", "http://localhost:5000")
+    
+    user = "testmedia"
+    pswd = "test123!ABC"
+    user2 = "testmedia2"
+    api.setPass(user, pswd)
+    api.setPass(user2, pswd)
+    
+    # Register test users
+    api.post("/register", 201, json={
+        "username": user,
+        "email": f"{user}@test.com",
+        "password": pswd
+    }, login=None)
+    user_token = api.get("/login", 200, login=user).json
+    token = user_token.get("token") if isinstance(user_token, dict) else user_token
+    api.setToken(user, token)
+    
+    api.post("/register", 201, json={
+        "username": user2,
+        "email": f"{user2}@test.com",
+        "password": pswd
+    }, login=None)
+    user2_token = api.get("/login", 200, login=user2).json
+    token2 = user2_token.get("token") if isinstance(user2_token, dict) else user2_token
+    api.setToken(user2, token2)
+    
+    # =========================================================================
+    # AVATAR TESTS - Test MediaHandler through profile/avatar endpoints
+    # =========================================================================
+    log.info("Testing avatar uploads via MediaHandler...")
+    
+    # Create a simple 1x1 PNG image (smallest valid PNG)
+    png_data = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+    
+    # Create a small JPEG image (1x1 red pixel)
+    jpeg_data = base64.b64decode(
+        "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRof"
+        "Hh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwh"
+        "MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAAR"
+        "CAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAA"
+        "AAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMB"
+        "AAIRAxEAPwCwAB//2Q=="
+    )
+    
+    # Test 1: Upload avatar as PNG using multipart form
+    res = requests.post(
+        f"{base_url}/profile/avatar",
+        files={"image": ("avatar.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.text}"
+    avatar_url = res.json()["avatar_url"]
+    assert avatar_url.startswith("/media/user/profile/")
+    assert avatar_url.endswith(".png")
+    log.info(f"Avatar uploaded: {avatar_url}")
+    
+    # Test 2: Retrieve avatar
+    res = api.get("/profile/avatar", 200, login=user)
+    assert res.headers["Content-Type"] == "image/png"
+    
+    # Test 3: Public avatar access via username
+    res = api.get(f"/user/{user}/profile/avatar", 200, login=None)
+    assert res.headers["Content-Type"] == "image/png"
+    
+    # Test 4: Upload avatar as JPEG (overwrites previous)
+    res = requests.post(
+        f"{base_url}/profile/avatar",
+        files={"image": ("avatar.jpg", BytesIO(jpeg_data), "image/jpeg")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.text}"
+    new_avatar_url = res.json()["avatar_url"]
+    assert new_avatar_url.endswith(".jpg") or new_avatar_url.endswith(".jpeg")
+    
+    # Test 5: Invalid file type for avatar (PDF not allowed)
+    pdf_data = b"%PDF-1.4 fake pdf data"
+    res = requests.post(
+        f"{base_url}/profile/avatar",
+        files={"image": ("doc.pdf", BytesIO(pdf_data), "application/pdf")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    # Returns 413 or 415 depending on error type detection
+    assert res.status_code in [413, 415], f"Expected 413/415, got {res.status_code}: {res.text}"
+    assert "image" in res.text.lower() or "allowed" in res.text.lower()
+    
+    # Test 6: Delete avatar
+    api.delete("/profile/avatar", 204, login=user)
+    
+    # After delete, avatar should return default
+    res = api.get("/profile/avatar", 200, login=user)
+    
+    # =========================================================================
+    # PAPS MEDIA TESTS - Test MediaHandler through paps media endpoints
+    # =========================================================================
+    log.info("Testing PAPS media uploads via MediaHandler...")
+    
+    # Create a PAPS first
+    res = api.post("/paps", 201, json={
+        "title": "Media Test Paps Project",
+        "description": "A test paps for media upload testing with MediaHandler",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "payment_currency": "USD",
+        "status": "draft"
+    }, login=user)
+    paps_id = res.json.get("paps_id")
+    assert paps_id is not None
+    
+    # Test 7: Upload PNG image to PAPS
+    res = requests.post(
+        f"{base_url}/paps/{paps_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.text}"
+    json_resp = res.json()
+    assert "uploaded_media" in json_resp
+    assert len(json_resp["uploaded_media"]) == 1
+    media_id_png = json_resp["uploaded_media"][0]["media_id"]
+    media_url_png = json_resp["uploaded_media"][0]["media_url"]
+    log.info(f"PAPS media uploaded: {media_url_png}")
+    
+    # Test 8: Upload JPEG image to PAPS
+    res = requests.post(
+        f"{base_url}/paps/{paps_id}/media",
+        files={"media": ("image.jpg", BytesIO(jpeg_data), "image/jpeg")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.text}"
+    media_id_jpeg = res.json()["uploaded_media"][0]["media_id"]
+    
+    # Test 9: List PAPS media
+    res = api.get(f"/paps/{paps_id}/media", 200, login=user)
+    assert "media" in res.json
+    assert res.json["media_count"] == 2
+    media_ids = [m["media_id"] for m in res.json["media"]]
+    assert media_id_png in media_ids
+    assert media_id_jpeg in media_ids
+    
+    # Test 10: Retrieve individual PAPS media file
+    res = api.get(f"/paps/media/{media_id_png}", 200, login=user)
+    assert res.headers["Content-Type"] == "image/png"
+    
+    # Test 11: Delete individual media file (owner)
+    api.delete(f"/paps/media/{media_id_jpeg}", 204, login=user)
+    
+    # Verify deletion
+    res = api.get(f"/paps/{paps_id}/media", 200, login=user)
+    assert res.json["media_count"] == 1
+    media_ids = [m["media_id"] for m in res.json["media"]]
+    assert media_id_jpeg not in media_ids
+    assert media_id_png in media_ids
+    
+    # Test 12: Non-owner cannot delete media
+    api.delete(f"/paps/media/{media_id_png}", 403, login=user2)
+    
+    # Test 13: Invalid media ID format
+    api.get("/paps/media/not-a-uuid", 400, login=user)
+    api.delete("/paps/media/not-a-uuid", 400, login=user)
+    
+    # Test 14: Non-existent media ID
+    api.get("/paps/media/00000000-0000-0000-0000-000000000000", 404, login=user)
+    api.delete("/paps/media/00000000-0000-0000-0000-000000000000", 404, login=user)
+    
+    # Test 15: Upload to non-existent PAPS
+    res = requests.post(
+        f"{base_url}/paps/00000000-0000-0000-0000-000000000000/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 404, f"Expected 404, got {res.status_code}"
+    
+    # Test 16: Non-owner cannot upload to PAPS
+    res = requests.post(
+        f"{base_url}/paps/{paps_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token2}"}
+    )
+    assert res.status_code == 403, f"Expected 403, got {res.status_code}"
+    
+    # Test 17: Delete PAPS should cascade delete all media
+    # First, add a new media
+    res = requests.post(
+        f"{base_url}/paps/{paps_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    cascaded_media_id = res.json()["uploaded_media"][0]["media_id"]
+    
+    # Delete the PAPS
+    api.delete(f"/paps/{paps_id}", 204, login=user)
+    
+    # Verify media is also gone
+    api.get(f"/paps/media/{cascaded_media_id}", 404, login=user)
+    api.get(f"/paps/media/{media_id_png}", 404, login=user)
+    
+    # =========================================================================
+    # SPAP MEDIA TESTS - Test MediaHandler through spap (application) endpoints
+    # =========================================================================
+    log.info("Testing SPAP media uploads via MediaHandler...")
+    
+    # Create a new PAPS for SPAP testing
+    import datetime
+    start_dt = (datetime.datetime.now() + datetime.timedelta(days=1)).isoformat()
+    end_dt = (datetime.datetime.now() + datetime.timedelta(days=30)).isoformat()
+    
+    res = api.post("/paps", 201, json={
+        "title": "SPAP Media Test Project",
+        "description": "A test paps for SPAP media upload testing",
+        "payment_type": "hourly",
+        "payment_amount": 50.00,
+        "payment_currency": "USD",
+        "status": "published",  # Must be published to accept applications
+        "start_datetime": start_dt,
+        "end_datetime": end_dt
+    }, login=user)
+    paps_id_for_spap = res.json.get("paps_id")
+    
+    # User2 applies to the PAPS
+    res = api.post(f"/paps/{paps_id_for_spap}/apply", 201, json={
+        "cover_letter": "I am applying for this job to test media uploads"
+    }, login=user2)
+    spap_id = res.json.get("spap_id")
+    assert spap_id is not None
+    
+    # Test 18: Upload media to SPAP application
+    res = requests.post(
+        f"{base_url}/spap/{spap_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token2}"}
+    )
+    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.text}"
+    json_resp = res.json()
+    assert "uploaded_media" in json_resp
+    spap_media_id = json_resp["uploaded_media"][0]["media_id"]
+    log.info(f"SPAP media uploaded: {json_resp['uploaded_media'][0]['media_url']}")
+    
+    # Test 19: Applicant can retrieve their SPAP media
+    res = api.get(f"/spap/media/{spap_media_id}", 200, login=user2)
+    assert res.headers["Content-Type"] == "image/png"
+    
+    # Test 20: PAPS owner can also view SPAP media
+    res = api.get(f"/spap/media/{spap_media_id}", 200, login=user)
+    assert res.headers["Content-Type"] == "image/png"
+    
+    # Test 21: Other users cannot view SPAP media (not applicant or owner)
+    # Register a third user
+    user3 = "testmedia3"
+    api.setPass(user3, pswd)
+    api.post("/register", 201, json={
+        "username": user3,
+        "email": f"{user3}@test.com",
+        "password": pswd
+    }, login=None)
+    user3_token = api.get("/login", 200, login=user3).json
+    token3 = user3_token.get("token") if isinstance(user3_token, dict) else user3_token
+    api.setToken(user3, token3)
+    
+    api.get(f"/spap/media/{spap_media_id}", 403, login=user3)
+    
+    # Test 22: Non-applicant cannot upload to SPAP
+    res = requests.post(
+        f"{base_url}/spap/{spap_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token}"}  # user is PAPS owner, not applicant
+    )
+    assert res.status_code == 403, f"Expected 403, got {res.status_code}"
+    
+    # Test 23: Applicant can delete their own media
+    api.delete(f"/spap/media/{spap_media_id}", 204, login=user2)
+    
+    # Verify deletion
+    api.get(f"/spap/media/{spap_media_id}", 404, login=user2)
+    
+    # Test 24: Upload new media and test withdrawal cascade
+    res = requests.post(
+        f"{base_url}/spap/{spap_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token2}"}
+    )
+    cascade_spap_media_id = res.json()["uploaded_media"][0]["media_id"]
+    
+    # Withdraw application (should cascade delete media)
+    api.delete(f"/spap/{spap_id}", 204, login=user2)
+    
+    # Verify media is gone
+    api.get(f"/spap/media/{cascade_spap_media_id}", 404, login=user2)
+    
+    # =========================================================================
+    # EDGE CASES AND SECURITY TESTS
+    # =========================================================================
+    log.info("Testing edge cases and security...")
+    
+    # Test 25: Invalid media_id formats should be rejected
+    # UUID validation is the primary protection against path traversal
+    api.get("/paps/media/test.txt", 400, login=user)
+    api.get("/spap/media/test.txt", 400, login=user)
+    api.delete("/paps/media/invalid-id", 400, login=user)
+    api.delete("/spap/media/invalid-id", 400, login=user)
+    
+    # Trying to access with dots should also fail UUID validation
+    api.get("/paps/media/....", 400, login=user)
+    api.get("/spap/media/....", 400, login=user)
+    
+    # =========================================================================
+    # CLEANUP
+    # =========================================================================
+    log.info("Cleaning up test data...")
+    
+    # Delete PAPS (will cascade delete any remaining media)
+    api.delete(f"/paps/{paps_id_for_spap}", 204, login=user)
+    
+    # Delete test users
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    user_id = res.json["user_id"]
+    api.delete(f"/users/{user_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{user2}/profile", 200, login=None)
+    user2_id = res.json["user_id"]
+    api.delete(f"/users/{user2_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{user3}/profile", 200, login=None)
+    user3_id = res.json["user_id"]
+    api.delete(f"/users/{user3_id}", 204, login=ADMIN)
+    
+    # Clear tokens
+    api.setToken(user, None)
+    api.setPass(user, None)
+    api.setToken(user2, None)
+    api.setPass(user2, None)
+    api.setToken(user3, None)
+    api.setPass(user3, None)
+    
+    log.info("MediaHandler API tests completed successfully!")

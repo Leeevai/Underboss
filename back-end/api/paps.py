@@ -9,8 +9,11 @@ import FlaskSimpleAuth as fsa
 def register_routes(app):
     """Register paps routes with the Flask app."""
     from database import db
-    from utils import ensure_media_dir, allowed_file, get_max_file_size, get_allowed_extensions, POST_MEDIA_DIR
+    from mediator import get_media_handler, MediaType
     import model
+
+    # Get media handler
+    media_handler = get_media_handler(app)
 
     # Maximum paps for non-admin users (interest-matched)
     MAX_PAPS_FOR_USER = 1000
@@ -65,6 +68,18 @@ def register_routes(app):
         if payment_type:
             fsa.checkVal(payment_type in ("fixed", "hourly", "negotiable"), 
                         "Invalid payment_type. Must be: fixed, hourly, negotiable", 400)
+
+        # Validate max_distance requires lat and lng
+        if max_distance is not None:
+            fsa.checkVal(lat is not None and lng is not None,
+                        "max_distance requires both lat and lng parameters", 400)
+            fsa.checkVal(max_distance > 0, "max_distance must be positive", 400)
+
+        # Validate lat/lng ranges if provided
+        if lat is not None:
+            fsa.checkVal(-90 <= lat <= 90, "Invalid latitude (must be -90 to 90)", 400)
+        if lng is not None:
+            fsa.checkVal(-180 <= lng <= 180, "Invalid longitude (must be -180 to 180)", 400)
 
         # Admins see all paps
         if is_admin:
@@ -345,7 +360,6 @@ def register_routes(app):
     def delete_paps_id(paps_id: str, auth: model.CurrentAuth):
         """Soft delete a PAP. Only owner or admin can delete.
         Also deletes all associated media files from disk and all applications."""
-        from utils import SPAP_MEDIA_DIR
         try:
             uuid.UUID(paps_id)
         except ValueError:
@@ -358,25 +372,15 @@ def register_routes(app):
         if not auth.is_admin and str(paps['owner_id']) != auth.aid:
             return {"error": "Not authorized to delete this PAP"}, 403
 
-        # Delete all PAPS media files from disk
+        # Delete all PAPS media files from disk using MediaHandler
         media_list = list(db.get_paps_media(paps_id=paps_id))
-        for media in media_list:
-            ext = media.get('file_extension', 'png')
-            filename = f"{media['media_id']}.{ext}"
-            filepath = POST_MEDIA_DIR / filename
-            if filepath.exists():
-                filepath.unlink()
+        media_handler.delete_media_batch(MediaType.PAPS, media_list)
 
         # Delete all SPAP media files from disk for all applications
         spaps = list(db.get_spaps_for_paps(paps_id=paps_id))
         for spap in spaps:
             spap_media_list = list(db.get_spap_media(spap_id=str(spap['id'])))
-            for media in spap_media_list:
-                ext = media.get('file_extension', 'png')
-                filename = f"{media['media_id']}.{ext}"
-                filepath = SPAP_MEDIA_DIR / filename
-                if filepath.exists():
-                    filepath.unlink()
+            media_handler.delete_media_batch(MediaType.SPAP, spap_media_list)
 
         # Delete all SPAPs for this PAPS (cascades to SPAP_MEDIA in DB)
         db.delete_spaps_for_paps(paps_id=paps_id)
@@ -519,7 +523,6 @@ def register_routes(app):
         """Upload one or multiple media files for a PAP. Only owner or admin can upload.
         Files are stored as [media_id].[extension] - no original filenames exposed."""
         from flask import request
-        ensure_media_dir()
 
         try:
             uuid.UUID(paps_id)
@@ -547,46 +550,44 @@ def register_routes(app):
             if not file.filename:
                 continue
 
-            # Extract extension
-            ext = file.filename.rsplit(".", 1)[1].lower() if "." in file.filename else "png"
-
-            # Validate file type
-            fsa.checkVal(allowed_file(f"dummy.{ext}", app),
-                         f"File type not allowed. Allowed: {', '.join(get_allowed_extensions(app))}", 415)
-
-            # Read and validate file size
+            # Validate upload using MediaHandler
             media_data = file.read()
-            file_size = len(media_data)
-            max_size = get_max_file_size(app)
-            fsa.checkVal(file_size <= max_size,
-                         f"File too large (max {max_size / 1024 / 1024}MB)", 413)
+            valid, error, ext = media_handler.validate_upload(
+                file.filename, len(media_data), MediaType.PAPS
+            )
+            if not valid:
+                fsa.checkVal(False, error, 400)
 
-            # Determine media type
-            media_type = "image" if ext in {"jpg", "jpeg", "png", "gif", "webp"} else "video"
+            # Store file using MediaHandler (with compression)
+            result = media_handler.store_paps_media(media_data, ext, compress=True)
+            if not result.success:
+                fsa.checkVal(False, result.error, 500)
 
             # Get next display order
             display_order = db.get_next_paps_media_order(paps_id=paps_id)
 
-            # Insert media record first to get the media_id
+            # Insert media record into database
             media_id = db.insert_paps_media(
                 paps_id=paps_id,
-                media_type=media_type,
-                file_extension=ext,
-                file_size_bytes=file_size,
-                mime_type=file.content_type or f"{media_type}/{ext}",
+                media_type=result.media_type,
+                file_extension=result.file_extension,
+                file_size_bytes=result.file_size,
+                mime_type=result.mime_type,
                 display_order=display_order
             )
 
-            # Save file using media_id as filename (no original filename exposed)
-            filename = f"{media_id}.{ext}"
-            filepath = POST_MEDIA_DIR / filename
-            filepath.write_bytes(media_data)
+            # Rename the file from temp media_id to actual media_id
+            if result.media_id != media_id:
+                old_path = result.filepath
+                new_path = media_handler.get_directory(MediaType.PAPS) / f"{media_id}.{result.file_extension}"
+                if old_path and old_path.exists():
+                    old_path.rename(new_path)
 
             uploaded_media.append({
                 "media_id": media_id,
                 "media_url": f"/paps/media/{media_id}",
-                "media_type": media_type,
-                "file_size_bytes": file_size,
+                "media_type": result.media_type,
+                "file_size_bytes": result.file_size,
                 "display_order": display_order
             })
 
@@ -637,15 +638,15 @@ def register_routes(app):
         if not paps:
             return {"error": "Media not accessible"}, 404
 
-        # Build filepath from media_id and extension
+        # Use MediaHandler to get file path safely
+        db_media_id = media['media_id']
         ext = media['file_extension']
-        filename = f"{media_id}.{ext}"
-        filepath = POST_MEDIA_DIR / filename
-
-        if not filepath.exists():
+        
+        filepath = media_handler.get_file_path(MediaType.PAPS, db_media_id, ext)
+        if not filepath:
             return {"error": "Media file not found on disk"}, 404
 
-        return send_file(filepath, mimetype=media['mime_type'] or f"{media['media_type']}/{ext}")
+        return send_file(filepath, mimetype=media['mime_type'] or media_handler.get_mime_type(ext))
 
     # DELETE /paps/media/<media_id> - delete a media file
     @app.delete("/paps/media/<media_id>", authz="AUTH")
@@ -669,14 +670,14 @@ def register_routes(app):
         if not auth.is_admin and str(paps['owner_id']) != auth.aid:
             return {"error": "Not authorized to delete this media"}, 403
 
-        # Delete file from disk
+        # Use media_id from database record, not URL parameter, for safety
+        db_media_id = media['media_id']
         ext = media['file_extension']
-        filename = f"{media_id}.{ext}"
-        filepath = POST_MEDIA_DIR / filename
-        if filepath.exists():
-            filepath.unlink()
-
-        # Delete from database
-        db.delete_paps_media(media_id=media_id)
+        
+        # Delete from database FIRST to prevent orphaned file references
+        db.delete_paps_media(media_id=db_media_id)
+        
+        # Then delete file from disk using MediaHandler
+        media_handler.delete_paps_media(db_media_id, ext)
 
         return "", 204
