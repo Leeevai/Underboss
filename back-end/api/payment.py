@@ -54,27 +54,26 @@ def register_routes(app):
 
         return fsa.jsonify(payment), 200
 
-    # GET /asap/<asap_id>/payments - get payments for an assignment
-    @app.get("/asap/<asap_id>/payments", authz="AUTH")
-    def get_asap_payments(asap_id: str, auth: model.CurrentAuth):
-        """Get all payments for an assignment."""
+    # GET /paps/<paps_id>/payments - get payments for a job posting
+    @app.get("/paps/<paps_id>/payments", authz="AUTH")
+    def get_paps_payments(paps_id: str, auth: model.CurrentAuth):
+        """Get all payments for a job posting."""
         try:
-            uuid.UUID(asap_id)
+            uuid.UUID(paps_id)
         except ValueError:
-            return {"error": "Invalid ASAP ID format"}, 400
+            return {"error": "Invalid PAPS ID format"}, 400
 
-        asap = db.get_asap_by_id(asap_id=asap_id)
-        if not asap:
-            return {"error": "Assignment not found"}, 404
+        paps = db.get_paps_by_id_admin(id=paps_id)
+        if not paps:
+            return {"error": "Job posting not found"}, 404
 
-        # Only worker, owner, or admin can view
-        is_worker = str(asap['accepted_user_id']) == auth.aid
-        is_owner = str(asap['owner_id']) == auth.aid
-        if not auth.is_admin and not is_worker and not is_owner:
+        # Only owner or admin can view
+        is_owner = str(paps['owner_id']) == auth.aid
+        if not auth.is_admin and not is_owner:
             return {"error": "Not authorized"}, 403
 
-        payments = list(db.get_payments_for_asap(asap_id=asap_id))
-        return fsa.jsonify({"asap_id": asap_id, "payments": payments, "count": len(payments)}), 200
+        payments = list(db.get_payments_for_paps(paps_id=paps_id))
+        return fsa.jsonify({"paps_id": paps_id, "payments": payments, "count": len(payments)}), 200
 
     # PUT /payments/<payment_id>/status - update payment status
     @app.put("/payments/<payment_id>/status", authz="AUTH")
@@ -121,20 +120,22 @@ def register_routes(app):
 
         return "", 204
 
-    # POST /asap/<asap_id>/payments - create a new payment (for partial/milestone payments)
-    @app.post("/asap/<asap_id>/payments", authz="AUTH")
+    # POST /paps/<paps_id>/payments - create a new payment (for partial/milestone payments)
+    @app.post("/paps/<paps_id>/payments", authz="AUTH")
     def create_payment(
-        asap_id: str,
+        paps_id: str,
         auth: model.CurrentAuth,
+        payee_id: str,
         amount: float,
         currency: str = "USD",
         payment_method: str | None = None
     ):
-        """Create a new payment for an assignment. Only the paps owner can create."""
+        """Create a new payment for a job posting. Only the paps owner can create."""
         try:
-            uuid.UUID(asap_id)
+            uuid.UUID(paps_id)
+            uuid.UUID(payee_id)
         except ValueError:
-            return {"error": "Invalid ASAP ID format"}, 400
+            return {"error": "Invalid ID format"}, 400
 
         fsa.checkVal(amount > 0, "Amount must be positive", 400)
         fsa.checkVal(currency in ('USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY'),
@@ -143,18 +144,18 @@ def register_routes(app):
             fsa.checkVal(payment_method in ('transfer', 'cash', 'check', 'crypto', 'paypal', 'stripe', 'other'),
                         "Invalid payment method", 400)
 
-        asap = db.get_asap_by_id(asap_id=asap_id)
-        if not asap:
-            return {"error": "Assignment not found"}, 404
+        paps = db.get_paps_by_id_admin(id=paps_id)
+        if not paps:
+            return {"error": "Job posting not found"}, 404
 
         # Only the paps owner can create payments
-        if not auth.is_admin and str(asap['owner_id']) != auth.aid:
+        if not auth.is_admin and str(paps['owner_id']) != auth.aid:
             return {"error": "Only the PAPS owner can create payments"}, 403
 
         payment_id = db.insert_payment(
-            asap_id=asap_id,
-            payer_id=asap['owner_id'],
-            payee_id=asap['accepted_user_id'],
+            paps_id=paps_id,
+            payer_id=paps['owner_id'],
+            payee_id=payee_id,
             amount=amount,
             currency=currency,
             payment_method=payment_method
