@@ -355,11 +355,72 @@ def register_routes(app):
         db.update_paps(id=paps_id, **updates)
         return "", 204
 
+    # PUT /paps/<paps_id>/status - update PAPS status
+    @app.put("/paps/<paps_id>/status", authz="AUTH")
+    def update_paps_status(paps_id: str, auth: model.CurrentAuth, status: str):
+        """
+        Update PAPS status. Only owner or admin can update.
+        
+        Valid transitions:
+        - draft -> published (opens for applications)
+        - published -> closed (manually close, rejects remaining SPAPs)
+        - published -> cancelled (cancel job)
+        - closed -> published (reopen, if max_assignees not reached)
+        
+        When closing: All pending SPAPs are deleted, their chat threads deleted
+        """
+        try:
+            uuid.UUID(paps_id)
+        except ValueError:
+            return {"error": "Invalid PAP ID format"}, 400
+
+        valid_statuses = ('draft', 'open', 'published', 'closed', 'cancelled')
+        fsa.checkVal(status in valid_statuses, f"Invalid status. Must be one of: {valid_statuses}", 400)
+
+        paps = db.get_paps_by_id_admin(id=paps_id)
+        if not paps:
+            return {"error": "PAP not found"}, 404
+
+        if not auth.is_admin and str(paps['owner_id']) != auth.aid:
+            return {"error": "Not authorized to update this PAP"}, 403
+
+        current_status = paps['status']
+        
+        # Validate transitions
+        if current_status == 'draft' and status not in ('published', 'open'):
+            fsa.checkVal(False, "Draft PAPS can only be published/opened", 400)
+        
+        if current_status == 'cancelled':
+            fsa.checkVal(False, "Cancelled PAPS cannot be modified", 400)
+
+        # When closing or cancelling, delete all pending SPAPs
+        if status in ('closed', 'cancelled') and current_status in ('open', 'published'):
+            # Delete all SPAP media files from disk
+            pending_spaps = list(db.get_spaps_for_paps(paps_id=paps_id))
+            for spap in pending_spaps:
+                spap_media_list = list(db.get_spap_media(spap_id=str(spap['id'])))
+                media_handler.delete_media_batch(MediaType.SPAP, spap_media_list)
+            
+            # Delete all pending SPAPs (cascades to media and chat threads in DB)
+            db.delete_pending_spaps_for_paps(paps_id=paps_id)
+
+        # When reopening from closed, check if max_assignees not yet reached
+        if status in ('open', 'published') and current_status == 'closed':
+            current_asaps = db.get_asap_count_for_paps(paps_id=paps_id)
+            max_assignees = paps.get('max_assignees', 1)
+            if current_asaps >= max_assignees:
+                fsa.checkVal(False, "Cannot reopen: maximum assignees already reached", 400)
+
+        # Update the status
+        db.update_paps_status(paps_id=paps_id, status=status)
+        
+        return fsa.jsonify({"status": status}), 200
+
     # DELETE /paps/<paps_id> - soft delete paps
     @app.delete("/paps/<paps_id>", authz="AUTH")
     def delete_paps_id(paps_id: str, auth: model.CurrentAuth):
         """Soft delete a PAP. Only owner or admin can delete.
-        Also deletes all associated media files from disk and all applications."""
+        Also deletes all associated media files from disk, applications, and assignments."""
         try:
             uuid.UUID(paps_id)
         except ValueError:
@@ -372,6 +433,12 @@ def register_routes(app):
         if not auth.is_admin and str(paps['owner_id']) != auth.aid:
             return {"error": "Not authorized to delete this PAP"}, 403
 
+        # Check if there are active ASAPs - prevent deletion if so
+        active_asaps = list(db.get_asaps_for_paps(paps_id=paps_id))
+        active_count = sum(1 for a in active_asaps if a.get('status') in ('pending', 'in_progress', 'started'))
+        if active_count > 0:
+            return {"error": "Cannot delete PAPS with active assignments. Complete or cancel assignments first."}, 400
+
         # Delete all PAPS media files from disk using MediaHandler
         media_list = list(db.get_paps_media(paps_id=paps_id))
         media_handler.delete_media_batch(MediaType.PAPS, media_list)
@@ -381,6 +448,15 @@ def register_routes(app):
         for spap in spaps:
             spap_media_list = list(db.get_spap_media(spap_id=str(spap['id'])))
             media_handler.delete_media_batch(MediaType.SPAP, spap_media_list)
+
+        # Delete all ASAP media files from disk for all assignments
+        asaps = list(db.get_asaps_for_paps(paps_id=paps_id))
+        for asap in asaps:
+            asap_media_list = list(db.get_asap_media(asap_id=str(asap['asap_id'])))
+            media_handler.delete_media_batch(MediaType.ASAP, asap_media_list)
+
+        # Delete all ASAPs for this PAPS (cascades to ASAP_MEDIA and chat threads in DB)
+        db.delete_asaps_for_paps(paps_id=paps_id)
 
         # Delete all SPAPs for this PAPS (cascades to SPAP_MEDIA in DB)
         db.delete_spaps_for_paps(paps_id=paps_id)
