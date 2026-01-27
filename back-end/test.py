@@ -1755,7 +1755,12 @@ def test_asap(api):
     # Cannot delete completed ASAP
     api.delete(f"/asap/{asap_id}", 400, login=owner)
     
-    # Can still delete the PAPS (admin operation)
+    # Delete payments first (created when ASAP was completed)
+    res = api.get(f"/paps/{paps_id}/payments", 200, login=owner)
+    for payment in res.json["payments"]:
+        api.delete(f"/payments/{payment['payment_id']}", 204, login=ADMIN)
+    
+    # Can delete PAPS after payments are deleted (cascades to ASAP)
     api.delete(f"/paps/{paps_id}", 204, login=ADMIN)
     
     res = api.get(f"/user/{owner}/profile", 200, login=None)
@@ -1973,16 +1978,21 @@ def test_payment(api):
     res = api.put(f"/spap/{spap_id}/accept", 200, login=owner)
     asap_id = res.json.get("asap_id")
     
+    # Get worker user ID for payment
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_id = res.json["user_id"]
+    
     # Create payment (owner only)
-    res = api.post(f"/asap/{asap_id}/payments", 201, json={
+    res = api.post(f"/paps/{paps_id}/payments", 201, json={
+        "payee_id": worker_id,
         "amount": 500.00,
-        "currency": "EUR",
-        "description": "First milestone payment"
+        "currency": "EUR"
     }, login=owner)
     payment_id = res.json.get("payment_id")
     
     # Worker cannot create payment
-    api.post(f"/asap/{asap_id}/payments", 403, json={
+    api.post(f"/paps/{paps_id}/payments", 403, json={
+        "payee_id": worker_id,
         "amount": 100.00,
         "currency": "EUR"
     }, login=worker)
@@ -2003,9 +2013,9 @@ def test_payment(api):
     res = api.get("/payments", 200, login=owner)
     assert res.json["total_count"] >= 1
     
-    # Get payments for ASAP
-    res = api.get(f"/asap/{asap_id}/payments", 200, login=owner)
-    assert len(res.json) >= 1
+    # Get payments for PAPS
+    res = api.get(f"/paps/{paps_id}/payments", 200, login=owner)
+    assert res.json["count"] >= 1
     
     # Update payment status (owner completes payment)
     api.put(f"/payments/{payment_id}/status", 204, json={
@@ -2017,10 +2027,10 @@ def test_payment(api):
     assert res.json["status"] == "completed"
     
     # Create second payment
-    res = api.post(f"/asap/{asap_id}/payments", 201, json={
+    res = api.post(f"/paps/{paps_id}/payments", 201, json={
+        "payee_id": worker_id,
         "amount": 1000.00,
-        "currency": "EUR",
-        "description": "Final payment"
+        "currency": "EUR"
     }, login=owner)
     payment_id2 = res.json.get("payment_id")
     
@@ -2038,7 +2048,8 @@ def test_payment(api):
     }, login=owner)
     
     # Delete pending payment
-    res = api.post(f"/asap/{asap_id}/payments", 201, json={
+    res = api.post(f"/paps/{paps_id}/payments", 201, json={
+        "payee_id": worker_id,
         "amount": 200.00,
         "currency": "EUR"
     }, login=owner)
@@ -2047,8 +2058,9 @@ def test_payment(api):
     api.delete(f"/payments/{payment_id3}", 204, login=owner)
     api.get(f"/payments/{payment_id3}", 404, login=owner)
     
-    # Cleanup
-    api.delete(f"/asap/{asap_id}", 204, login=owner)
+    # Cleanup - delete payments first, then PAPS (which cascades to ASAP)
+    api.delete(f"/payments/{payment_id}", 204, login=ADMIN)
+    api.delete(f"/payments/{payment_id2}", 204, login=ADMIN)
     api.delete(f"/paps/{paps_id}", 204, login=owner)
     
     res = api.get(f"/user/{owner}/profile", 200, login=None)
@@ -2213,7 +2225,17 @@ def test_rating(api):
     # Cleanup - cannot delete completed ASAPs
     api.delete(f"/asap/{asap_id}", 400, login=owner)
     api.delete(f"/asap/{asap_id2}", 400, login=owner)
-    # Delete PAPS with admin
+    
+    # Delete payments first for both PAPS
+    res = api.get(f"/paps/{paps_id}/payments", 200, login=owner)
+    for payment in res.json["payments"]:
+        api.delete(f"/payments/{payment['payment_id']}", 204, login=ADMIN)
+    
+    res = api.get(f"/paps/{paps_id2}/payments", 200, login=owner)
+    for payment in res.json["payments"]:
+        api.delete(f"/payments/{payment['payment_id']}", 204, login=ADMIN)
+    
+    # Delete PAPS with admin (cascades to ASAPs)
     api.delete(f"/paps/{paps_id}", 204, login=ADMIN)
     api.delete(f"/paps/{paps_id2}", 204, login=ADMIN)
     
@@ -2483,11 +2505,15 @@ def test_full_workflow(api):
     log.info("=== STEP 6: Start and work on ASAP ===")
     api.put(f"/asap/{asap_id}/status", 204, json={"status": "in_progress"}, login=worker)
     
+    # Get worker user ID for payment
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_id = res.json["user_id"]
+    
     log.info("=== STEP 7: Create payment ===")
-    res = api.post(f"/asap/{asap_id}/payments", 201, json={
+    res = api.post(f"/paps/{paps_id}/payments", 201, json={
+        "payee_id": worker_id,
         "amount": 500.00,
-        "currency": "USD",
-        "description": "First payment milestone"
+        "currency": "USD"
     }, login=owner)
     payment_id = res.json.get("payment_id")
     
@@ -2522,8 +2548,14 @@ def test_full_workflow(api):
     
     log.info("=== WORKFLOW COMPLETE ===")
     
-    # Cleanup - cannot delete completed ASAP, delete with admin
+    # Cleanup - cannot delete completed ASAP, but can delete PAPS with admin
+    # (Note: PAPS deletion is restricted when it has payments)
     api.delete(f"/asap/{asap_id}", 400, login=owner)
+    # Delete payments first as admin
+    res = api.get(f"/paps/{paps_id}/payments", 200, login=owner)
+    for payment in res.json["payments"]:
+        api.delete(f"/payments/{payment['payment_id']}", 204, login=ADMIN)
+    # Now delete PAPS
     api.delete(f"/paps/{paps_id}", 204, login=ADMIN)
     
     res = api.get(f"/user/{owner}/profile", 200, login=None)
