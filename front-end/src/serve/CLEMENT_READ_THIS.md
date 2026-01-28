@@ -254,11 +254,26 @@ if (result.assets?.[0]) {
   console.log("New avatar:", avatar_url);
 }
 
-// Delete avatar
+// Get your own avatar
+const myAvatarBlob = await serv("avatar.get");
+
+// Delete your avatar
 await serv("avatar.delete");
 
-// Get someone's avatar
+// Get another user's avatar (useful for displaying in feeds/profiles)
 const avatarBlob = await serv("avatar.getByUsername", { username: "john" });
+
+// Use the blob in React Native
+const avatarUrl = URL.createObjectURL(avatarBlob);
+// Then: <Image source={{ uri: avatarUrl }} />
+
+// Or convert to base64
+const reader = new FileReader();
+reader.readAsDataURL(avatarBlob);
+reader.onloadend = () => {
+  const base64 = reader.result;
+  // Use base64...
+};
 ```
 
 ---
@@ -546,7 +561,10 @@ serv("myself")                                  // → UserInfo
 // === PROFILE (auto-cached!) ===
 serv("profile.get")                             // → UserProfile
 serv("profile.update", { first_name?, ... })    // → UserProfile
+serv("profile.getByUsername", { username })     // → UserProfile
 serv("avatar.upload", { file })                 // → { avatar_url }
+serv("avatar.get")                              // → Blob
+serv("avatar.getByUsername", { username })      // → Blob
 serv("avatar.delete")
 
 // === EXPERIENCES ===

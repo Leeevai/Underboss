@@ -170,6 +170,21 @@ async function testProfileUpdate() {
   }
 }
 
+async function testAvatarGetByUsername() {
+  try {
+    const res = await api('GET', `/user/${testUsername}/profile/avatar`, null, true);
+    success('avatar.getByUsername', `Avatar fetched`);
+    return true;
+  } catch (e: any) {
+    if (e?.response?.status === 404) {
+      success('avatar.getByUsername', 'No avatar yet (OK)');
+      return true;
+    }
+    fail('avatar.getByUsername', e);
+    return false;
+  }
+}
+
 async function testCategoriesList() {
   try {
     const res = await api('GET', '/categories');
@@ -386,6 +401,7 @@ async function runTests() {
   section('PROFILE');
   track(await testProfileGet());
   track(await testProfileUpdate());
+  track(await testAvatarGetByUsername());
 
   // Categories
   section('CATEGORIES');

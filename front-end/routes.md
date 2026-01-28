@@ -1,2344 +1,296 @@
-# Underboss API Documentation
+# Underboss API Routes Documentation
 
-> **Version:** 1.0.0  
-> **Last Updated:** January 26, 2026  
-> **Base URL:** `http://localhost:5000` (development)
-
----
+Complete API reference for the Underboss backend system. All routes, parameters, types, responses, and error codes.
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Authentication](#authentication)
-3. [Common Patterns](#common-patterns)
-4. [Error Handling](#error-handling)
-5. [API Routes](#api-routes)
-   - [System & Health](#system--health)
-   - [Authentication & Registration](#authentication--registration)
-   - [User Profile](#user-profile)
-   - [Profile Avatar](#profile-avatar)
-   - [User Experiences](#user-experiences)
-   - [User Interests](#user-interests)
-   - [Categories](#categories)
-   - [Category Icons](#category-icons)
-   - [PAPS (Job Postings)](#paps-job-postings)
-   - [PAPS Categories](#paps-categories)
-   - [PAPS Media](#paps-media)
-   - [Comments](#comments)
-   - [Comment Replies](#comment-replies)
-   - [SPAP (Applications)](#spap-applications)
-   - [SPAP Media](#spap-media)
-   - [Admin User Management](#admin-user-management)
-6. [Data Types Reference](#data-types-reference)
-7. [Frontend Integration Guide](#frontend-integration-guide)
-
----
-
-## Overview
-
-Underboss is a job posting and application platform. The API enables users to:
-
-- **Create and manage job postings (PAPS)** with media, categories, and location
-- **Apply to jobs (SPAP)** with optional attachments
-- **Comment on job postings** (Instagram-style with single-level replies)
-- **Manage user profiles** with avatars, experiences, and interests
-- **Search and filter jobs** by location, price, category, and more
-
-### Architecture
-
-| Module | Base Route | Purpose |
-|--------|------------|---------|
-| `system.py` | `/uptime`, `/info`, `/stats`, `/who-am-i`, `/myself` | System health and user info |
-| `auth.py` | `/register`, `/login` | User registration and authentication |
-| `profile.py` | `/profile`, `/user/<username>/profile` | User profile management |
-| `category.py` | `/categories` | Category CRUD and icons |
-| `paps.py` | `/paps` | Job postings with media |
-| `comment.py` | `/paps/<id>/comments`, `/comments` | Instagram-style comments |
-| `spap.py` | `/spap`, `/paps/<id>/applications` | Job applications |
-| `user.py` | `/users` | Admin user management (testing) |
+1. [Authentication](#authentication)
+2. [System Routes](#system-routes)
+3. [User Management](#user-management)
+4. [Profile Management](#profile-management)
+5. [Category Management](#category-management)
+6. [Job Postings (PAPS)](#job-postings-paps)
+7. [Applications (SPAP)](#applications-spap)
+8. [Assignments (ASAP)](#assignments-asap)
+9. [Payment Management](#payment-management)
+10. [Rating System](#rating-system)
+11. [Comment System](#comment-system)
+12. [Chat System](#chat-system)
 
 ---
 
 ## Authentication
 
-### Methods
+### POST /register
+**Description**: Register a new user account  
+**Authorization**: OPEN (no authentication required)  
+**Content-Type**: application/json
 
-The API supports three authentication methods:
-
-| Method | Header/Parameter | Format | Example |
-|--------|------------------|--------|---------|
-| **Token** | `Authorization: Bearer <token>` | `underboss:username:timestamp:hash` | `Bearer underboss:johndoe:1706000000:abc123` |
-| **Basic** | `Authorization: Basic <base64>` | Base64 encoded `login:password` | `Basic am9objpwYXNz` |
-| **Param** | Form body | `{"login": "...", "password": "..."}` | `{"login": "john", "password": "pass123"}` |
-
-### Login Identifiers
-
-Users can authenticate using any of these identifiers:
-- **Username:** `johndoe`
-- **Email:** `john@example.com`
-- **Phone:** `+1234567890`
-
-### Authorization Levels
-
-| Level | Description |
-|-------|-------------|
-| `OPEN` | No authentication required |
-| `AUTH` | Any authenticated user |
-| `ADMIN` | Admin users only (requires `is_admin: true`) |
-
----
-
-## Common Patterns
-
-### UUID Format
-
-All entity IDs use UUID v4 format:
-```
-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-Example: 550e8400-e29b-41d4-a716-446655440000
-```
-
-### Soft Delete
-
-Deleted resources are marked with a `deleted_at` timestamp rather than being permanently removed. This allows for:
-- Data recovery
-- Maintaining referential integrity
-- Audit trails
-
-### Date/Time Format
-
-All dates use ISO 8601 format:
-```
-2026-01-26T10:30:00Z
-2026-01-26T10:30:00+00:00
-```
-
-### Pagination
-
-List endpoints may return paginated results:
+**Request Body**:
 ```json
 {
-  "items": [...],
-  "count": 25,
-  "total_count": 150
+  "username": "string (required, 3-50 chars, must start with letter)",
+  "email": "string (required, valid email format)",
+  "password": "string (required)",
+  "phone": "string (optional, E.164 format: +1234567890)"
 }
 ```
 
----
+**Validation Rules**:
+- `username`: 3-50 characters, starts with letter, can contain letters, numbers, hyphens, underscores, dots
+- `email`: Valid email format (RFC 5322)
+- `phone`: E.164 international format (optional)
+- `password`: Any string (hashed server-side)
 
-## Error Handling
-
-### Error Response Format
-
-All errors follow this structure:
+**Success Response (201)**:
 ```json
 {
-  "error": "Human-readable error message"
+  "user_id": "uuid"
 }
 ```
 
-### HTTP Status Codes
-
-| Code | Meaning | Common Causes |
-|------|---------|---------------|
-| **200** | OK | Successful GET request |
-| **201** | Created | Successful POST request |
-| **204** | No Content | Successful PUT/PATCH/DELETE |
-| **400** | Bad Request | Invalid parameters, validation failure |
-| **401** | Unauthorized | Missing or invalid authentication |
-| **403** | Forbidden | Insufficient permissions |
-| **404** | Not Found | Resource doesn't exist or was deleted |
-| **409** | Conflict | Duplicate resource (e.g., username taken) |
-| **413** | Payload Too Large | File exceeds size limit |
-| **415** | Unsupported Media Type | Invalid file type |
-
-### Common Error Messages
-
-| Error | Meaning |
-|-------|---------|
-| `"Invalid <field> format"` | UUID or other format validation failed |
-| `"<Resource> not found"` | Entity doesn't exist or was soft-deleted |
-| `"Not authorized to..."` | Permission denied for this action |
-| `"<Field> must be at least X characters"` | Validation constraint |
-| `"User with this username, email, or phone already exists"` | Duplicate registration |
+**Error Responses**:
+- **400 Bad Request**: Validation failed
+  ```json
+  {"error": "Username must be 3-50 characters"}
+  {"error": "Invalid email format"}
+  {"error": "Invalid phone format"}
+  ```
+- **409 Conflict**: User already exists
+  ```json
+  {"error": "User with this username, email, or phone already exists"}
+  ```
 
 ---
 
-## API Routes
+### GET /login
+**Description**: Login using HTTP Basic Auth to receive JWT token  
+**Authorization**: OPEN (requires Basic Auth header)  
+**Authentication**: Basic (username:password or email:password or phone:password)
+
+**Request Headers**:
+```
+Authorization: Basic base64(login:password)
+```
+
+**Success Response (200)**:
+```json
+{
+  "token": "jwt-token-string"
+}
+```
+
+**Error Responses**:
+- **401 Unauthorized**: Invalid credentials
+  ```json
+  {"error": "Invalid login"}
+  ```
 
 ---
 
-## System & Health
+### POST /login
+**Description**: Login using form parameters to receive JWT token  
+**Authorization**: OPEN (requires login/password in body)  
+**Content-Type**: application/json
+
+**Request Body**:
+```json
+{
+  "login": "string (username, email, or phone)",
+  "password": "string"
+}
+```
+
+**Success Response (201)**:
+```json
+{
+  "token": "jwt-token-string"
+}
+```
+
+**Error Responses**:
+- **401 Unauthorized**: Invalid credentials
+  ```json
+  {"error": "Invalid login"}
+  ```
+
+---
+
+## System Routes
 
 ### GET /uptime
+**Description**: Health check endpoint (testing only)  
+**Authorization**: OPEN  
+**Authentication**: None
 
-Check if the server is running. **Only available in testing mode.**
-
-| Property | Value |
-|----------|-------|
-| **Auth** | None (`OPEN`) |
-| **Rate Limit** | None |
-
-**Response 200:**
+**Success Response (200)**:
 ```json
 {
   "app": "underboss",
-  "up": "0:05:32.123456"
+  "up": "time-delta-string"
 }
 ```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `app` | string | Application name |
-| `up` | string | Time since server started (duration format) |
 
 ---
 
 ### GET /info
+**Description**: Get comprehensive system information  
+**Authorization**: ADMIN only  
+**Authentication**: token, basic, or param
 
-Get detailed system information including versions, database status, and authentication details.
+**Query Parameters**:
+- `sleep`: float (optional) - Artificial delay in seconds for testing
 
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
-
-**Query Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `sleep` | float | No | 0.0 | Artificial delay for testing (seconds) |
-
-**Response 200:**
+**Success Response (200)**:
 ```json
 {
   "app": "underboss",
   "git": {
-    "remote": "origin/main",
-    "branch": "main",
-    "commit": "abc123def",
-    "date": "2026-01-26"
+    "remote": "git-remote-url",
+    "branch": "branch-name",
+    "commit": "commit-hash-and-count",
+    "date": "iso8601-date"
   },
   "authentication": {
-    "config": ["token", "basic", "param"],
-    "user": "admin",
-    "auth": "token"
+    "config": "auth-config",
+    "user": "current-user",
+    "auth": "auth-source"
   },
   "db": {
-    "type": "postgresql",
-    "driver": "psycopg",
-    "version": "15.2"
+    "type": "postgres",
+    "driver": "driver-name",
+    "version": "version-string"
   },
   "status": {
-    "started": "2026-01-26T10:00:00+00:00",
-    "now": "2026-01-26T10:05:32+00:00",
-    "connections": 5,
-    "hits": 1234
+    "started": "iso8601-timestamp",
+    "now": "current-timestamp",
+    "connections": 123,
+    "hits": 456
   },
   "version": {
-    "python": "3.11.0",
-    "FlaskSimpleAuth": "1.2.3",
-    "postgres": "15.2"
+    "uname": "os-info-object",
+    "python": "python-version",
+    "postgres": "postgres-version",
+    "underboss": "commit-id",
+    "FlaskSimpleAuth": "version",
+    "flask": "version",
+    "...": "other-package-versions"
   }
 }
 ```
 
+**Error Responses**:
+- **401 Unauthorized**: Not authenticated
+- **403 Forbidden**: Not admin
+
 ---
 
 ### GET /stats
+**Description**: Get database connection pool statistics  
+**Authorization**: ADMIN only  
+**Authentication**: token, basic, or param
 
-Get database connection pool statistics.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
-
-**Response 200:**
+**Success Response (200)**:
 ```json
 {
-  "pool_size": 10,
-  "active_connections": 3,
-  "idle_connections": 7,
-  "waiting_requests": 0
+  "pool_statistics": "statistics-object"
 }
 ```
 
 ---
 
 ### GET /who-am-i
+**Description**: Get current authenticated user information  
+**Authorization**: AUTH (any authenticated user)  
+**Authentication**: token, basic, or param
 
-Get the current authenticated user's username.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (any authenticated user) |
-
-**Response 200:**
+**Success Response (200)**:
 ```json
-"johndoe"
+{
+  "user": "username-or-email-or-phone"
+}
 ```
 
 ---
 
 ### GET /myself
+**Description**: Get detailed current user authentication data  
+**Authorization**: AUTH  
+**Authentication**: token, basic, or param
 
-Get complete current user data including authentication details.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (any authenticated user) |
-
-**Response 200:**
+**Success Response (200)**:
 ```json
 {
-  "login": "johndoe",
-  "password": "$2b$12$hashedpassword...",
-  "email": "john@example.com",
-  "isadmin": false,
-  "aid": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `login` | string | Username |
-| `password` | string | Hashed password (never expose to frontend) |
-| `email` | string | User's email address |
-| `isadmin` | boolean | Whether user has admin privileges |
-| `aid` | UUID | User's unique identifier |
-
----
-
-## Authentication & Registration
-
-### POST /register
-
-Register a new user account.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | None (`OPEN`) |
-
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `username` | string | Yes | 3-50 chars, starts with letter, alphanumeric + `-_.` | Unique username |
-| `email` | string | Yes | Valid email format | Unique email address |
-| `password` | string | Yes | Per server config | Account password |
-| `phone` | string | No | E.164 format (e.g., `+1234567890`) | Optional phone number |
-
-**Request Example:**
-```json
-{
-  "username": "johndoe",
-  "email": "john@example.com",
-  "password": "SecurePass123!",
-  "phone": "+1234567890"
-}
-```
-
-**Response 201:**
-```json
-{
-  "user_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Username must be 3-50 characters"` | Username too short or long |
-| 400 | `"Username can only contain letters, numbers, hyphens, underscores, and dots. Must start with a letter."` | Invalid username format |
-| 400 | `"Invalid email format"` | Email doesn't match regex |
-| 400 | `"Invalid phone format"` | Phone doesn't match E.164 format |
-| 409 | `"User with this username, email, or phone already exists"` | Duplicate user |
-
----
-
-### GET /login
-
-Get authentication token using HTTP Basic authentication.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Basic Auth (credentials in header) |
-
-**Headers:**
-```
-Authorization: Basic base64(username:password)
-```
-
-**Response 200:**
-```json
-{
-  "token": "underboss:johndoe:1706270000:abc123def456..."
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 401 | `"Invalid login"` | Wrong username/email/phone or password |
-
----
-
-### POST /login
-
-Get authentication token using form parameters.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | None (credentials in body) |
-
-**Request Body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `login` | string | Yes | Username, email, or phone |
-| `password` | string | Yes | Account password |
-
-**Request Example:**
-```json
-{
-  "login": "john@example.com",
-  "password": "SecurePass123!"
-}
-```
-
-**Response 201:**
-```json
-{
-  "token": "underboss:johndoe:1706270000:abc123def456..."
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 401 | `"Invalid login"` | Wrong credentials |
-
----
-
-## User Profile
-
-### GET /profile
-
-Get the current authenticated user's profile.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:**
-```json
-{
-  "user_id": "550e8400-e29b-41d4-a716-446655440000",
-  "username": "johndoe",
-  "email": "john@example.com",
-  "first_name": "John",
-  "last_name": "Doe",
-  "display_name": "John D.",
-  "bio": "Software developer passionate about mobile apps",
-  "avatar_url": "/media/user/profile/550e8400-e29b-41d4-a716-446655440000.jpg",
-  "date_of_birth": "1990-05-15",
-  "location_address": "San Francisco, CA",
-  "location_lat": 37.7749,
-  "location_lng": -122.4194,
-  "timezone": "America/Los_Angeles",
-  "preferred_language": "en"
-}
-```
-
-| Field | Type | Nullable | Description |
-|-------|------|----------|-------------|
-| `user_id` | UUID | No | User's unique identifier |
-| `username` | string | No | Login username |
-| `email` | string | No | Email address |
-| `first_name` | string | Yes | First name |
-| `last_name` | string | Yes | Last name |
-| `display_name` | string | Yes | Preferred display name |
-| `bio` | string | Yes | User biography/description |
-| `avatar_url` | string | No | URL to avatar image (defaults to `/media/user/profile/avatar.png`) |
-| `date_of_birth` | date | Yes | Birth date (ISO format) |
-| `location_address` | string | Yes | Human-readable address |
-| `location_lat` | float | Yes | Latitude (-90 to 90) |
-| `location_lng` | float | Yes | Longitude (-180 to 180) |
-| `timezone` | string | Yes | IANA timezone (e.g., `America/New_York`) |
-| `preferred_language` | string | Yes | Language code (e.g., `en`, `es`, `fr`) |
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 404 | `"Profile not found"` | User has no profile record |
-
----
-
-### PUT /profile
-
-Replace/update the current user's profile. All provided fields will be updated.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `first_name` | string | No | - | First name |
-| `last_name` | string | No | - | Last name |
-| `display_name` | string | No | - | Display name |
-| `bio` | string | No | - | Biography |
-| `date_of_birth` | string | No | ISO date format | Birth date |
-| `location_address` | string | No | - | Address text |
-| `location_lat` | float | No | -90 to 90 | Latitude (requires `location_lng`) |
-| `location_lng` | float | No | -180 to 180 | Longitude (requires `location_lat`) |
-| `timezone` | string | No | IANA timezone | Timezone |
-| `preferred_language` | string | No | - | Language code |
-
-**Request Example:**
-```json
-{
-  "first_name": "John",
-  "last_name": "Doe",
-  "bio": "Updated bio text",
-  "location_lat": 37.7749,
-  "location_lng": -122.4194
-}
-```
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Both lat and lng required"` | Only one coordinate provided |
-| 400 | `"Invalid latitude"` | lat outside -90 to 90 |
-| 400 | `"Invalid longitude"` | lng outside -180 to 180 |
-| 400 | `"Invalid date_of_birth format"` | Date not in ISO format |
-
----
-
-### PATCH /profile
-
-Partially update the current user's profile. Same as PUT.
-
----
-
-### GET /user/\<username\>/profile
-
-Get any user's public profile by username.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Path Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `username` | string | Target user's username |
-
-**Response 200:** Same as GET /profile
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 404 | `"User not found: {username}"` | Username doesn't exist |
-| 404 | `"Profile not found"` | User has no profile |
-
----
-
-### PATCH /user/\<username\>/profile
-
-Update a user's profile. **Must be authenticated as that user.**
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (owner only) |
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 403 | `"can only update your own profile"` | Trying to update another user's profile |
-
----
-
-## Profile Avatar
-
-### POST /profile/avatar
-
-Upload a profile avatar image.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-| **Content-Type** | `multipart/form-data` or `image/*` |
-
-**Request Options:**
-
-**Option 1: Multipart form data**
-```
-POST /profile/avatar
-Content-Type: multipart/form-data
-
---boundary
-Content-Disposition: form-data; name="image"; filename="avatar.jpg"
-Content-Type: image/jpeg
-
-[binary image data]
---boundary--
-```
-
-**Option 2: Binary upload**
-```
-POST /profile/avatar
-Content-Type: image/jpeg
-
-[binary image data]
-```
-
-**Constraints:**
-
-| Constraint | Value |
-|------------|-------|
-| Max file size | 5 MB |
-| Allowed formats | jpg, jpeg, png, gif, webp |
-| Compression | Automatic (quality adjusted to fit size limit) |
-
-**Response 201:**
-```json
-{
-  "avatar_url": "/media/user/profile/550e8400-e29b-41d4-a716-446655440000.jpg"
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"No image data provided"` | Empty request body |
-| 400 | `"No file selected"` | Empty file in multipart |
-| 400 | `"Invalid image data"` | Corrupted or invalid image |
-| 413 | `"File too large (max 5MB)"` | File exceeds size limit after compression |
-| 415 | `"File type not allowed for avatars. Allowed: jpg, jpeg, png, gif, webp"` | Unsupported format |
-
----
-
-### GET /profile/avatar
-
-Get the current user's avatar image.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:** Binary image data with appropriate `Content-Type` header
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 404 | `"Avatar not found"` | No avatar file exists |
-
----
-
-### DELETE /profile/avatar
-
-Remove the current user's avatar (resets to default).
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 204:** No content (success)
-
----
-
-### GET /user/\<username\>/profile/avatar
-
-Get another user's avatar by username.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 404 | `"User not found: {username}"` | Username doesn't exist |
-
----
-
-## User Experiences
-
-### GET /profile/experiences
-
-Get the current user's work experiences.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:**
-```json
-[
-  {
-    "id": "exp-uuid-1",
-    "user_id": "user-uuid",
-    "title": "Senior Developer",
-    "company": "Tech Corp",
-    "description": "Led mobile development team",
-    "start_date": "2020-01-15T00:00:00+00:00",
-    "end_date": "2023-06-30T00:00:00+00:00",
-    "is_current": false,
-    "created_at": "2024-01-01T00:00:00+00:00"
-  },
-  {
-    "id": "exp-uuid-2",
-    "user_id": "user-uuid",
-    "title": "Tech Lead",
-    "company": "StartupXYZ",
-    "description": "Building innovative products",
-    "start_date": "2023-07-01T00:00:00+00:00",
-    "end_date": null,
-    "is_current": true,
-    "created_at": "2024-01-01T00:00:00+00:00"
-  }
-]
-```
-
-| Field | Type | Nullable | Description |
-|-------|------|----------|-------------|
-| `id` | UUID | No | Experience unique identifier |
-| `user_id` | UUID | No | Owner user ID |
-| `title` | string | No | Job title |
-| `company` | string | Yes | Company name |
-| `description` | string | Yes | Role description |
-| `start_date` | datetime | No | When the role started |
-| `end_date` | datetime | Yes | When the role ended (null if current) |
-| `is_current` | boolean | No | Whether this is the current role |
-| `created_at` | datetime | No | Record creation time |
-
----
-
-### POST /profile/experiences
-
-Add a new work experience.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `title` | string | Yes | Min 2 characters | Job title |
-| `company` | string | No | - | Company name |
-| `description` | string | No | - | Role description |
-| `start_date` | string | Yes | ISO datetime | Start date |
-| `end_date` | string | No | ISO datetime, must be after start_date | End date |
-| `is_current` | boolean | No | Default: false | Is this the current role? |
-
-**Request Example:**
-```json
-{
-  "title": "Software Engineer",
-  "company": "Tech Corp",
-  "description": "Building mobile applications",
-  "start_date": "2023-01-01T00:00:00Z",
-  "end_date": null,
-  "is_current": true
-}
-```
-
-**Response 201:**
-```json
-{
-  "experience_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Title must be at least 2 characters"` | Title too short |
-| 400 | `"Invalid start_date format"` | Not ISO datetime |
-| 400 | `"Invalid end_date format"` | Not ISO datetime |
-| 400 | `"End date must be after start date"` | end_date <= start_date |
-| 400 | `"Current experiences cannot have end date"` | is_current=true with end_date |
-
----
-
-### PATCH /profile/experiences/\<exp_id\>
-
-Update an existing experience.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (owner only) |
-
-**Path Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `exp_id` | UUID | Experience ID to update |
-
-**Request Body:** Any subset of POST fields
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid experience ID format"` | Not a valid UUID |
-| 403 | `"Not authorized to update this experience"` | Not the owner |
-| 404 | `"Experience not found"` | ID doesn't exist |
-
----
-
-### DELETE /profile/experiences/\<exp_id\>
-
-Delete an experience.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (owner only) |
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid experience ID format"` | Not a valid UUID |
-| 403 | `"Not authorized to delete this experience"` | Not the owner |
-| 404 | `"Experience not found"` | ID doesn't exist |
-
----
-
-### GET /user/\<username\>/profile/experiences
-
-Get another user's experiences.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 404 | `"User not found: {username}"` | Username doesn't exist |
-
----
-
-## User Interests
-
-Interests link users to categories with a proficiency level (1-5 scale).
-
-### GET /profile/interests
-
-Get the current user's interests.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:**
-```json
-[
-  {
-    "user_id": "user-uuid",
-    "category_id": "cat-uuid-1",
-    "proficiency_level": 4,
-    "category_name": "Web Development",
-    "category_slug": "web-development",
-    "category_icon": "/media/category/cat-uuid-1.svg",
-    "added_at": "2024-01-15T10:30:00+00:00"
-  },
-  {
-    "user_id": "user-uuid",
-    "category_id": "cat-uuid-2",
-    "proficiency_level": 5,
-    "category_name": "Mobile Development",
-    "category_slug": "mobile-development",
-    "category_icon": "/media/category/cat-uuid-2.png",
-    "added_at": "2024-02-01T08:00:00+00:00"
-  }
-]
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `user_id` | UUID | User ID |
-| `category_id` | UUID | Category ID |
-| `proficiency_level` | integer | Skill level (1-5) |
-| `category_name` | string | Category display name |
-| `category_slug` | string | URL-friendly category identifier |
-| `category_icon` | string | Category icon URL |
-| `added_at` | datetime | When interest was added |
-
----
-
-### POST /profile/interests
-
-Add a new interest.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `category_id` | UUID | Yes | Must exist | Category to add |
-| `proficiency_level` | integer | No | 1-5 (default: 1) | Skill level |
-
-**Request Example:**
-```json
-{
-  "category_id": "550e8400-e29b-41d4-a716-446655440000",
-  "proficiency_level": 4
-}
-```
-
-**Response 201:** Empty body (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid category_id format"` | Not a valid UUID |
-| 400 | `"Proficiency level must be 1-5"` | Level out of range |
-| 404 | `"Category not found"` | Category doesn't exist |
-| 409 | `"Interest already exists"` | User already has this interest |
-
----
-
-### PATCH /profile/interests/\<category_id\>
-
-Update an interest's proficiency level.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `proficiency_level` | integer | Yes | 1-5 | New skill level |
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid category_id format"` | Not a valid UUID |
-| 400 | `"Proficiency level must be 1-5"` | Level out of range |
-
----
-
-### DELETE /profile/interests/\<category_id\>
-
-Remove an interest from profile.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid category_id format"` | Not a valid UUID |
-| 404 | `"Interest not found"` | User doesn't have this interest |
-
----
-
-### GET /user/\<username\>/profile/interests
-
-Get another user's interests.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
----
-
-## Categories
-
-Categories organize PAPS (jobs) and user interests.
-
-### GET /categories
-
-List all active categories.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:**
-```json
-[
-  {
-    "id": "cat-uuid-1",
-    "name": "Web Development",
-    "slug": "web-development",
-    "description": "Frontend and backend web development",
-    "parent_id": null,
-    "icon_url": "/media/category/cat-uuid-1.svg",
-    "display_order": 1,
-    "is_active": true,
-    "created_at": "2024-01-01T00:00:00+00:00"
-  },
-  {
-    "id": "cat-uuid-2",
-    "name": "React",
-    "slug": "react",
-    "description": "React.js development",
-    "parent_id": "cat-uuid-1",
-    "icon_url": "/media/category/cat-uuid-2.png",
-    "display_order": 1,
-    "is_active": true,
-    "created_at": "2024-01-01T00:00:00+00:00"
-  }
-]
-```
-
-| Field | Type | Nullable | Description |
-|-------|------|----------|-------------|
-| `id` | UUID | No | Category unique identifier |
-| `name` | string | No | Display name |
-| `slug` | string | No | URL-friendly identifier (lowercase, hyphens) |
-| `description` | string | Yes | Category description |
-| `parent_id` | UUID | Yes | Parent category for hierarchical structure |
-| `icon_url` | string | Yes | Path to category icon |
-| `display_order` | integer | No | Sorting order |
-| `is_active` | boolean | No | Whether category is active |
-| `created_at` | datetime | No | Creation timestamp |
-
----
-
-### GET /categories/\<category_id\>
-
-Get a specific category by ID.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:** Single category object (same structure as list item)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid category ID format"` | Not a valid UUID |
-| 404 | `"Category not found"` | ID doesn't exist |
-
----
-
-### POST /categories
-
-Create a new category. **Admin only.**
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
-
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `name` | string | Yes | Min 2 characters | Display name |
-| `slug` | string | Yes | Lowercase letters, numbers, hyphens only | URL identifier |
-| `description` | string | No | - | Category description |
-| `parent_id` | UUID | No | Must exist | Parent category |
-| `icon_url` | string | No | - | Icon path (usually set via icon upload) |
-
-**Request Example:**
-```json
-{
-  "name": "Mobile Development",
-  "slug": "mobile-development",
-  "description": "iOS and Android development",
-  "parent_id": null
-}
-```
-
-**Response 201:**
-```json
-{
-  "category_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Name must be at least 2 characters"` | Name too short |
-| 400 | `"Slug must be lowercase letters, numbers, and hyphens"` | Invalid slug format |
-| 400 | `"Invalid parent_id format"` | parent_id not a valid UUID |
-
----
-
-### PATCH /categories/\<category_id\>
-
-Update a category. **Admin only.**
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
-
-**Request Body:** Any subset of POST fields, plus:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `is_active` | boolean | Enable/disable category |
-
-**Response 204:** No content (success)
-
----
-
-### DELETE /categories/\<category_id\>
-
-Delete a category and its icon. **Admin only.**
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
-
-**Response 204:** No content (success)
-
----
-
-## Category Icons
-
-### POST /categories/\<category_id\>/icon
-
-Upload a category icon. **Admin only.**
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
-| **Content-Type** | `multipart/form-data` or `image/*` |
-
-**Constraints:**
-
-| Constraint | Value |
-|------------|-------|
-| Max file size | 1 MB |
-| Allowed formats | jpg, jpeg, png, gif, webp, svg |
-
-**Response 201:**
-```json
-{
-  "icon_url": "/media/category/cat-uuid.svg"
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"No image data provided"` | Empty request |
-| 413 | `"File too large (max 1MB)"` | Exceeds size limit |
-| 415 | `"File type not allowed for icons..."` | Unsupported format |
-
----
-
-### GET /categories/\<category_id\>/icon
-
-Get category icon image.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:** Binary image data
-
-**Note:** Returns default icon if category has no custom icon.
-
----
-
-### DELETE /categories/\<category_id\>/icon
-
-Remove category icon (resets to default). **Admin only.**
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
-
-**Response 204:** No content (success)
-
----
-
-## PAPS (Job Postings)
-
-PAPS (Post A Project/Service) are job postings that users can create and others can apply to.
-
-### GET /paps
-
-List PAPS with comprehensive filtering and smart permissions.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Query Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `status` | string | No | Filter by status: `draft`, `published`, `closed`, `cancelled` |
-| `category_id` | UUID | No | Filter by category |
-| `lat` | float | No | User latitude for distance calculation |
-| `lng` | float | No | User longitude for distance calculation |
-| `max_distance` | float | No | Maximum distance in kilometers |
-| `min_price` | float | No | Minimum payment amount |
-| `max_price` | float | No | Maximum payment amount |
-| `payment_type` | string | No | Filter: `fixed`, `hourly`, `negotiable` |
-| `owner_username` | string | No | Filter by owner username (partial match) |
-| `title_search` | string | No | Search in title and description |
-
-**Permission Logic:**
-- **Regular users:** See up to 1000 PAPS, ranked by interest match score
-- **Admin users:** See ALL PAPS (no limit)
-
-**Response 200:**
-```json
-{
-  "paps": [
-    {
-      "id": "paps-uuid-1",
-      "owner_id": "user-uuid",
-      "owner_username": "johndoe",
-      "owner_email": "john@example.com",
-      "owner_name": "John Doe",
-      "owner_avatar": "/media/user/profile/user-uuid.jpg",
-      "title": "Need help with React project",
-      "subtitle": "3-day frontend work",
-      "description": "Looking for experienced React developer to help build dashboard components...",
-      "status": "published",
-      "location_address": "San Francisco, CA",
-      "location_lat": 37.7749,
-      "location_lng": -122.4194,
-      "location_timezone": "America/Los_Angeles",
-      "start_datetime": "2026-02-01T09:00:00+00:00",
-      "end_datetime": "2026-02-03T18:00:00+00:00",
-      "estimated_duration_minutes": 1440,
-      "payment_amount": 500.00,
-      "payment_currency": "USD",
-      "payment_type": "fixed",
-      "max_applicants": 20,
-      "max_assignees": 2,
-      "is_public": true,
-      "publish_at": "2026-01-26T00:00:00+00:00",
-      "expires_at": "2026-02-15T00:00:00+00:00",
-      "created_at": "2026-01-25T10:00:00+00:00",
-      "deleted_at": null,
-      "distance_km": 5.2,
-      "interest_match_score": 85,
-      "categories": [
-        {
-          "id": "cat-uuid-1",
-          "name": "Web Development",
-          "slug": "web-development",
-          "is_primary": true
-        }
-      ]
-    }
-  ],
-  "total_count": 1
-}
-```
-
-| Field | Type | Nullable | Description |
-|-------|------|----------|-------------|
-| `id` | UUID | No | PAPS unique identifier |
-| `owner_id` | UUID | No | Creator's user ID |
-| `owner_username` | string | No | Creator's username |
-| `owner_email` | string | No | Creator's email |
-| `owner_name` | string | Yes | Creator's display name |
-| `owner_avatar` | string | Yes | Creator's avatar URL |
-| `title` | string | No | Job title (min 5 chars) |
-| `subtitle` | string | Yes | Short subtitle |
-| `description` | string | No | Full description (min 20 chars) |
-| `status` | string | No | `draft`, `published`, `closed`, `cancelled` |
-| `location_address` | string | Yes | Human-readable address |
-| `location_lat` | float | Yes | Latitude |
-| `location_lng` | float | Yes | Longitude |
-| `location_timezone` | string | Yes | IANA timezone |
-| `start_datetime` | datetime | Yes | When work begins |
-| `end_datetime` | datetime | Yes | When work ends |
-| `estimated_duration_minutes` | integer | Yes | Expected duration |
-| `payment_amount` | float | No | Payment amount (> 0) |
-| `payment_currency` | string | No | Currency code (e.g., `USD`) |
-| `payment_type` | string | No | `fixed`, `hourly`, `negotiable` |
-| `max_applicants` | integer | No | Max applications allowed (1-100) |
-| `max_assignees` | integer | No | Max workers to assign (≤ max_applicants) |
-| `is_public` | boolean | No | Public visibility |
-| `publish_at` | datetime | Yes | Scheduled publish time |
-| `expires_at` | datetime | Yes | When PAPS expires |
-| `created_at` | datetime | No | Creation timestamp |
-| `deleted_at` | datetime | Yes | Soft delete timestamp |
-| `distance_km` | float | Yes | Distance from search location |
-| `interest_match_score` | integer | Yes | Match with user's interests (0-100) |
-| `categories` | array | No | Associated categories |
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid payment_type. Must be: fixed, hourly, negotiable"` | Bad payment_type filter |
-
----
-
-### GET /paps/\<paps_id\>
-
-Get a specific PAPS with full details.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:** Single PAPS object plus:
-
-| Additional Field | Type | Description |
-|------------------|------|-------------|
-| `comments_count` | integer | Total comments on this PAPS |
-| `applications_count` | integer | Total applications received |
-
-**Note:** Media is NOT included. Use `GET /paps/<paps_id>/media` separately.
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid PAP ID format"` | Not a valid UUID |
-| 404 | `"PAP not found or not accessible"` | Doesn't exist or no permission |
-
----
-
-### POST /paps
-
-Create a new PAPS job posting.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `title` | string | Yes | Min 5 characters | Job title |
-| `description` | string | Yes | Min 20 characters | Full description |
-| `payment_amount` | float | Yes | > 0 | Payment amount |
-| `payment_currency` | string | No | Default: `USD` | Currency code |
-| `payment_type` | string | No | `fixed`, `hourly`, `negotiable` (default: `fixed`) | Payment type |
-| `max_applicants` | integer | No | 1-100 (default: 10) | Max applications |
-| `max_assignees` | integer | No | ≤ max_applicants (default: 1) | Max workers |
-| `subtitle` | string | No | - | Short subtitle |
-| `location_address` | string | No | - | Address text |
-| `location_lat` | float | No | -90 to 90 | Latitude |
-| `location_lng` | float | No | -180 to 180 | Longitude |
-| `location_timezone` | string | No | IANA timezone | Timezone |
-| `start_datetime` | string | No | ISO datetime | Work start |
-| `end_datetime` | string | No | Must be after start | Work end |
-| `estimated_duration_minutes` | integer | No | > 0 | Duration |
-| `is_public` | boolean | No | Default: true | Public visibility |
-| `status` | string | No | Default: `draft` | Initial status |
-| `publish_at` | string | No | ISO datetime | Scheduled publish |
-| `expires_at` | string | No | ISO datetime | Expiration date |
-| `categories` | array | No | Array of category objects or UUIDs | Categories to add |
-
-**Categories Format:**
-```json
-{
-  "categories": [
-    {"category_id": "uuid-1", "is_primary": true},
-    {"category_id": "uuid-2", "is_primary": false},
-    "uuid-3"
-  ]
-}
-```
-
-**Request Example:**
-```json
-{
-  "title": "Need React Developer",
-  "description": "Looking for an experienced React developer to help build a dashboard with charts and data tables. Must know TypeScript.",
-  "payment_amount": 500.00,
-  "payment_currency": "USD",
-  "payment_type": "fixed",
-  "max_applicants": 20,
-  "max_assignees": 2,
-  "location_address": "San Francisco, CA",
-  "location_lat": 37.7749,
-  "location_lng": -122.4194,
-  "start_datetime": "2026-02-01T09:00:00Z",
-  "end_datetime": "2026-02-03T18:00:00Z",
-  "status": "published",
-  "categories": [
-    {"category_id": "cat-uuid-1", "is_primary": true}
-  ]
-}
-```
-
-**Response 201:**
-```json
-{
-  "paps_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Title must be at least 5 characters"` | Title too short |
-| 400 | `"Description must be at least 20 characters"` | Description too short |
-| 400 | `"Payment amount must be positive"` | payment_amount ≤ 0 |
-| 400 | `"Invalid payment type"` | Not fixed/hourly/negotiable |
-| 400 | `"Max applicants must be 1-100"` | Out of range |
-| 400 | `"Max assignees must be positive and not exceed max applicants"` | Invalid assignees |
-| 400 | `"Invalid status"` | Not draft/published/closed/cancelled |
-| 400 | `"Both lat and lng must be provided"` | Only one coordinate given |
-| 400 | `"Invalid latitude"` | Outside -90 to 90 |
-| 400 | `"Invalid longitude"` | Outside -180 to 180 |
-| 400 | `"Invalid start_datetime format"` | Not ISO format |
-| 400 | `"Invalid end_datetime format"` | Not ISO format |
-| 400 | `"End datetime must be after start datetime"` | end ≤ start |
-| 400 | `"Duration must be positive"` | duration ≤ 0 |
-| 400 | `"start_datetime is required for published status"` | Publishing without start date |
-
----
-
-### PUT /paps/\<paps_id\>
-
-Update a PAPS. Owner or admin only.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (owner or admin) |
-
-**Request Body:** Any subset of POST fields
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid PAP ID format"` | Not a valid UUID |
-| 403 | `"Not authorized to update this PAP"` | Not owner or admin |
-| 404 | `"PAP not found"` | Doesn't exist |
-
----
-
-### DELETE /paps/\<paps_id\>
-
-Soft delete a PAPS. Also deletes all associated media files and applications.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (owner or admin) |
-
-**Cascade Behavior:**
-- All PAPS media files deleted from disk
-- All applications (SPAP) deleted
-- All application media files deleted from disk
-- All comments soft deleted
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid PAP ID format"` | Not a valid UUID |
-| 403 | `"Not authorized to delete this PAP"` | Not owner or admin |
-| 404 | `"PAP not found"` | Doesn't exist |
-
----
-
-## PAPS Categories
-
-### POST /paps/\<paps_id\>/categories/\<category_id\>
-
-Add a category to a PAPS.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (owner or admin) |
-
-**Response 201:**
-```json
-{
-  "message": "Category added to PAP"
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid PAP ID format"` | Invalid PAPS UUID |
-| 400 | `"Invalid category_id format"` | Invalid category UUID |
-| 403 | `"Not authorized to modify this PAP"` | Not owner or admin |
-| 404 | `"PAP not found"` | PAPS doesn't exist |
-| 404 | `"Category not found"` | Category doesn't exist |
-
----
-
-### DELETE /paps/\<paps_id\>/categories/\<category_id\>
-
-Remove a category from a PAPS.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (owner or admin) |
-
-**Response 204:** No content (success)
-
----
-
-## PAPS Media
-
-Media files are stored with UUID-based filenames. Original filenames are never exposed.
-
-### GET /paps/\<paps_id\>/media
-
-Get all media metadata for a PAPS.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:**
-```json
-{
-  "paps_id": "paps-uuid",
-  "media_count": 3,
-  "media": [
-    {
-      "media_id": "media-uuid-1",
-      "media_url": "/paps/media/media-uuid-1",
-      "media_type": "image",
-      "file_size_bytes": 245000,
-      "mime_type": "image/jpeg",
-      "display_order": 1
-    },
-    {
-      "media_id": "media-uuid-2",
-      "media_url": "/paps/media/media-uuid-2",
-      "media_type": "video",
-      "file_size_bytes": 15000000,
-      "mime_type": "video/mp4",
-      "display_order": 2
-    }
-  ]
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `media_id` | UUID | Media unique identifier |
-| `media_url` | string | URL to retrieve the file |
-| `media_type` | string | `image` or `video` |
-| `file_size_bytes` | integer | File size in bytes |
-| `mime_type` | string | MIME type (e.g., `image/jpeg`) |
-| `display_order` | integer | Display ordering |
-
----
-
-### POST /paps/\<paps_id\>/media
-
-Upload media files to a PAPS. Supports multiple files.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (owner or admin) |
-| **Content-Type** | `multipart/form-data` |
-
-**Request:**
-```
-POST /paps/{paps_id}/media
-Content-Type: multipart/form-data
-
---boundary
-Content-Disposition: form-data; name="media"; filename="photo1.jpg"
-Content-Type: image/jpeg
-
-[binary data]
---boundary
-Content-Disposition: form-data; name="media"; filename="video.mp4"
-Content-Type: video/mp4
-
-[binary data]
---boundary--
-```
-
-**Constraints:**
-
-| Constraint | Value |
-|------------|-------|
-| Max file size | 50 MB |
-| Image formats | jpg, jpeg, png, gif, webp |
-| Video formats | mp4, avi, mov, mkv |
-
-**Response 201:**
-```json
-{
-  "uploaded_media": [
-    {
-      "media_id": "media-uuid-1",
-      "media_url": "/paps/media/media-uuid-1",
-      "media_type": "image",
-      "file_size_bytes": 245000,
-      "display_order": 1
-    }
-  ],
-  "count": 1
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"No media files provided"` | Missing `media` field |
-| 400 | `"No files selected"` | Empty files list |
-| 403 | `"Not authorized"` | Not owner or admin |
-| 413 | `"File too large (max 50MB)"` | Exceeds size limit |
-| 415 | `"File type not allowed..."` | Unsupported format |
-
----
-
-### GET /paps/media/\<media_id\>
-
-Retrieve a media file by ID.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:** Binary file data with appropriate `Content-Type` header
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid media ID format"` | Not a valid UUID |
-| 404 | `"Media not found"` | Doesn't exist in database |
-| 404 | `"Media not accessible"` | No permission to view PAPS |
-| 404 | `"Media file not found on disk"` | File missing from storage |
-
----
-
-### DELETE /paps/media/\<media_id\>
-
-Delete a media file from PAPS.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (owner or admin) |
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid media ID format"` | Not a valid UUID |
-| 403 | `"Not authorized to delete this media"` | Not owner or admin |
-| 404 | `"Media not found"` | Doesn't exist |
-
----
-
-## Comments
-
-Instagram-style comments: flat structure with single-level replies only.
-
-### GET /paps/\<paps_id\>/comments
-
-Get all top-level comments for a PAPS.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:**
-```json
-{
-  "paps_id": "paps-uuid",
-  "comments": [
-    {
-      "id": "comment-uuid-1",
-      "paps_id": "paps-uuid",
-      "user_id": "user-uuid",
-      "content": "Great opportunity!",
-      "parent_id": null,
-      "author_username": "janedoe",
-      "author_name": "Jane Doe",
-      "author_avatar": "/media/user/profile/user-uuid.jpg",
-      "reply_count": 3,
-      "created_at": "2026-01-26T10:00:00+00:00",
-      "updated_at": null,
-      "deleted_at": null
-    }
-  ],
-  "count": 1,
-  "total_count": 4
-}
-```
-
-| Field | Type | Nullable | Description |
-|-------|------|----------|-------------|
-| `id` | UUID | No | Comment unique identifier |
-| `paps_id` | UUID | No | Parent PAPS ID |
-| `user_id` | UUID | No | Author's user ID |
-| `content` | string | No | Comment text (1-2000 chars) |
-| `parent_id` | UUID | Yes | Parent comment ID (null for top-level) |
-| `author_username` | string | No | Author's username |
-| `author_name` | string | Yes | Author's display name |
-| `author_avatar` | string | Yes | Author's avatar URL |
-| `reply_count` | integer | No | Number of replies (top-level only) |
-| `created_at` | datetime | No | Creation timestamp |
-| `updated_at` | datetime | Yes | Last edit timestamp |
-| `deleted_at` | datetime | Yes | Soft delete timestamp |
-
-| Response Field | Description |
-|----------------|-------------|
-| `count` | Number of top-level comments returned |
-| `total_count` | Total comments including replies |
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid PAPS ID format"` | Not a valid UUID |
-| 404 | `"PAPS not found"` | PAPS doesn't exist |
-
----
-
-### POST /paps/\<paps_id\>/comments
-
-Create a new top-level comment.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `content` | string | Yes | 1-2000 characters | Comment text |
-
-**Request Example:**
-```json
-{
-  "content": "This looks like a great opportunity! I'd love to learn more about the timeline."
-}
-```
-
-**Response 201:**
-```json
-{
-  "comment_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid PAPS ID format"` | Not a valid UUID |
-| 400 | `"Comment cannot be empty"` | Empty content |
-| 400 | `"Comment too long (max 2000 characters)"` | Exceeds limit |
-| 400 | `"Cannot comment on deleted PAPS"` | PAPS was soft deleted |
-| 404 | `"PAPS not found"` | PAPS doesn't exist |
-
----
-
-### GET /comments/\<comment_id\>
-
-Get a specific comment by ID.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:** Single comment object
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid comment ID format"` | Not a valid UUID |
-| 404 | `"Comment not found"` | Doesn't exist |
-| 404 | `"Comment has been deleted"` | Was soft deleted |
-
----
-
-### PUT /comments/\<comment_id\>
-
-Edit a comment. Author or admin only.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (author or admin) |
-
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `content` | string | Yes | 1-2000 characters | Updated text |
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid comment ID format"` | Not a valid UUID |
-| 400 | `"Comment cannot be empty"` | Empty content |
-| 400 | `"Comment too long (max 2000 characters)"` | Exceeds limit |
-| 403 | `"Not authorized to edit this comment"` | Not author or admin |
-| 404 | `"Comment not found"` | Doesn't exist |
-| 404 | `"Comment has been deleted"` | Was soft deleted |
-
----
-
-### DELETE /comments/\<comment_id\>
-
-Soft delete a comment. Author, PAPS owner, or admin can delete.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (author, PAPS owner, or admin) |
-
-**Cascade Behavior:** If deleting a top-level comment, all replies are also soft deleted.
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid comment ID format"` | Not a valid UUID |
-| 403 | `"Not authorized to delete this comment"` | No permission |
-| 404 | `"Comment not found"` | Doesn't exist |
-| 404 | `"Comment already deleted"` | Already soft deleted |
-
----
-
-## Comment Replies
-
-Replies are limited to one level (Instagram-style). You cannot reply to a reply.
-
-### GET /comments/\<comment_id\>/replies
-
-Get all replies to a comment.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:**
-```json
-{
-  "parent_comment_id": "comment-uuid",
-  "replies": [
-    {
-      "id": "reply-uuid-1",
-      "paps_id": "paps-uuid",
-      "user_id": "user-uuid-2",
-      "content": "Thanks for your interest!",
-      "parent_id": "comment-uuid",
-      "author_username": "johndoe",
-      "author_name": "John Doe",
-      "author_avatar": "/media/user/profile/user-uuid-2.jpg",
-      "created_at": "2026-01-26T11:00:00+00:00"
-    }
-  ],
-  "count": 1
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid comment ID format"` | Not a valid UUID |
-| 400 | `"Cannot get replies of a reply"` | Trying to get replies of a reply |
-| 404 | `"Comment not found"` | Doesn't exist |
-| 404 | `"Comment has been deleted"` | Was soft deleted |
-
----
-
-### POST /comments/\<comment_id\>/replies
-
-Reply to a comment. Only top-level comments accept replies.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `content` | string | Yes | 1-2000 characters | Reply text |
-
-**Response 201:**
-```json
-{
-  "comment_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid comment ID format"` | Not a valid UUID |
-| 400 | `"Reply cannot be empty"` | Empty content |
-| 400 | `"Reply too long (max 2000 characters)"` | Exceeds limit |
-| 400 | `"Cannot reply to a reply. Only top-level comments accept replies."` | Trying to nest replies |
-| 400 | `"Cannot reply to a deleted comment"` | Parent was soft deleted |
-| 400 | `"Cannot reply - PAPS has been deleted"` | PAPS was soft deleted |
-| 404 | `"Comment not found"` | Parent doesn't exist |
-
----
-
-### GET /comments/\<comment_id\>/thread
-
-Get a comment with all its replies in one call.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:**
-```json
-{
-  "comment": {
-    "id": "comment-uuid",
-    "content": "Great opportunity!",
-    "author_username": "janedoe"
-  },
-  "replies": [
-    {
-      "id": "reply-uuid-1",
-      "content": "Thanks!"
-    }
-  ],
-  "is_reply": false
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `comment` | object | The requested comment |
-| `replies` | array | All replies (empty if comment is a reply) |
-| `is_reply` | boolean | Whether the requested comment is itself a reply |
-
----
-
-## SPAP (Applications)
-
-SPAP (Submit Project Application) represents job applications to PAPS.
-
-### GET /paps/\<paps_id\>/applications
-
-Get all applications for a PAPS. **Owner or admin only.**
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (PAPS owner or admin) |
-
-**Response 200:**
-```json
-{
-  "applications": [
-    {
-      "id": "spap-uuid-1",
-      "paps_id": "paps-uuid",
-      "applicant_id": "user-uuid",
-      "applicant_username": "applicant1",
-      "applicant_name": "App Licant",
-      "applicant_avatar": "/media/user/profile/user-uuid.jpg",
-      "status": "pending",
-      "message": "I'm very interested in this opportunity...",
-      "applied_at": "2026-01-26T12:00:00+00:00",
-      "reviewed_at": null,
-      "accepted_at": null,
-      "rejected_at": null
-    }
-  ],
-  "count": 1
-}
-```
-
-| Field | Type | Nullable | Description |
-|-------|------|----------|-------------|
-| `id` | UUID | No | Application unique identifier |
-| `paps_id` | UUID | No | Target PAPS ID |
-| `applicant_id` | UUID | No | Applicant's user ID |
-| `applicant_username` | string | No | Applicant's username |
-| `applicant_name` | string | Yes | Applicant's display name |
-| `applicant_avatar` | string | Yes | Applicant's avatar URL |
-| `status` | string | No | `pending`, `accepted`, `rejected`, `withdrawn` |
-| `message` | string | Yes | Application message from applicant |
-| `applied_at` | datetime | No | When application was submitted |
-| `reviewed_at` | datetime | Yes | When owner reviewed the application |
-| `accepted_at` | datetime | Yes | When application was accepted |
-| `rejected_at` | datetime | Yes | When application was rejected |
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid PAPS ID format"` | Not a valid UUID |
-| 403 | `"Not authorized to view applications"` | Not owner or admin |
-| 404 | `"PAPS not found"` | PAPS doesn't exist |
-
----
-
-### GET /spap/my
-
-Get all applications submitted by the current user.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
-
-**Response 200:**
-```json
-{
-  "applications": [
-    {
-      "id": "spap-uuid-1",
-      "paps_id": "paps-uuid",
-      "paps_title": "Need React Developer",
-      "paps_owner_username": "johndoe",
-      "status": "pending",
-      "message": "I'd love to work on this project...",
-      "applied_at": "2026-01-26T12:00:00+00:00"
-    }
-  ],
-  "count": 1
+  "login": "username",
+  "password": "hashed-password",
+  "email": "user@example.com",
+  "isadmin": true|false,
+  "aid": "user-uuid"
 }
 ```
 
 ---
 
-### POST /paps/\<paps_id\>/apply
+### GET /media/{folder}/{filename}
+**Description**: Serve static media files (avatars, category icons)  
+**Authorization**: OPEN  
+**Authentication**: None
 
-Apply to a PAPS job posting.
+**Path Parameters**:
+- `folder`: string - Folder name (e.g., "category", "post", "user")
+- `filename`: string - File name with extension
 
-| Property | Value |
-|----------|-------|
-| **Auth** | Required |
+**Success Response (200)**:
+- Returns the binary file content
 
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `message` | string | No | - | Cover letter / application message |
-
-**Request Example:**
-```json
-{
-  "message": "I'm a React developer with 5 years of experience. I'd love to help build your dashboard!"
-}
-```
-
-**Response 201:**
-```json
-{
-  "spap_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-**Business Rules:**
-- Cannot apply to your own PAPS
-- PAPS must have status `published`
-- Cannot exceed `max_applicants` limit
-- Cannot apply if you've already applied
-- **Cannot apply if you were previously rejected from this PAPS**
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid PAPS ID format"` | Not a valid UUID |
-| 400 | `"PAPS is not accepting applications"` | Status is not `published` |
-| 400 | `"Maximum number of applications reached"` | max_applicants exceeded |
-| 403 | `"Cannot apply to your own PAPS"` | You own the PAPS |
-| 403 | `"You were previously rejected from this PAPS and cannot reapply"` | Previously rejected |
-| 404 | `"PAPS not found"` | PAPS doesn't exist |
-| 409 | `"You have already applied to this PAPS"` | Duplicate application |
+**Error Responses**:
+- **400 Bad Request**: Directory traversal attempt
+- **404 Not Found**: File not found
 
 ---
 
-### GET /spap/\<spap_id\>
+### GET /media/{folder}/{subfolder}/{filename}
+**Description**: Serve nested static media files (e.g., user/profile/avatar.jpg)  
+**Authorization**: OPEN  
+**Authentication**: None
 
-Get application details.
+**Path Parameters**:
+- `folder`: string - Top folder name
+- `subfolder`: string - Sub-folder name
+- `filename`: string - File name with extension
 
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (applicant, PAPS owner, or admin) |
+**Success Response (200)**:
+- Returns the binary file content
 
-**Response 200:** Single application object
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid SPAP ID format"` | Not a valid UUID |
-| 403 | `"Not authorized to view this application"` | No permission |
-| 404 | `"Application not found"` | Doesn't exist |
-
----
-
-### DELETE /spap/\<spap_id\>
-
-Withdraw an application. Applicant or admin only.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (applicant or admin) |
-
-**Business Rules:**
-- Cannot withdraw if already accepted or rejected
-- Deletes associated media files from disk
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid SPAP ID format"` | Not a valid UUID |
-| 400 | `"Cannot withdraw application with status: {status}"` | Already accepted/rejected |
-| 403 | `"Not authorized to withdraw this application"` | Not applicant or admin |
-| 404 | `"Application not found"` | Doesn't exist |
+**Error Responses**:
+- **400 Bad Request**: Directory traversal attempt
+- **404 Not Found**: File not found
 
 ---
 
-### PUT /spap/\<spap_id\>/status
+## User Management
 
-Update application status. PAPS owner or admin only.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (PAPS owner or admin) |
-
-**Request Body:**
-
-| Field | Type | Required | Values | Description |
-|-------|------|----------|--------|-------------|
-| `status` | string | Yes | `pending`, `accepted`, `rejected`, `withdrawn` | New status |
-
-**Request Example:**
-```json
-{
-  "status": "accepted"
-}
-```
-
-**Response 204:** No content (success)
-
-**Automatic Timestamp Updates:**
-- `accepted` → sets `reviewed_at` and `accepted_at`
-- `rejected` → sets `reviewed_at` and `rejected_at`
-- Other statuses → clears timestamps
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid SPAP ID format"` | Not a valid UUID |
-| 400 | `"Invalid status. Must be: pending, accepted, rejected, withdrawn"` | Bad status value |
-| 403 | `"Not authorized to update this application"` | Not owner or admin |
-| 404 | `"Application not found"` | Application doesn't exist |
-| 404 | `"PAPS not found"` | PAPS doesn't exist |
-
----
-
-## SPAP Media
-
-Applicants can attach media files to their applications.
-
-### GET /spap/\<spap_id\>/media
-
-Get all media for an application.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (applicant, PAPS owner, or admin) |
-
-**Response 200:**
-```json
-{
-  "spap_id": "spap-uuid",
-  "media_count": 2,
-  "media": [
-    {
-      "media_id": "media-uuid-1",
-      "media_url": "/spap/media/media-uuid-1",
-      "media_type": "document",
-      "file_size_bytes": 125000,
-      "mime_type": "application/pdf",
-      "display_order": 1
-    }
-  ]
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `media_type` | string | `image`, `video`, or `document` |
-
----
-
-### POST /spap/\<spap_id\>/media
-
-Upload media to an application. Applicant only, and only while status is `pending`.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (applicant only) |
-| **Content-Type** | `multipart/form-data` |
-
-**Constraints:**
-
-| Constraint | Value |
-|------------|-------|
-| Max file size | 50 MB |
-| Image formats | jpg, jpeg, png, gif, webp |
-| Video formats | mp4, avi, mov, mkv |
-| Document formats | pdf, doc, docx |
-
-**Response 201:**
-```json
-{
-  "uploaded_media": [
-    {
-      "media_id": "media-uuid-1",
-      "media_url": "/spap/media/media-uuid-1",
-      "media_type": "document",
-      "file_size_bytes": 125000,
-      "display_order": 1
-    }
-  ],
-  "count": 1
-}
-```
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"No media files provided"` | Missing `media` field |
-| 400 | `"Cannot add media to non-pending application"` | Application already reviewed |
-| 403 | `"Not authorized to upload media"` | Not the applicant |
-| 413 | `"File too large (max 50MB)"` | Exceeds size limit |
-| 415 | `"File type not allowed..."` | Unsupported format |
-
----
-
-### GET /spap/media/\<media_id\>
-
-Retrieve an application media file.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (applicant, PAPS owner, or admin) |
-
-**Response 200:** Binary file data
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid media ID format"` | Not a valid UUID |
-| 403 | `"Not authorized"` | No permission |
-| 404 | `"Media not found"` | Doesn't exist |
-| 404 | `"Media file not found on disk"` | File missing |
-
----
-
-### DELETE /spap/media/\<media_id\>
-
-Delete an application media file. Applicant only, and only while status is `pending`.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Required (applicant or admin) |
-
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"Invalid media ID format"` | Not a valid UUID |
-| 400 | `"Cannot delete media from non-pending application"` | Already reviewed |
-| 403 | `"Not authorized"` | Not applicant or admin |
-| 404 | `"Media not found"` | Doesn't exist |
-
----
-
-## Admin User Management
-
-These routes are **only available when `APP_USERS = True`** in server configuration (typically testing/development).
+**Note**: These routes are only available when `APP_USERS=True` in config (testing mode)
 
 ### GET /users
+**Description**: Get list of all users (admin testing)  
+**Authorization**: ADMIN  
+**Authentication**: token, basic, or param
 
-List all users with optional filter.
+**Query Parameters**:
+- `flt`: string (optional) - Filter string for user search
 
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
-
-**Query Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `flt` | string | No | Filter by username/email/phone (partial match) |
-
-**Response 200:**
+**Success Response (200)**:
 ```json
 [
   {
-    "aid": "user-uuid",
-    "login": "johndoe",
-    "email": "john@example.com",
+    "aid": "uuid",
+    "login": "username",
+    "email": "user@example.com",
     "phone": "+1234567890",
-    "is_admin": false,
-    "created_at": "2024-01-01T00:00:00+00:00"
+    "is_admin": true|false,
+    "created_at": "iso8601-timestamp",
+    "updated_at": "iso8601-timestamp"
   }
 ]
 ```
@@ -2346,351 +298,2214 @@ List all users with optional filter.
 ---
 
 ### POST /users
+**Description**: Create a new user (admin testing)  
+**Authorization**: ADMIN  
+**Content-Type**: application/json
 
-Create a new user (admin).
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
-
-**Request Body:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `login` | string | Yes | Min 3 chars, starts with letter | Username |
-| `password` | string | Yes | - | Password |
-| `email` | string | No | - | Email address |
-| `phone` | string | No | - | Phone number |
-| `is_admin` | boolean | No | Default: false | Admin privileges |
-
-**Response 201:**
+**Request Body**:
 ```json
 {
-  "user_id": "550e8400-e29b-41d4-a716-446655440000"
+  "login": "string (required, 3+ chars, starts with letter)",
+  "password": "string (required)",
+  "email": "string (optional)",
+  "phone": "string (optional)",
+  "is_admin": "boolean (optional, default: false)"
 }
 ```
 
-**Errors:**
+**Success Response (201)**:
+```json
+{
+  "user_id": "uuid"
+}
+```
 
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"username must be at least 3 characters"` | Too short |
-| 400 | `"username must start with a letter..."` | Invalid format |
-| 409 | `"user {login} already created"` | Duplicate |
-
----
-
-### GET /users/\<user_id\>
-
-Get user details by ID or username.
-
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
-
-**Path Parameter:** UUID or username
-
-**Response 200:** User object
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"invalid user identifier: {user_id}"` | Not UUID or valid username |
-| 404 | `"no such user: {user_id}"` | User doesn't exist |
+**Error Responses**:
+- **400 Bad Request**: Invalid username format
+- **409 Conflict**: User already exists
 
 ---
 
-### PATCH /users/\<user_id\>
+### GET /users/{user_id}
+**Description**: Get specific user data (UUID or username)  
+**Authorization**: ADMIN
 
-Update user fields.
+**Path Parameters**:
+- `user_id`: string - User UUID or username
 
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
+**Success Response (200)**:
+```json
+{
+  "aid": "uuid",
+  "login": "username",
+  "email": "user@example.com",
+  "phone": "+1234567890",
+  "is_admin": true|false,
+  "created_at": "iso8601-timestamp",
+  "updated_at": "iso8601-timestamp"
+}
+```
 
-**Request Body:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `password` | string | New password |
-| `email` | string | New email |
-| `phone` | string | New phone |
-| `is_admin` | boolean | Admin status |
-
-**Response 204:** No content (success)
+**Error Responses**:
+- **400 Bad Request**: Invalid user identifier
+- **404 Not Found**: User not found
 
 ---
 
-### PUT /users/\<user_id\>
+### PATCH /users/{user_id}
+**Description**: Partially update user data  
+**Authorization**: ADMIN
 
-Replace user data completely.
+**Path Parameters**:
+- `user_id`: string - User UUID or username
 
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
+**Request Body** (all optional):
+```json
+{
+  "password": "string",
+  "email": "string (valid email format)",
+  "phone": "string",
+  "is_admin": "boolean"
+}
+```
 
-**Request Body:**
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid user identifier or email format
+- **404 Not Found**: User not found
+
+---
+
+### PUT /users/{user_id}
+**Description**: Replace user data completely  
+**Authorization**: ADMIN
+
+**Path Parameters**:
+- `user_id`: string - User UUID or username
+
+**Request Body**:
 ```json
 {
   "auth": {
-    "login": "username",
-    "password": "newpass",
-    "email": "new@email.com",
-    "isadmin": false
+    "login": "string (must match user_id)",
+    "password": "string",
+    "email": "string",
+    "isadmin": "boolean"
   }
 }
 ```
 
-**Response 204:** No content (success)
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Login doesn't match user_id or invalid identifier
+- **404 Not Found**: User not found
 
 ---
 
-### DELETE /users/\<user_id\>
+### DELETE /users/{user_id}
+**Description**: Delete a user and all their data  
+**Authorization**: ADMIN
 
-Delete a user and their avatar.
+**Path Parameters**:
+- `user_id`: string - User UUID or username
 
-| Property | Value |
-|----------|-------|
-| **Auth** | Admin only |
+**Success Response (204)**: No content
 
-**Business Rules:**
-- Cannot delete yourself
-- Deletes user's avatar file (if not default)
+**Side Effects**:
+- Deletes user profile and avatar from disk
+- Hard deletes all user's PAPS and related media
+- Cascades to delete all related records (SPAPs, ASAPs, comments, etc.)
 
-**Response 204:** No content (success)
-
-**Errors:**
-
-| Code | Error | Cause |
-|------|-------|-------|
-| 400 | `"invalid user identifier: {user_id}"` | Bad format |
-| 400 | `"cannot delete oneself"` | Trying to self-delete |
-| 404 | `"no such user: {user_id}"` | User doesn't exist |
+**Error Responses**:
+- **400 Bad Request**: Cannot delete yourself or invalid identifier
+- **404 Not Found**: User not found
 
 ---
 
-## Data Types Reference
+## Profile Management
 
-### UUID
+### GET /profile
+**Description**: Get current user's profile  
+**Authorization**: AUTH
 
-All IDs use UUID v4 format:
-```
-Pattern: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-Example: 550e8400-e29b-41d4-a716-446655440000
-```
-
-### DateTime
-
-ISO 8601 format with timezone:
-```
-2026-01-26T10:30:00Z
-2026-01-26T10:30:00+00:00
-```
-
-### Status Enums
-
-**PAPS Status:**
-| Value | Description |
-|-------|-------------|
-| `draft` | Not visible, still being edited |
-| `published` | Active and accepting applications |
-| `closed` | No longer accepting applications |
-| `cancelled` | Cancelled by owner |
-
-**SPAP Status:**
-| Value | Description |
-|-------|-------------|
-| `pending` | Awaiting review |
-| `accepted` | Application accepted |
-| `rejected` | Application rejected |
-| `withdrawn` | Withdrawn by applicant |
-
-### Payment Types
-
-| Value | Description |
-|-------|-------------|
-| `fixed` | Fixed total payment |
-| `hourly` | Hourly rate |
-| `negotiable` | Open to negotiation |
-
-### File Constraints
-
-| Context | Max Size | Formats |
-|---------|----------|---------|
-| Avatar | 5 MB | jpg, jpeg, png, gif, webp |
-| Category Icon | 1 MB | jpg, jpeg, png, gif, webp, svg |
-| PAPS Media | 50 MB | jpg, jpeg, png, gif, webp, mp4, avi, mov, mkv |
-| SPAP Media | 50 MB | jpg, jpeg, png, gif, webp, mp4, avi, mov, mkv, pdf, doc, docx |
-
----
-
-## Frontend Integration Guide
-
-### Authentication Flow
-
-```javascript
-// 1. Register new user
-const registerResponse = await fetch('/register', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    username: 'johndoe',
-    email: 'john@example.com',
-    password: 'SecurePass123!'
-  })
-});
-const { user_id } = await registerResponse.json();
-
-// 2. Login to get token
-const loginResponse = await fetch('/login', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    login: 'johndoe',  // Can be username, email, or phone
-    password: 'SecurePass123!'
-  })
-});
-const { token } = await loginResponse.json();
-
-// 3. Use token for authenticated requests
-const profileResponse = await fetch('/profile', {
-  headers: { 'Authorization': `Bearer ${token}` }
-});
-```
-
-### File Upload Examples
-
-**Avatar Upload (multipart):**
-```javascript
-const formData = new FormData();
-formData.append('image', fileInput.files[0]);
-
-await fetch('/profile/avatar', {
-  method: 'POST',
-  headers: { 'Authorization': `Bearer ${token}` },
-  body: formData
-});
-```
-
-**Multiple Media Upload:**
-```javascript
-const formData = new FormData();
-for (const file of fileInput.files) {
-  formData.append('media', file);
+**Success Response (200)**:
+```json
+{
+  "user_id": "uuid",
+  "username": "string",
+  "first_name": "string|null",
+  "last_name": "string|null",
+  "display_name": "string|null",
+  "bio": "string|null",
+  "avatar_url": "string (URL or default)",
+  "date_of_birth": "YYYY-MM-DD|null",
+  "location_address": "string|null",
+  "location_lat": "float|null",
+  "location_lng": "float|null",
+  "timezone": "string|null",
+  "preferred_language": "string|null",
+  "created_at": "iso8601-timestamp",
+  "updated_at": "iso8601-timestamp"
 }
-
-await fetch(`/paps/${papsId}/media`, {
-  method: 'POST',
-  headers: { 'Authorization': `Bearer ${token}` },
-  body: formData
-});
 ```
 
-### Location-Based Search
+**Error Responses**:
+- **404 Not Found**: Profile not found
 
-```javascript
-// Get user's location
-navigator.geolocation.getCurrentPosition(async (pos) => {
-  const { latitude, longitude } = pos.coords;
-  
-  // Search for nearby jobs
-  const response = await fetch(
-    `/paps?lat=${latitude}&lng=${longitude}&max_distance=10&status=published`,
-    { headers: { 'Authorization': `Bearer ${token}` } }
-  );
-  
-  const { paps, total_count } = await response.json();
-  // paps includes distance_km field
-});
+---
+
+### PUT /profile
+**Description**: Update current user's profile (replaces all fields)  
+**Authorization**: AUTH  
+**Content-Type**: application/json
+
+**Request Body** (all optional):
+```json
+{
+  "first_name": "string|null",
+  "last_name": "string|null",
+  "display_name": "string|null",
+  "bio": "string|null",
+  "date_of_birth": "YYYY-MM-DD|null",
+  "location_address": "string|null",
+  "location_lat": "float (-90 to 90)|null",
+  "location_lng": "float (-180 to 180)|null",
+  "timezone": "string|null",
+  "preferred_language": "string|null"
+}
 ```
 
-### Error Handling Pattern
+**Validation Rules**:
+- `location_lat`: -90 to 90 (decimal degrees)
+- `location_lng`: -180 to 180 (decimal degrees)
+- `date_of_birth`: ISO 8601 date format (YYYY-MM-DD), cannot be in future
 
-```javascript
-async function apiCall(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      ...options.headers
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid latitude, longitude, or date format
+
+---
+
+### PATCH /profile
+**Description**: Partially update current user's profile  
+**Authorization**: AUTH  
+**Content-Type**: application/json
+
+**Request Body**: Same as PUT /profile, all fields optional
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid validation
+
+---
+
+### POST /profile/avatar
+**Description**: Upload profile avatar image  
+**Authorization**: AUTH  
+**Content-Type**: multipart/form-data OR image/*
+
+**Request**:
+- **Option 1 - Multipart Form Data**:
+  ```
+  Content-Type: multipart/form-data
+  
+  image: [binary file data]
+  ```
+
+- **Option 2 - Raw Binary**:
+  ```
+  Content-Type: image/png (or image/jpeg, image/gif, image/webp)
+  
+  [raw binary image data]
+  ```
+
+**Validation Rules**:
+- Allowed types: PNG, JPEG, JPG, GIF, WEBP
+- Max size: 5 MB (5242880 bytes)
+- Image automatically compressed/resized for avatars
+
+**Success Response (201)**:
+```json
+{
+  "avatar_url": "media/user/profile/uuid.ext"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: No image data provided
+- **413 Payload Too Large**: File exceeds 5 MB
+- **415 Unsupported Media Type**: Invalid file type
+
+---
+
+### DELETE /profile/avatar
+**Description**: Delete current user's avatar, reset to default  
+**Authorization**: AUTH
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Deletes avatar file from disk (if not default)
+- Sets avatar_url to NULL in database
+
+---
+
+### GET /profile/avatar
+**Description**: Serve current user's avatar image  
+**Authorization**: AUTH
+
+**Success Response (200)**:
+- Returns binary image data
+- Content-Type: image/png (or appropriate type)
+
+**Error Responses**:
+- **404 Not Found**: Avatar not found
+
+---
+
+### GET /profile/experiences
+**Description**: Get current user's work experiences  
+**Authorization**: AUTH
+
+**Success Response (200)**:
+```json
+[
+  {
+    "experience_id": "uuid",
+    "user_id": "uuid",
+    "job_title": "string",
+    "company_name": "string",
+    "location": "string|null",
+    "start_date": "YYYY-MM-DD",
+    "end_date": "YYYY-MM-DD|null",
+    "description": "string|null",
+    "created_at": "iso8601-timestamp",
+    "updated_at": "iso8601-timestamp"
+  }
+]
+```
+
+---
+
+### POST /profile/experiences
+**Description**: Add new work experience  
+**Authorization**: AUTH  
+**Content-Type**: application/json
+
+**Request Body**:
+```json
+{
+  "job_title": "string (required)",
+  "company_name": "string (required)",
+  "location": "string (optional)",
+  "start_date": "YYYY-MM-DD (required)",
+  "end_date": "YYYY-MM-DD (optional, must be after start_date)",
+  "description": "string (optional)"
+}
+```
+
+**Validation Rules**:
+- `start_date`: ISO 8601 date, cannot be in future
+- `end_date`: Must be after start_date if provided
+
+**Success Response (201)**:
+```json
+{
+  "experience_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid date format or end_date before start_date
+
+---
+
+### PUT /profile/experiences/{experience_id}
+**Description**: Update specific work experience  
+**Authorization**: AUTH
+
+**Path Parameters**:
+- `experience_id`: string (UUID)
+
+**Request Body**: Same as POST /profile/experiences
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid date validation
+- **403 Forbidden**: Not your experience
+- **404 Not Found**: Experience not found
+
+---
+
+### DELETE /profile/experiences/{experience_id}
+**Description**: Delete specific work experience  
+**Authorization**: AUTH
+
+**Path Parameters**:
+- `experience_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **403 Forbidden**: Not your experience
+- **404 Not Found**: Experience not found
+
+---
+
+### GET /profile/interests
+**Description**: Get current user's category interests  
+**Authorization**: AUTH
+
+**Success Response (200)**:
+```json
+[
+  {
+    "interest_id": "uuid",
+    "user_id": "uuid",
+    "category_id": "uuid",
+    "category_name": "string",
+    "category_slug": "string",
+    "created_at": "iso8601-timestamp"
+  }
+]
+```
+
+---
+
+### POST /profile/interests
+**Description**: Add category interest  
+**Authorization**: AUTH  
+**Content-Type**: application/json
+
+**Request Body**:
+```json
+{
+  "category_id": "uuid (required)"
+}
+```
+
+**Success Response (201)**:
+```json
+{
+  "interest_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Category not found
+- **409 Conflict**: Interest already exists
+
+---
+
+### DELETE /profile/interests/{interest_id}
+**Description**: Remove category interest  
+**Authorization**: AUTH
+
+**Path Parameters**:
+- `interest_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **403 Forbidden**: Not your interest
+- **404 Not Found**: Interest not found
+
+---
+
+### GET /user/{username}/profile
+**Description**: Get another user's public profile  
+**Authorization**: OPEN  
+**Authentication**: None
+
+**Path Parameters**:
+- `username`: string - Username to look up
+
+**Success Response (200)**: Same structure as GET /profile
+
+**Error Responses**:
+- **404 Not Found**: User not found
+
+---
+
+### GET /user/{username}/profile/avatar
+**Description**: Serve another user's avatar image  
+**Authorization**: OPEN
+
+**Path Parameters**:
+- `username`: string
+
+**Success Response (200)**:
+- Returns binary image data
+
+**Error Responses**:
+- **404 Not Found**: Avatar not found
+
+---
+
+### GET /user/{username}/profile/experiences
+**Description**: Get another user's work experiences  
+**Authorization**: OPEN
+
+**Path Parameters**:
+- `username`: string
+
+**Success Response (200)**: Array of experience objects
+
+---
+
+### GET /user/{username}/profile/interests
+**Description**: Get another user's category interests  
+**Authorization**: OPEN
+
+**Path Parameters**:
+- `username`: string
+
+**Success Response (200)**: Array of interest objects
+
+---
+
+## Category Management
+
+### GET /categories
+**Description**: Get all active categories  
+**Authorization**: OPEN
+
+**Query Parameters**:
+- `parent_id`: string (UUID, optional) - Filter by parent category
+- `active_only`: boolean (optional, default: true) - Show only active categories
+
+**Success Response (200)**:
+```json
+[
+  {
+    "category_id": "uuid",
+    "name": "string",
+    "slug": "string",
+    "description": "string|null",
+    "icon_url": "string|null",
+    "parent_id": "uuid|null",
+    "is_active": true|false,
+    "display_order": 0,
+    "created_at": "iso8601-timestamp",
+    "updated_at": "iso8601-timestamp"
+  }
+]
+```
+
+---
+
+### POST /categories
+**Description**: Create new category (admin only)  
+**Authorization**: ADMIN  
+**Content-Type**: application/json
+
+**Request Body**:
+```json
+{
+  "name": "string (required, 1-100 chars)",
+  "slug": "string (optional, auto-generated from name)",
+  "description": "string (optional, max 500 chars)",
+  "icon_url": "string (optional)",
+  "parent_id": "uuid (optional)",
+  "is_active": "boolean (optional, default: true)",
+  "display_order": "integer (optional, default: 0)"
+}
+```
+
+**Validation Rules**:
+- `name`: 1-100 characters
+- `slug`: Lowercase, alphanumeric + hyphens only
+- `description`: Max 500 characters
+- `parent_id`: Must exist if provided
+
+**Success Response (201)**:
+```json
+{
+  "category_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid validation
+- **409 Conflict**: Category with slug already exists
+
+---
+
+### GET /categories/{category_id}
+**Description**: Get specific category details  
+**Authorization**: OPEN
+
+**Path Parameters**:
+- `category_id`: string (UUID)
+
+**Success Response (200)**: Category object
+
+**Error Responses**:
+- **404 Not Found**: Category not found
+
+---
+
+### PUT /categories/{category_id}
+**Description**: Update category (admin only)  
+**Authorization**: ADMIN
+
+**Path Parameters**:
+- `category_id`: string (UUID)
+
+**Request Body**: Same as POST /categories
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid validation
+- **404 Not Found**: Category not found
+
+---
+
+### DELETE /categories/{category_id}
+**Description**: Delete category (admin only)  
+**Authorization**: ADMIN
+
+**Path Parameters**:
+- `category_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Deletes category icon from disk
+- Cascades to delete subcategories if no RESTRICT constraint
+
+**Error Responses**:
+- **400 Bad Request**: Category has active PAPS or children
+- **404 Not Found**: Category not found
+
+---
+
+### POST /categories/{category_id}/icon
+**Description**: Upload category icon (admin only)  
+**Authorization**: ADMIN  
+**Content-Type**: multipart/form-data OR image/*
+
+**Path Parameters**:
+- `category_id`: string (UUID)
+
+**Request**: Same format as avatar upload
+
+**Validation Rules**:
+- Allowed types: PNG, JPEG, JPG, GIF, WEBP, SVG
+- Max size: 2 MB
+
+**Success Response (201)**:
+```json
+{
+  "icon_url": "media/category/uuid.ext"
+}
+```
+
+**Error Responses**:
+- **404 Not Found**: Category not found
+- **413 Payload Too Large**: File exceeds 2 MB
+- **415 Unsupported Media Type**: Invalid file type
+
+---
+
+## Job Postings (PAPS)
+
+### GET /paps
+**Description**: Get all job postings with filters  
+**Authorization**: OPEN
+
+**Query Parameters**:
+- `status`: string (optional) - Filter by status: "draft", "published", "closed", "expired"
+- `owner_id`: string UUID (optional) - Filter by owner
+- `category_id`: string UUID (optional) - Filter by category
+- `location_lat`: float (optional) - Location latitude for radius search
+- `location_lng`: float (optional) - Location longitude for radius search
+- `radius_km`: float (optional, default: 10) - Search radius in kilometers
+- `search`: string (optional) - Text search in title and description
+- `min_payment`: float (optional) - Minimum payment amount
+- `max_payment`: float (optional) - Maximum payment amount
+- `payment_currency`: string (optional, default: "USD") - Currency filter
+- `sort_by`: string (optional) - Sort field: "created_at", "payment_amount", "distance"
+- `sort_order`: string (optional, default: "desc") - Sort order: "asc", "desc"
+- `limit`: integer (optional, default: 50) - Max results
+- `offset`: integer (optional, default: 0) - Pagination offset
+
+**Success Response (200)**:
+```json
+{
+  "paps": [
+    {
+      "paps_id": "uuid",
+      "owner_id": "uuid",
+      "owner_username": "string",
+      "title": "string",
+      "description": "string",
+      "status": "published",
+      "location_address": "string|null",
+      "location_lat": "float|null",
+      "location_lng": "float|null",
+      "payment_amount": "float|null",
+      "payment_currency": "USD",
+      "created_at": "iso8601-timestamp",
+      "updated_at": "iso8601-timestamp",
+      "published_at": "iso8601-timestamp|null",
+      "expires_at": "iso8601-timestamp|null",
+      "categories": ["category1", "category2"],
+      "media_count": 3,
+      "distance_km": 5.2
     }
-  });
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Unknown error');
-  }
-  
-  // Handle 204 No Content
-  if (response.status === 204) {
-    return null;
-  }
-  
-  return response.json();
+  ],
+  "total": 123,
+  "limit": 50,
+  "offset": 0
 }
-
-// Usage
-try {
-  const paps = await apiCall('/paps');
-} catch (error) {
-  console.error('API Error:', error.message);
-}
-```
-
-### Comment Thread Display
-
-```javascript
-// Load comments for a PAPS
-const commentsResponse = await apiCall(`/paps/${papsId}/comments`);
-const { comments, total_count } = commentsResponse;
-
-// For each comment with replies, load the thread
-for (const comment of comments) {
-  if (comment.reply_count > 0) {
-    const threadResponse = await apiCall(`/comments/${comment.id}/thread`);
-    comment.replies = threadResponse.replies;
-  }
-}
-```
-
-### Application Flow
-
-```javascript
-// 1. Apply to a PAPS
-const applyResponse = await apiCall(`/paps/${papsId}/apply`, {
-  method: 'POST',
-  body: JSON.stringify({
-    message: 'I would love to work on this project!'
-  })
-});
-const { spap_id } = applyResponse;
-
-// 2. Upload supporting documents
-const formData = new FormData();
-formData.append('media', resumeFile);
-await fetch(`/spap/${spap_id}/media`, {
-  method: 'POST',
-  headers: { 'Authorization': `Bearer ${token}` },
-  body: formData
-});
-
-// 3. Check application status
-const myApps = await apiCall('/spap/my');
 ```
 
 ---
 
-## Changelog
+### POST /paps
+**Description**: Create new job posting  
+**Authorization**: AUTH  
+**Content-Type**: application/json
 
-See [CHANGELOG.md](CHANGELOG.md) for version history.
+**Request Body**:
+```json
+{
+  "title": "string (required, 5-200 chars)",
+  "description": "string (required, 10-5000 chars)",
+  "status": "string (optional, default: 'draft')",
+  "location_address": "string (optional, max 500 chars)",
+  "location_lat": "float (optional, -90 to 90)",
+  "location_lng": "float (optional, -180 to 180)",
+  "payment_amount": "float (optional, > 0)",
+  "payment_currency": "string (optional, default: 'USD', 3 chars)",
+  "expires_at": "iso8601-timestamp (optional)",
+  "category_ids": ["uuid"] (optional, array of category UUIDs),
+  "schedule": [
+    {
+      "start_time": "iso8601-timestamp (required)",
+      "end_time": "iso8601-timestamp (required)",
+      "is_recurring": "boolean (optional, default: false)",
+      "recurrence_pattern": "string (optional): daily, weekly, monthly"
+    }
+  ]
+}
+```
+
+**Validation Rules**:
+- `title`: 5-200 characters
+- `description`: 10-5000 characters
+- `status`: "draft", "published", "closed", or "expired"
+- `location_lat`: -90 to 90
+- `location_lng`: -180 to 180
+- `payment_amount`: Must be positive
+- `payment_currency`: 3-letter code (USD, EUR, etc.)
+- `expires_at`: Must be in future
+- `category_ids`: Each must be valid category UUID
+- `schedule.end_time`: Must be after start_time
+
+**Success Response (201)**:
+```json
+{
+  "paps_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Validation failed
+- **404 Not Found**: Category not found
 
 ---
 
-## Support
+### GET /paps/{paps_id}
+**Description**: Get specific job posting details  
+**Authorization**: OPEN
 
-For issues or questions, refer to:
-- [Developer Guide](DEV.md)
-- [Troubleshooting](TROUBLESHOOTING.md)
-- [Test Data Setup](TEST_DATA_SETUP.md)
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "paps_id": "uuid",
+  "owner_id": "uuid",
+  "owner_username": "string",
+  "owner_avatar": "string|null",
+  "title": "string",
+  "description": "string",
+  "status": "published",
+  "location_address": "string|null",
+  "location_lat": "float|null",
+  "location_lng": "float|null",
+  "payment_amount": "float|null",
+  "payment_currency": "USD",
+  "created_at": "iso8601-timestamp",
+  "updated_at": "iso8601-timestamp",
+  "published_at": "iso8601-timestamp|null",
+  "expires_at": "iso8601-timestamp|null",
+  "categories": [
+    {
+      "category_id": "uuid",
+      "name": "string",
+      "slug": "string",
+      "is_primary": true|false
+    }
+  ],
+  "media": [
+    {
+      "media_id": "uuid",
+      "file_url": "string",
+      "file_type": "string",
+      "file_size": 123456,
+      "uploaded_at": "iso8601-timestamp"
+    }
+  ],
+  "schedule": [
+    {
+      "schedule_id": "uuid",
+      "start_time": "iso8601-timestamp",
+      "end_time": "iso8601-timestamp",
+      "is_recurring": true|false,
+      "recurrence_pattern": "weekly|null"
+    }
+  ],
+  "application_count": 5,
+  "assignment_count": 1
+}
+```
+
+**Error Responses**:
+- **404 Not Found**: PAPS not found
+
+---
+
+### PUT /paps/{paps_id}
+**Description**: Update job posting  
+**Authorization**: AUTH (must be owner or admin)
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Request Body**: Same as POST /paps
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS not found
+
+---
+
+### PATCH /paps/{paps_id}
+**Description**: Partially update job posting  
+**Authorization**: AUTH (must be owner or admin)
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Request Body**: Same as POST /paps, all fields optional
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS not found
+
+---
+
+### DELETE /paps/{paps_id}
+**Description**: Delete job posting  
+**Authorization**: AUTH (must be owner) or ADMIN
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Soft delete (sets deleted_at timestamp)
+- Deletes all media files from disk
+- Cascades to delete SPAPs, ASAPs, comments, etc.
+
+**Error Responses**:
+- **400 Bad Request**: Cannot delete PAPS with active payments (delete payments first)
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS not found
+
+---
+
+### POST /paps/{paps_id}/media
+**Description**: Upload media file for job posting  
+**Authorization**: AUTH (must be owner)  
+**Content-Type**: multipart/form-data
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Request**:
+```
+Content-Type: multipart/form-data
+
+file: [binary file data]
+```
+
+**Validation Rules**:
+- Allowed types: PNG, JPEG, JPG, GIF, WEBP, MP4, MOV, PDF
+- Max size: 50 MB
+- Max 10 media files per PAPS
+
+**Success Response (201)**:
+```json
+{
+  "media_id": "uuid",
+  "file_url": "media/paps/paps_id/media_id.ext"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Max media limit reached or no file provided
+- **403 Forbidden**: Not owner
+- **413 Payload Too Large**: File exceeds 50 MB
+- **415 Unsupported Media Type**: Invalid file type
+
+---
+
+### DELETE /paps/{paps_id}/media/{media_id}
+**Description**: Delete media file from job posting  
+**Authorization**: AUTH (must be owner) or ADMIN
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+- `media_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Deletes file from disk
+
+**Error Responses**:
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: Media not found
+
+---
+
+### GET /paps/{paps_id}/schedule
+**Description**: Get job posting schedule  
+**Authorization**: OPEN
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+[
+  {
+    "schedule_id": "uuid",
+    "paps_id": "uuid",
+    "start_time": "iso8601-timestamp",
+    "end_time": "iso8601-timestamp",
+    "is_recurring": true|false,
+    "recurrence_pattern": "weekly|null",
+    "created_at": "iso8601-timestamp",
+    "updated_at": "iso8601-timestamp"
+  }
+]
+```
+
+---
+
+### POST /paps/{paps_id}/schedule
+**Description**: Add schedule entry for job posting  
+**Authorization**: AUTH (must be owner)
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "start_time": "iso8601-timestamp (required)",
+  "end_time": "iso8601-timestamp (required)",
+  "is_recurring": "boolean (optional, default: false)",
+  "recurrence_pattern": "string (optional): daily, weekly, monthly"
+}
+```
+
+**Validation Rules**:
+- `end_time` must be after `start_time`
+
+**Success Response (201)**:
+```json
+{
+  "schedule_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: end_time before start_time
+- **403 Forbidden**: Not owner
+- **404 Not Found**: PAPS not found
+
+---
+
+### DELETE /paps/{paps_id}/schedule/{schedule_id}
+**Description**: Delete schedule entry  
+**Authorization**: AUTH (must be owner) or ADMIN
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+- `schedule_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: Schedule entry not found
+
+---
+
+## Applications (SPAP)
+
+### GET /spaps
+**Description**: Get job applications with filters  
+**Authorization**: AUTH
+
+**Query Parameters**:
+- `paps_id`: string UUID (optional) - Filter by job posting
+- `applicant_id`: string UUID (optional) - Filter by applicant
+- `status`: string (optional) - Filter by status: "pending", "accepted", "rejected", "withdrawn"
+
+**Success Response (200)**:
+```json
+{
+  "spaps": [
+    {
+      "spap_id": "uuid",
+      "paps_id": "uuid",
+      "paps_title": "string",
+      "applicant_id": "uuid",
+      "applicant_username": "string",
+      "applicant_avatar": "string|null",
+      "status": "pending",
+      "message": "string|null",
+      "applied_at": "iso8601-timestamp"
+    }
+  ]
+}
+```
+
+---
+
+### POST /spaps
+**Description**: Apply for a job posting  
+**Authorization**: AUTH  
+**Content-Type**: application/json
+
+**Request Body**:
+```json
+{
+  "paps_id": "uuid (required)",
+  "message": "string (optional, application message/cover letter)"
+}
+```
+
+**Validation Rules**:
+- Cannot apply to your own PAPS
+- Cannot apply twice to same PAPS
+- PAPS must be in "published" status
+
+**Success Response (201)**:
+```json
+{
+  "spap_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Cannot apply to own PAPS or already applied
+- **404 Not Found**: PAPS not found or not published
+
+---
+
+### GET /spaps/{spap_id}
+**Description**: Get specific application details  
+**Authorization**: AUTH (must be applicant or PAPS owner or admin)
+
+**Path Parameters**:
+- `spap_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "spap_id": "uuid",
+  "paps_id": "uuid",
+  "paps_title": "string",
+  "paps_description": "string",
+  "applicant_id": "uuid",
+  "applicant_username": "string",
+  "applicant_avatar": "string|null",
+  "applicant_email": "string",
+  "applicant_phone": "string|null",
+  "status": "pending",
+  "message": "string|null",
+  "applied_at": "iso8601-timestamp",
+  "media": [
+    {
+      "media_id": "uuid",
+      "file_url": "string",
+      "file_type": "string"
+    }
+  ]
+}
+```
+
+**Error Responses**:
+- **403 Forbidden**: Not authorized to view
+- **404 Not Found**: SPAP not found
+
+---
+
+### PATCH /spaps/{spap_id}
+**Description**: Update application status or message  
+**Authorization**: AUTH (applicant to update message, PAPS owner to update status)
+
+**Path Parameters**:
+- `spap_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "status": "string (optional): pending, accepted, rejected, withdrawn",
+  "message": "string (optional, application message)"
+}
+```
+
+**Validation Rules**:
+- Only applicant can update `message`
+- Only PAPS owner can update `status` to "accepted" or "rejected"
+- Only applicant can set status to "withdrawn"
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **403 Forbidden**: Not authorized
+- **404 Not Found**: SPAP not found
+
+---
+
+### DELETE /spaps/{spap_id}
+**Description**: Delete/withdraw application  
+**Authorization**: AUTH (must be applicant) or ADMIN
+
+**Path Parameters**:
+- `spap_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Soft delete (sets deleted_at)
+- Deletes all SPAP media files
+
+**Error Responses**:
+- **403 Forbidden**: Not applicant or admin
+- **404 Not Found**: SPAP not found
+
+---
+
+### POST /spaps/{spap_id}/media
+**Description**: Upload media for application  
+**Authorization**: AUTH (must be applicant)  
+**Content-Type**: multipart/form-data
+
+**Path Parameters**:
+- `spap_id`: string (UUID)
+
+**Request**: Same format as PAPS media upload
+
+**Validation Rules**:
+- Allowed types: PNG, JPEG, JPG, GIF, WEBP, PDF
+- Max size: 10 MB
+- Max 5 media files per SPAP
+
+**Success Response (201)**:
+```json
+{
+  "media_id": "uuid",
+  "file_url": "media/spap/spap_id/media_id.ext"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Max media limit reached
+- **403 Forbidden**: Not applicant
+- **413 Payload Too Large**: File exceeds 10 MB
+- **415 Unsupported Media Type**: Invalid file type
+
+---
+
+## Assignments (ASAP)
+
+### GET /asaps
+**Description**: Get job assignments with filters  
+**Authorization**: AUTH
+
+**Query Parameters**:
+- `paps_id`: string UUID (optional) - Filter by job posting
+- `accepted_user_id`: string UUID (optional) - Filter by accepted user
+- `status`: string (optional) - Filter by status: "active", "in_progress", "completed", "cancelled", "disputed"
+
+**Success Response (200)**:
+```json
+{
+  "asaps": [
+    {
+      "asap_id": "uuid",
+      "paps_id": "uuid",
+      "paps_title": "string",
+      "accepted_user_id": "uuid",
+      "accepted_username": "string",
+      "status": "in_progress",
+      "assigned_at": "iso8601-timestamp",
+      "started_at": "iso8601-timestamp|null",
+      "completed_at": "iso8601-timestamp|null"
+    }
+  ]
+}
+```
+
+---
+
+### POST /asaps
+**Description**: Create assignment from accepted application  
+**Authorization**: AUTH (must be PAPS owner)  
+**Content-Type**: application/json
+
+**Request Body**:
+```json
+{
+  "paps_id": "uuid (required)",
+  "accepted_user_id": "uuid (required)"
+}
+```
+
+**Validation Rules**:
+- User must be PAPS owner
+- accepted_user_id must have an accepted SPAP for this PAPS
+- PAPS must be in "published" status
+
+**Success Response (201)**:
+```json
+{
+  "asap_id": "uuid"
+}
+```
+
+**Side Effects**:
+- Creates assignment with status "active"
+- Links accepted user to PAPS
+
+**Error Responses**:
+- **400 Bad Request**: User has no accepted SPAP or validation failed
+- **403 Forbidden**: Not PAPS owner
+- **404 Not Found**: PAPS or user not found
+
+---
+
+### GET /asaps/{asap_id}
+**Description**: Get specific assignment details  
+**Authorization**: AUTH (must be involved user or admin)
+
+**Path Parameters**:
+- `asap_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "asap_id": "uuid",
+  "paps_id": "uuid",
+  "paps_title": "string",
+  "paps_description": "string",
+  "paps_location": "string|null",
+  "paps_payment_amount": "float|null",
+  "paps_payment_currency": "USD",
+  "accepted_user_id": "uuid",
+  "accepted_username": "string",
+  "accepted_user_email": "string",
+  "accepted_user_phone": "string|null",
+  "status": "in_progress",
+  "assigned_at": "iso8601-timestamp",
+  "started_at": "iso8601-timestamp|null",
+  "completed_at": "iso8601-timestamp|null",
+  "media": [
+    {
+      "media_id": "uuid",
+      "file_url": "string",
+      "file_type": "string"
+    }
+  ]
+}
+```
+
+**Error Responses**:
+- **403 Forbidden**: Not involved in assignment
+- **404 Not Found**: ASAP not found
+
+---
+
+### PATCH /asaps/{asap_id}
+**Description**: Update assignment status  
+**Authorization**: AUTH (must be owner or accepted user)
+
+**Path Parameters**:
+- `asap_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "status": "string (required): active, in_progress, completed, cancelled, disputed"
+}
+```
+
+**Validation Rules**:
+- Owner can set: "active", "in_progress", "completed", "cancelled", "disputed"
+- Accepted user can set: "in_progress", "completed"
+- Cannot change status of already completed assignment
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- If status set to "completed" and PAPS has payment_amount:
+  - Automatically creates payment record
+  - Payment links to PAPS (paps_id)
+  - Payer: PAPS owner
+  - Payee: Accepted user
+  - Amount/Currency: From PAPS
+
+**Error Responses**:
+- **400 Bad Request**: Invalid status transition
+- **403 Forbidden**: Not authorized
+- **404 Not Found**: ASAP not found
+
+---
+
+### DELETE /asaps/{asap_id}
+**Description**: Delete assignment  
+**Authorization**: AUTH (must be owner) or ADMIN
+
+**Path Parameters**:
+- `asap_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Soft delete (sets deleted_at)
+- Deletes all ASAP media files
+- Can be deleted after payments are removed (PAYMENT→PAPS RESTRICT allows ASAP deletion)
+
+**Error Responses**:
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: ASAP not found
+
+---
+
+### POST /asaps/{asap_id}/media
+**Description**: Upload media for assignment (proof of work)  
+**Authorization**: AUTH (must be accepted user or owner)  
+**Content-Type**: multipart/form-data
+
+**Path Parameters**:
+- `asap_id`: string (UUID)
+
+**Request**: Same format as PAPS media upload
+
+**Validation Rules**:
+- Allowed types: PNG, JPEG, JPG, GIF, WEBP, MP4, MOV, PDF
+- Max size: 50 MB
+- Max 20 media files per ASAP
+
+**Success Response (201)**:
+```json
+{
+  "media_id": "uuid",
+  "file_url": "media/asap/asap_id/media_id.ext"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Max media limit reached
+- **403 Forbidden**: Not involved in assignment
+- **413 Payload Too Large**: File exceeds 50 MB
+- **415 Unsupported Media Type**: Invalid file type
+
+---
+
+## Payment Management
+
+### GET /paps/{paps_id}/payments
+**Description**: Get all payments for a job posting  
+**Authorization**: AUTH (must be PAPS owner or admin)
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "payments": [
+    {
+      "payment_id": "uuid",
+      "paps_id": "uuid",
+      "paps_title": "string",
+      "payer_id": "uuid",
+      "payer_username": "string",
+      "payee_id": "uuid",
+      "payee_username": "string",
+      "amount": 100.50,
+      "currency": "USD",
+      "status": "pending",
+      "payment_method": "string|null",
+      "transaction_id": "string|null",
+      "created_at": "iso8601-timestamp",
+      "updated_at": "iso8601-timestamp",
+      "completed_at": "iso8601-timestamp|null"
+    }
+  ]
+}
+```
+
+**Error Responses**:
+- **403 Forbidden**: Not PAPS owner or admin
+- **404 Not Found**: PAPS not found
+
+---
+
+### POST /paps/{paps_id}/payments
+**Description**: Create payment for a job posting  
+**Authorization**: AUTH (must be PAPS owner)  
+**Content-Type**: application/json
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "payee_id": "uuid (required) - Worker receiving payment",
+  "amount": "float (required, > 0)",
+  "currency": "string (optional, default: 'USD', 3 chars)",
+  "payment_method": "string (optional): card, bank_transfer, cash, paypal, etc.",
+  "transaction_id": "string (optional) - External transaction reference"
+}
+```
+
+**Validation Rules**:
+- `amount`: Must be positive
+- `currency`: 3-letter code (USD, EUR, etc.)
+- `payee_id`: Must be valid user UUID
+- PAPS must exist (RESTRICT constraint)
+- Payer: Automatically set to PAPS owner (current user)
+
+**Success Response (201)**:
+```json
+{
+  "payment_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid amount or validation failed
+- **403 Forbidden**: Not PAPS owner
+- **404 Not Found**: PAPS or payee not found
+
+---
+
+### GET /payments/{payment_id}
+**Description**: Get specific payment details  
+**Authorization**: AUTH (must be payer, payee, or admin)
+
+**Path Parameters**:
+- `payment_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "payment_id": "uuid",
+  "paps_id": "uuid",
+  "paps_title": "string",
+  "payer_id": "uuid",
+  "payer_username": "string",
+  "payer_email": "string",
+  "payee_id": "uuid",
+  "payee_username": "string",
+  "payee_email": "string",
+  "amount": 100.50,
+  "currency": "USD",
+  "status": "pending",
+  "payment_method": "card",
+  "transaction_id": "ext_txn_123",
+  "created_at": "iso8601-timestamp",
+  "updated_at": "iso8601-timestamp",
+  "completed_at": "iso8601-timestamp|null"
+}
+```
+
+**Error Responses**:
+- **403 Forbidden**: Not involved in payment
+- **404 Not Found**: Payment not found
+
+---
+
+### PATCH /payments/{payment_id}
+**Description**: Update payment status  
+**Authorization**: AUTH (must be payer or admin)
+
+**Path Parameters**:
+- `payment_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "status": "string (optional): pending, processing, completed, failed, refunded",
+  "payment_method": "string (optional)",
+  "transaction_id": "string (optional)"
+}
+```
+
+**Validation Rules**:
+- Only payer or admin can update payment
+- Status transitions: pending → processing → completed/failed
+- Completed payments cannot be modified (except for refunded)
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid status transition
+- **403 Forbidden**: Not payer or admin
+- **404 Not Found**: Payment not found
+
+---
+
+### DELETE /payments/{payment_id}
+**Description**: Delete payment record  
+**Authorization**: ADMIN only
+
+**Path Parameters**:
+- `payment_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Important**:
+- Must delete payments before deleting PAPS (RESTRICT constraint)
+- Soft delete (sets deleted_at timestamp)
+
+**Error Responses**:
+- **403 Forbidden**: Not admin
+- **404 Not Found**: Payment not found
+
+---
+
+### GET /user/payments
+**Description**: Get current user's payments (as payer or payee)  
+**Authorization**: AUTH
+
+**Query Parameters**:
+- `role`: string (optional) - Filter by role: "payer", "payee"
+- `status`: string (optional) - Filter by status: "pending", "completed", etc.
+
+**Success Response (200)**:
+```json
+{
+  "payments": [
+    {
+      "payment_id": "uuid",
+      "paps_id": "uuid",
+      "paps_title": "string",
+      "payer_id": "uuid",
+      "payer_username": "string",
+      "payee_id": "uuid",
+      "payee_username": "string",
+      "amount": 100.50,
+      "currency": "USD",
+      "status": "completed",
+      "payment_method": "card",
+      "created_at": "iso8601-timestamp",
+      "completed_at": "iso8601-timestamp"
+    }
+  ]
+}
+```
+
+---
+
+## Rating System
+
+### GET /ratings/{user_id}
+**Description**: Get ratings for a specific user  
+**Authorization**: OPEN
+
+**Path Parameters**:
+- `user_id`: string (UUID or username)
+
+**Success Response (200)**:
+```json
+{
+  "user_id": "uuid",
+  "username": "string",
+  "average_rating": 4.5,
+  "total_ratings": 23,
+  "ratings": [
+    {
+      "rating_id": "uuid",
+      "paps_id": "uuid",
+      "paps_title": "string",
+      "rater_id": "uuid",
+      "rater_username": "string",
+      "rated_user_id": "uuid",
+      "rating": 5,
+      "review": "Excellent work!",
+      "created_at": "iso8601-timestamp"
+    }
+  ]
+}
+```
+
+---
+
+### POST /ratings
+**Description**: Create rating for completed job  
+**Authorization**: AUTH  
+**Content-Type**: application/json
+
+**Request Body**:
+```json
+{
+  "paps_id": "uuid (required)",
+  "rated_user_id": "uuid (required)",
+  "rating": "integer (required, 1-5)",
+  "review": "string (optional, max 1000 chars)"
+}
+```
+
+**Validation Rules**:
+- `rating`: Integer between 1 and 5
+- PAPS must exist and be completed
+- Must be involved in the job (owner or worker)
+- Cannot rate yourself
+- Can only rate once per PAPS
+- `review`: Max 1000 characters
+
+**Success Response (201)**:
+```json
+{
+  "rating_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid rating value or validation failed
+- **403 Forbidden**: Not involved in job or already rated
+- **404 Not Found**: PAPS or rated user not found
+
+---
+
+### GET /ratings/{rating_id}
+**Description**: Get specific rating details  
+**Authorization**: OPEN
+
+**Path Parameters**:
+- `rating_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "rating_id": "uuid",
+  "paps_id": "uuid",
+  "paps_title": "string",
+  "rater_id": "uuid",
+  "rater_username": "string",
+  "rater_avatar": "string|null",
+  "rated_user_id": "uuid",
+  "rated_username": "string",
+  "rating": 5,
+  "review": "Excellent work!",
+  "created_at": "iso8601-timestamp"
+}
+```
+
+**Error Responses**:
+- **404 Not Found**: Rating not found
+
+---
+
+### PATCH /ratings/{rating_id}
+**Description**: Update your rating  
+**Authorization**: AUTH (must be rater)
+
+**Path Parameters**:
+- `rating_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "rating": "integer (optional, 1-5)",
+  "review": "string (optional, max 1000 chars)"
+}
+```
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid rating value
+- **403 Forbidden**: Not your rating
+- **404 Not Found**: Rating not found
+
+---
+
+### DELETE /ratings/{rating_id}
+**Description**: Delete rating  
+**Authorization**: AUTH (must be rater) or ADMIN
+
+**Path Parameters**:
+- `rating_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **403 Forbidden**: Not your rating or admin
+- **404 Not Found**: Rating not found
+
+---
+
+## Comment System
+
+### GET /paps/{paps_id}/comments
+**Description**: Get comments for a job posting  
+**Authorization**: OPEN
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Query Parameters**:
+- `parent_id`: string UUID (optional) - Filter by parent comment (for replies)
+- `limit`: integer (optional, default: 50)
+- `offset`: integer (optional, default: 0)
+
+**Success Response (200)**:
+```json
+{
+  "comments": [
+    {
+      "comment_id": "uuid",
+      "paps_id": "uuid",
+      "user_id": "uuid",
+      "username": "string",
+      "user_avatar": "string|null",
+      "parent_id": "uuid|null",
+      "content": "string",
+      "created_at": "iso8601-timestamp",
+      "updated_at": "iso8601-timestamp",
+      "reply_count": 3,
+      "is_deleted": false
+    }
+  ],
+  "total": 15
+}
+```
+
+---
+
+### POST /paps/{paps_id}/comments
+**Description**: Create comment on job posting  
+**Authorization**: AUTH  
+**Content-Type**: application/json
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "content": "string (required, 1-2000 chars)",
+  "parent_id": "uuid (optional) - Reply to another comment"
+}
+```
+
+**Validation Rules**:
+- `content`: 1-2000 characters
+- `parent_id`: Must be valid comment on same PAPS if provided
+
+**Success Response (201)**:
+```json
+{
+  "comment_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Content too short/long or invalid parent
+- **404 Not Found**: PAPS or parent comment not found
+
+---
+
+### GET /comments/{comment_id}
+**Description**: Get specific comment  
+**Authorization**: OPEN
+
+**Path Parameters**:
+- `comment_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "comment_id": "uuid",
+  "paps_id": "uuid",
+  "paps_title": "string",
+  "user_id": "uuid",
+  "username": "string",
+  "user_avatar": "string|null",
+  "parent_id": "uuid|null",
+  "content": "string",
+  "created_at": "iso8601-timestamp",
+  "updated_at": "iso8601-timestamp",
+  "is_deleted": false,
+  "replies": [
+    {
+      "comment_id": "uuid",
+      "user_id": "uuid",
+      "username": "string",
+      "content": "string",
+      "created_at": "iso8601-timestamp"
+    }
+  ]
+}
+```
+
+**Error Responses**:
+- **404 Not Found**: Comment not found
+
+---
+
+### PATCH /comments/{comment_id}
+**Description**: Update your comment  
+**Authorization**: AUTH (must be comment author)
+
+**Path Parameters**:
+- `comment_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "content": "string (required, 1-2000 chars)"
+}
+```
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Content validation failed
+- **403 Forbidden**: Not your comment
+- **404 Not Found**: Comment not found
+
+---
+
+### DELETE /comments/{comment_id}
+**Description**: Delete comment  
+**Authorization**: AUTH (must be author, PAPS owner, or admin)
+
+**Path Parameters**:
+- `comment_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Soft delete (sets deleted_at and is_deleted=true)
+- Content replaced with "[deleted]"
+- Preserves tree structure (replies remain)
+
+**Error Responses**:
+- **403 Forbidden**: Not authorized
+- **404 Not Found**: Comment not found
+
+---
+
+## Chat System
+
+### GET /chats
+**Description**: Get current user's chat threads  
+**Authorization**: AUTH
+
+**Query Parameters**:
+- `paps_id`: string UUID (optional) - Filter by job posting
+- `unread_only`: boolean (optional) - Show only threads with unread messages
+
+**Success Response (200)**:
+```json
+{
+  "threads": [
+    {
+      "thread_id": "uuid",
+      "paps_id": "uuid|null",
+      "paps_title": "string|null",
+      "spap_id": "uuid|null",
+      "asap_id": "uuid|null",
+      "participants": [
+        {
+          "user_id": "uuid",
+          "username": "string",
+          "avatar_url": "string|null"
+        }
+      ],
+      "last_message": {
+        "message_id": "uuid",
+        "sender_id": "uuid",
+        "sender_username": "string",
+        "content": "string",
+        "sent_at": "iso8601-timestamp"
+      },
+      "unread_count": 3,
+      "created_at": "iso8601-timestamp",
+      "updated_at": "iso8601-timestamp"
+    }
+  ]
+}
+```
+
+---
+
+### POST /chats
+**Description**: Create new chat thread  
+**Authorization**: AUTH  
+**Content-Type**: application/json
+
+**Request Body**:
+```json
+{
+  "participant_ids": ["uuid"] (required, array of user UUIDs),
+  "paps_id": "uuid (optional) - Associate with job posting",
+  "spap_id": "uuid (optional) - Associate with application",
+  "asap_id": "uuid (optional) - Associate with assignment",
+  "initial_message": "string (optional) - First message content"
+}
+```
+
+**Validation Rules**:
+- At least 1 participant (excluding yourself)
+- Max 10 participants per thread
+- Cannot create duplicate threads with same participants
+
+**Success Response (201)**:
+```json
+{
+  "thread_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Validation failed or duplicate thread
+- **404 Not Found**: Participant not found
+
+---
+
+### GET /chats/{thread_id}
+**Description**: Get chat thread details  
+**Authorization**: AUTH (must be participant)
+
+**Path Parameters**:
+- `thread_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "thread_id": "uuid",
+  "paps_id": "uuid|null",
+  "paps_title": "string|null",
+  "spap_id": "uuid|null",
+  "asap_id": "uuid|null",
+  "participants": [
+    {
+      "user_id": "uuid",
+      "username": "string",
+      "avatar_url": "string|null",
+      "joined_at": "iso8601-timestamp"
+    }
+  ],
+  "created_at": "iso8601-timestamp",
+  "updated_at": "iso8601-timestamp"
+}
+```
+
+**Error Responses**:
+- **403 Forbidden**: Not a participant
+- **404 Not Found**: Thread not found
+
+---
+
+### DELETE /chats/{thread_id}
+**Description**: Delete chat thread  
+**Authorization**: AUTH (must be participant) or ADMIN
+
+**Path Parameters**:
+- `thread_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Soft delete (sets deleted_at)
+- Deletes all messages in thread
+
+**Error Responses**:
+- **403 Forbidden**: Not participant or admin
+- **404 Not Found**: Thread not found
+
+---
+
+### GET /chats/{thread_id}/messages
+**Description**: Get messages in a thread  
+**Authorization**: AUTH (must be participant)
+
+**Path Parameters**:
+- `thread_id`: string (UUID)
+
+**Query Parameters**:
+- `limit`: integer (optional, default: 50)
+- `offset`: integer (optional, default: 0)
+- `before`: string timestamp (optional) - Messages before this time
+- `after`: string timestamp (optional) - Messages after this time
+
+**Success Response (200)**:
+```json
+{
+  "messages": [
+    {
+      "message_id": "uuid",
+      "thread_id": "uuid",
+      "sender_id": "uuid",
+      "sender_username": "string",
+      "sender_avatar": "string|null",
+      "content": "string",
+      "sent_at": "iso8601-timestamp",
+      "read_by": ["uuid"],
+      "is_system_message": false
+    }
+  ],
+  "total": 42
+}
+```
+
+**Error Responses**:
+- **403 Forbidden**: Not a participant
+- **404 Not Found**: Thread not found
+
+---
+
+### POST /chats/{thread_id}/messages
+**Description**: Send message to thread  
+**Authorization**: AUTH (must be participant)  
+**Content-Type**: application/json
+
+**Path Parameters**:
+- `thread_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "content": "string (required, 1-5000 chars)"
+}
+```
+
+**Validation Rules**:
+- `content`: 1-5000 characters
+- Must be thread participant
+
+**Success Response (201)**:
+```json
+{
+  "message_id": "uuid"
+}
+```
+
+**Side Effects**:
+- Updates thread's updated_at timestamp
+- Increments unread count for other participants
+
+**Error Responses**:
+- **400 Bad Request**: Content too short/long
+- **403 Forbidden**: Not a participant
+- **404 Not Found**: Thread not found
+
+---
+
+### POST /chats/{thread_id}/read
+**Description**: Mark messages as read  
+**Authorization**: AUTH (must be participant)
+
+**Path Parameters**:
+- `thread_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "message_ids": ["uuid"] (optional, if omitted marks all as read)
+}
+```
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **403 Forbidden**: Not a participant
+- **404 Not Found**: Thread not found
+
+---
+
+## Common Error Codes
+
+### 400 Bad Request
+- Invalid request parameters
+- Validation failed
+- Business logic violation
+
+### 401 Unauthorized
+- Missing or invalid authentication token
+- Invalid credentials
+
+### 403 Forbidden
+- Insufficient permissions
+- Not resource owner
+- Not admin when required
+
+### 404 Not Found
+- Resource doesn't exist
+- Deleted resource
+
+### 409 Conflict
+- Resource already exists
+- Duplicate constraint violation
+
+### 413 Payload Too Large
+- File upload exceeds size limit
+
+### 415 Unsupported Media Type
+- Invalid file type for upload
+
+### 500 Internal Server Error
+- Unexpected server error
+- Database error
+
+---
+
+## Data Lifecycle and Constraints
+
+### Deletion Order (RESTRICT Constraints)
+1. **Delete PAYMENT before PAPS**: PAYMENT has RESTRICT constraint on PAPS
+2. **Delete PAPS before USER**: Cannot delete user who owns PAPS with payments
+
+### Cascade Deletions
+- **PAPS deletion** → Cascades to SPAP, ASAP, COMMENT, CHAT_THREAD
+- **SPAP deletion** → Cascades to ASAP (if ASAP references SPAP)
+- **USER deletion** → Admin route handles all cascades explicitly
+
+### Soft Deletes
+- PAPS, SPAP, ASAP, COMMENT, PAYMENT: Use `deleted_at` timestamp
+- Soft-deleted items excluded from normal queries
+- Admin can query all items including deleted
+
+---
+
+## Authentication Flow
+
+1. **Registration**: POST /register → Get user_id
+2. **Login**: GET or POST /login → Get JWT token
+3. **Authenticated Requests**: Include token in header:
+   ```
+   Authorization: Bearer {token}
+   ```
+4. **Token Refresh**: Login again to get new token
+5. **Admin Routes**: Require `is_admin=true` in user record
+
+---
+
+## Media Upload Guidelines
+
+### Avatar
+- **Types**: PNG, JPEG, JPG, GIF, WEBP
+- **Max Size**: 5 MB
+- **Compression**: Automatic
+- **Storage**: `media/user/profile/{user_id}.{ext}`
+
+### Category Icon
+- **Types**: PNG, JPEG, JPG, GIF, WEBP, SVG
+- **Max Size**: 2 MB
+- **Storage**: `media/category/{category_id}.{ext}`
+
+### PAPS Media
+- **Types**: PNG, JPEG, JPG, GIF, WEBP, MP4, MOV, PDF
+- **Max Size**: 50 MB
+- **Max Count**: 10 per PAPS
+- **Storage**: `media/paps/{paps_id}/{media_id}.{ext}`
+
+### SPAP Media
+- **Types**: PNG, JPEG, JPG, GIF, WEBP, PDF
+- **Max Size**: 10 MB
+- **Max Count**: 5 per SPAP
+- **Storage**: `media/spap/{spap_id}/{media_id}.{ext}`
+
+### ASAP Media
+- **Types**: PNG, JPEG, JPG, GIF, WEBP, MP4, MOV, PDF
+- **Max Size**: 50 MB
+- **Max Count**: 20 per ASAP
+- **Storage**: `media/asap/{asap_id}/{media_id}.{ext}`
+
+---
+
+## Rate Limiting (Not Implemented)
+
+Current implementation has no rate limiting. Consider adding:
+- **Authentication**: 5 requests/minute per IP
+- **Media Upload**: 10 uploads/hour per user
+- **API Requests**: 100 requests/minute per user
+
+---
+
+## Pagination
+
+Standard pagination parameters:
+- `limit`: Max results per page (default: 50)
+- `offset`: Number of results to skip (default: 0)
+
+Response includes:
+```json
+{
+  "results": [...],
+  "total": 123,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+---
+
+## Search and Filtering
+
+### Text Search
+- Case-insensitive
+- Searches in multiple fields (title, description, username, etc.)
+- Use `%` wildcard in SQL LIKE patterns
+
+### Location Search
+- Provides `location_lat`, `location_lng`, `radius_km`
+- Returns results within radius
+- Includes `distance_km` in response
+
+### Status Filtering
+- Most resources have `status` field
+- Standard statuses: draft, published, closed, expired, pending, accepted, rejected, etc.
+
+---
+
+This documentation covers all API routes in the Underboss backend system. For implementation details, see the source code in `/api/` directory.
