@@ -1,8 +1,15 @@
+<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
 import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { serv, API_BASE_URL } from '../serve';
 
+=======
+import React, { useEffect, useState } from 'react';
+import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Pressable, ScrollView } from 'react-native';
+import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
+import { serv } from '../serve';
+>>>>>>> 3821b0c (fix(frontend::feed): fix the god damn profile picture loading misery for clement because he keeps telling me to push, and I will do so, clement... sincerely yours, not hassan)
 
 // Get screen width for full-width images
 const { width } = Dimensions.get('window')
@@ -32,7 +39,7 @@ interface Pap {
   owner_email: string | null
   owner_id: string
   owner_name: string | null
-  owner_username: string | null
+  owner_username: string 
 
   payment_amount: number | null
   payment_currency: string
@@ -46,37 +53,45 @@ interface Pap {
   title: string
 
   updated_at: string | null
-  // Add other fields if returned by API
+  media_urls?: { media_url: string }[] | null
 }
 
 interface PapsPostProps {
   pap: Pap
 }
 
+
 export default function PapsPost({ pap }: PapsPostProps) {
   // Use first image or a placeholder
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [avatarUri, setAvatarUri] = useState<string>('');
 
-  useEffect(() => {
-    const fetchOwnerAvatar = async () => {
-      if (pap.owner_username) {
-        try {
-          // You can use profile.getByUsername to get the avatar_url
-          const profile = await serv('avatar.getByUsername', { 'username': pap.owner_username.toString() });
-          if (profile.avatar_url) {
-            setAvatarUrl(profile.avatar_url);
-          }
-        } catch (err) {
-          console.error('Failed to fetch owner avatar:', err);
-        }
-      }
-    };
-    fetchOwnerAvatar();
-  }, [pap.owner_username]);
+useEffect(() => {
+  const fetchAvatar = async () => {
+    if (!pap.owner_username) return;
 
+    try {
+      // 1. Fetch the binary data (Blob)
+      const response = await serv('avatar.getByUsername', { "username": pap.owner_username });
 
+      // 2. Convert Blob to Base64 string
+      const reader = new FileReader();
+      reader.readAsDataURL(response); 
+      
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        setAvatarUri(base64data); // This will be in the format "data:image/png;base64,..."
+      };
 
+    } catch (error) {
+      console.error("Error fetching avatar:", error);
+      setAvatarUri(null); // Fallback to initials on error
+    }
+  };
+
+  fetchAvatar();
+}, [pap.owner_username]);
 
   return (
     <View style={{ flexDirection: 'column' }}>
@@ -188,11 +203,16 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <Text style={styles.sectionTitle}>Posted by</Text>
                       <View style={styles.postedByCard}>
                         <View style={styles.avatarCircle}>
+<<<<<<< HEAD
 
                           {avatarUrl ? (
                             <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
                           ) : pap.owner_avatar ? (
                             <Image source={{ uri: pap.owner_avatar }} style={styles.avatarImage} />
+=======
+                          {pap.owner_avatar ? (
+                            <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+>>>>>>> 3821b0c (fix(frontend::feed): fix the god damn profile picture loading misery for clement because he keeps telling me to push, and I will do so, clement... sincerely yours, not hassan)
                           ) : (
                             <Text style={styles.avatarInitial}>
                               text
