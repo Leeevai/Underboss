@@ -78,61 +78,6 @@ def register_routes(app):
 
         return fsa.jsonify(asap), 200
 
-    # PUT /asap/<asap_id> - update assignment details (owner only)
-    @app.put("/asap/<asap_id>", authz="AUTH")
-    def update_asap(
-        asap_id: str,
-        auth: model.CurrentAuth,
-        title: str | None = None,
-        subtitle: str | None = None,
-        location_address: str | None = None,
-        location_lat: float | None = None,
-        location_lng: float | None = None,
-        location_timezone: str | None = None,
-        due_at: str | None = None
-    ):
-        """Update assignment details. Only paps owner or admin can update."""
-        try:
-            uuid.UUID(asap_id)
-        except ValueError:
-            return {"error": "Invalid ASAP ID format"}, 400
-
-        asap = db.get_asap_by_id(asap_id=asap_id)
-        if not asap:
-            return {"error": "Assignment not found"}, 404
-
-        # Only paps owner or admin can update
-        if not auth.is_admin and str(asap['owner_id']) != auth.aid:
-            return {"error": "Not authorized to update this assignment"}, 403
-
-        # Validate coordinates if provided
-        if location_lat is not None or location_lng is not None:
-            fsa.checkVal(location_lat is not None and location_lng is not None,
-                        "Both lat and lng must be provided", 400)
-            fsa.checkVal(-90 <= location_lat <= 90, "Invalid latitude", 400)
-            fsa.checkVal(-180 <= location_lng <= 180, "Invalid longitude", 400)
-
-        # Parse due_at if provided
-        due_dt = None
-        if due_at:
-            try:
-                due_dt = datetime.datetime.fromisoformat(due_at.replace('Z', '+00:00'))
-            except ValueError:
-                fsa.checkVal(False, "Invalid due_at format", 400)
-
-        db.update_asap(
-            asap_id=asap_id,
-            title=title,
-            subtitle=subtitle,
-            location_address=location_address,
-            location_lat=location_lat,
-            location_lng=location_lng,
-            location_timezone=location_timezone,
-            due_at=due_dt
-        )
-
-        return "", 204
-
     # PUT /asap/<asap_id>/status - update assignment status
     @app.put("/asap/<asap_id>/status", authz="AUTH")
     def update_asap_status(asap_id: str, auth: model.CurrentAuth, status: str):
@@ -177,15 +122,12 @@ def register_routes(app):
         now = datetime.datetime.now(datetime.timezone.utc)
         started_at = now if status == 'in_progress' and asap['started_at'] is None else None
         completed_at = now if status == 'completed' else None
-        # Set expiration 30 days after completion
-        expires_at = (now + datetime.timedelta(days=30)) if status == 'completed' else None
 
         db.update_asap_status(
             asap_id=asap_id,
             status=status,
             started_at=started_at,
-            completed_at=completed_at,
-            expires_at=expires_at
+            completed_at=completed_at
         )
 
         # If completed, create payment record

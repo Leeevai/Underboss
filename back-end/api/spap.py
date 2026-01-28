@@ -51,15 +51,7 @@ def register_routes(app):
         # Create ASAP
         asap_id = db.insert_asap(
             paps_id=paps_id,
-            accepted_user_id=applicant_id,
-            owner_id=owner_id,
-            title=paps.get('title'),
-            subtitle=paps.get('subtitle'),
-            location_address=paps.get('location_address'),
-            location_lat=paps.get('location_lat'),
-            location_lng=paps.get('location_lng'),
-            location_timezone=paps.get('location_timezone'),
-            due_at=paps.get('end_datetime')
+            accepted_user_id=applicant_id
         )
         
         # Transfer chat thread from SPAP to ASAP

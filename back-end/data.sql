@@ -246,10 +246,11 @@ INSERT INTO COMMENT (id, paps_id, user_id, parent_id, content) VALUES
 
 -- ============================================
 -- ASAP (Assigned Jobs) - For accepted applications
--- Note: ASAP no longer references SPAP, only contains accepted_user_id
+-- Note: ASAP is a minimal association table with only essential fields
+-- All job details (title, location, payment, owner) are in PAPS
 -- ============================================
-INSERT INTO ASAP (id, paps_id, accepted_user_id, owner_id, title, subtitle, status, assigned_at) VALUES
-  ('00000000-0000-0000-0006-000000000001', '00000000-0000-0000-0003-000000000003', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000202', 'Brand Identity Redesign', 'Complete brand refresh project', 'active', NOW());
+INSERT INTO ASAP (id, paps_id, accepted_user_id, status, assigned_at) VALUES
+  ('00000000-0000-0000-0006-000000000001', '00000000-0000-0000-0003-000000000003', '00000000-0000-0000-0000-000000000201', 'active', NOW());
 
 -- ============================================
 -- PAYMENTS (for completed ASAPs)
