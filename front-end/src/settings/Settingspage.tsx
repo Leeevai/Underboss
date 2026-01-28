@@ -10,6 +10,6 @@ import {serv} from '../serve';
 
 export default function SettingsPage({ logoutUser }: { logoutUser: () => void }) {
     return (
-        <View></View>p
+        <View></View>
     )
 }

@@ -7,6 +7,7 @@
 
 // Polyfill for Node.js environment
 import axios from 'axios';
+import { testAvatarGetByUsername } from './serv.test';
 
 // Backend URL
 const BASE_URL = 'http://localhost:5000';
@@ -369,80 +370,98 @@ async function testPapsDelete() {
 // MAIN TEST RUNNER
 // =============================================================================
 
+// async function runTests() {
+//   console.log(`\n${colors.cyan}╔════════════════════════════════════════════╗${colors.reset}`);
+//   console.log(`${colors.cyan}║${colors.reset}   serv() API Endpoint Tests                ${colors.cyan}║${colors.reset}`);
+//   console.log(`${colors.cyan}║${colors.reset}   Backend: ${BASE_URL}              ${colors.cyan}║${colors.reset}`);
+//   console.log(`${colors.cyan}╚════════════════════════════════════════════╝${colors.reset}`);
+
+//   let passed = 0;
+//   let failed = 0;
+  
+//   const track = (result: boolean) => result ? passed++ : failed++;
+
+//   // System (no auth)
+//   section('SYSTEM');
+//   track(await testSystemUptime());
+
+//   // Auth
+//   section('AUTH');
+//   track(await testRegister());
+//   track(await testLogin());
+  
+//   if (!authToken) {
+//     console.log(`\n${colors.red}Cannot continue without auth token!${colors.reset}`);
+//     return;
+//   }
+  
+//   track(await testWhoAmI()); // May not exist in all backends
+//   track(await testMyself());
+
+//   // Profile
+//   section('PROFILE');
+//   track(await testProfileGet());
+//   track(await testProfileUpdate());
+
+//   // Categories
+//   section('CATEGORIES');
+//   await testCategoriesList();
+//   passed++; // Count as pass if no exception
+
+//   // Experiences
+//   section('EXPERIENCES');
+//   track(await testExperiencesList());
+
+//   // Interests
+//   section('INTERESTS');
+//   track(await testInterestsList());
+
+//   // PAPS
+//   section('PAPS');
+//   await testPapsList();
+//   passed++;
+//   track(await testPapsCreate());
+//   track(await testPapsGet());
+//   track(await testPapsUpdate());
+
+//   // Comments
+//   section('COMMENTS');
+//   track(await testCommentsCreate());
+//   track(await testCommentsList());
+//   track(await testCommentsDelete());
+
+//   // SPAP
+//   section('SPAP (Applications)');
+//   track(await testSpapMy());
+
+//   // Cleanup
+//   section('CLEANUP');
+//   track(await testPapsDelete());
+
+//   // Summary
+//   console.log(`\n${colors.cyan}════════════════════════════════════════════${colors.reset}`);
+//   console.log(`${colors.green}Passed: ${passed}${colors.reset} | ${colors.red}Failed: ${failed}${colors.reset}`);
+//   console.log(`${colors.cyan}════════════════════════════════════════════${colors.reset}\n`);
+// }
+
+
+
 async function runTests() {
-  console.log(`\n${colors.cyan}╔════════════════════════════════════════════╗${colors.reset}`);
-  console.log(`${colors.cyan}║${colors.reset}   serv() API Endpoint Tests                ${colors.cyan}║${colors.reset}`);
-  console.log(`${colors.cyan}║${colors.reset}   Backend: ${BASE_URL}              ${colors.cyan}║${colors.reset}`);
-  console.log(`${colors.cyan}╚════════════════════════════════════════════╝${colors.reset}`);
-
-  let passed = 0;
-  let failed = 0;
+  // ... setup code ...
   
-  const track = (result: boolean) => result ? passed++ : failed++;
-
-  // System (no auth)
-  section('SYSTEM');
-  track(await testSystemUptime());
-
-  // Auth
-  section('AUTH');
-  track(await testRegister());
-  track(await testLogin());
-  
-  if (!authToken) {
-    console.log(`\n${colors.red}Cannot continue without auth token!${colors.reset}`);
-    return;
-  }
-  
-  track(await testWhoAmI()); // May not exist in all backends
-  track(await testMyself());
-
-  // Profile
-  section('PROFILE');
-  track(await testProfileGet());
-  track(await testProfileUpdate());
-  track(await testAvatarGetByUsername());
-
-  // Categories
-  section('CATEGORIES');
-  await testCategoriesList();
-  passed++; // Count as pass if no exception
-
-  // Experiences
-  section('EXPERIENCES');
-  track(await testExperiencesList());
-
-  // Interests
-  section('INTERESTS');
-  track(await testInterestsList());
-
-  // PAPS
+  // Comment out sections you don't need:
+  // section('AUTH');
+  // track(await testLogin());
+  await testRegister();
+  await testLogin();
+  // Run only what you need:
   section('PAPS');
-  await testPapsList();
-  passed++;
-  track(await testPapsCreate());
-  track(await testPapsGet());
-  track(await testPapsUpdate());
-
-  // Comments
-  section('COMMENTS');
-  track(await testCommentsCreate());
-  track(await testCommentsList());
-  track(await testCommentsDelete());
-
-  // SPAP
-  section('SPAP (Applications)');
-  track(await testSpapMy());
-
-  // Cleanup
-  section('CLEANUP');
-  track(await testPapsDelete());
-
-  // Summary
-  console.log(`\n${colors.cyan}════════════════════════════════════════════${colors.reset}`);
-  console.log(`${colors.green}Passed: ${passed}${colors.reset} | ${colors.red}Failed: ${failed}${colors.reset}`);
-  console.log(`${colors.cyan}════════════════════════════════════════════${colors.reset}\n`);
+  testLogin()
+  let res = await testPapsList();
+  console.log(res.paps[0]['owner_username'])
+  let x = await testAvatarGetByUsername();
+  
+  // ... etc
 }
-
 // Run!
 runTests().catch(console.error);

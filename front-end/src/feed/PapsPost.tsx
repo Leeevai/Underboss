@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
+import { serv, API_BASE_URL } from '../serve';
 
 
 // Get screen width for full-width images
@@ -54,10 +55,29 @@ interface PapsPostProps {
 
 export default function PapsPost({ pap }: PapsPostProps) {
   // Use first image or a placeholder
-  const imageUrl = pap.media_urls && pap.media_urls.length > 0
-    ? pap.media_urls[0].media_url
-    : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjRjBGMEYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5OTk5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4='
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  useEffect(() => {
+    const fetchOwnerAvatar = async () => {
+      if (pap.owner_username) {
+        try {
+          // You can use profile.getByUsername to get the avatar_url
+          const profile = await serv('avatar.getByUsername', { 'username': pap.owner_username.toString() });
+          if (profile.avatar_url) {
+            setAvatarUrl(profile.avatar_url);
+          }
+        } catch (err) {
+          console.error('Failed to fetch owner avatar:', err);
+        }
+      }
+    };
+    fetchOwnerAvatar();
+  }, [pap.owner_username]);
+
+
+
+
   return (
     <View style={{ flexDirection: 'column' }}>
       <View style={{ flex: 1, backgroundColor: '#792c2c13' }}>
@@ -71,7 +91,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
           <View style={styles.cardBody}>
             <Text style={styles.cardTitle}>{pap.title}</Text>
             <Text style={styles.cardDescription} numberOfLines={2}>
-              {pap.subtitle||pap.description}
+              {pap.subtitle || pap.description}
             </Text>
 
             <View style={styles.cardMeta}>
@@ -96,7 +116,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
               style={styles.applyButton}
               onPress={() => setModalVisible(true)}
             >
-              <Text style={styles.applyButtonText}>Apply</Text>
+              <Text style={styles.applyButtonText}>More info</Text>
             </TouchableOpacity>
           </View>
 
@@ -127,20 +147,20 @@ export default function PapsPost({ pap }: PapsPostProps) {
                         <Text style={styles.categoryTextSmall}>Moving</Text>
                       </View>
                     </View>
-            
+
                     <View style={styles.postedTimeRow}>
-                       <Text style={styles.cardDescription} numberOfLines={2}>{pap.subtitle}</Text>
-                      <Text style={styles.postedTimeText}>🕒 Posted the {pap.publish_at||'Unkown'}</Text>
-                      
+                      <Text style={styles.cardDescription} numberOfLines={2}>{pap.subtitle}</Text>
+                      <Text style={styles.postedTimeText}>🕒 Posted the {pap.publish_at || 'Unkown'}</Text>
+
                     </View>
-                  
+
 
                     <View style={styles.infoBoxesRow}>
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>💰</Text>
                         <View>
                           <Text style={styles.infoBoxLabel}>Payment</Text>
-                          <Text style={styles.infoBoxValue}>€{pap.payment_amount || ''}</Text>
+                          <Text style={styles.infoBoxValue}>{pap.payment_amount} {pap.payment_currency} {pap.payment_type}</Text>
                         </View>
                       </View>
                       <View style={styles.infoBox}>
@@ -153,7 +173,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>📍</Text>
                         <View>
-                          <Text style={styles.infoBoxLabel}>{pap.location_address}</Text>
+                          <Text style={styles.infoBoxLabel}>Localisation</Text>
                           <Text style={styles.infoBoxValue} numberOfLines={2}>{pap.location_address}</Text>
                         </View>
                       </View>
@@ -168,11 +188,14 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <Text style={styles.sectionTitle}>Posted by</Text>
                       <View style={styles.postedByCard}>
                         <View style={styles.avatarCircle}>
-                          {pap.owner_avatar ? (
+
+                          {avatarUrl ? (
+                            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+                          ) : pap.owner_avatar ? (
                             <Image source={{ uri: pap.owner_avatar }} style={styles.avatarImage} />
                           ) : (
                             <Text style={styles.avatarInitial}>
-                              {pap.owner_username ? pap.owner_username.charAt(0).toUpperCase() : '?'}
+                              text
                             </Text>
                           )}
                         </View>

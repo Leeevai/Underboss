@@ -4,7 +4,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import PapsFeed from '../feed/PapsFeed';
-import Header from '../header/Header';
+import NotificationPage from '../pages/NotificationPage';
+import ProfilePage from '../pages/ProfilePage';
+import SettingsPage from '../pages/SettingsPage';
 
 
 import { serv, getCurrentUser } from '../serve';
@@ -59,28 +61,41 @@ const styles = StyleSheet.create({
     fontWeight: 'bold'
   },
   center: {
-    flex: 1, 
-    justifyContent: 'center', 
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center'
   }
 })
 
-// --- Placeholders for missing components ---
+// --- Placeholders for core components ---
 const Post = () => (
   <View style={styles.center}><Text>Post something...</Text></View>
 )
 const Message = () => (
   <View style={styles.center}><Text>Message uploading...</Text></View>
 )
-const ProfilePage = () => (
-  <View style={styles.center}><Text>Profile Page</Text></View>
-)
-const SettingsPage = ({ logoutUser }: { logoutUser: () => void }) => (
-    <View style={styles.center}>
-        <Text style={{ marginBottom: 20 }}>Settings</Text>
-        <Button title="Log Out" onPress={logoutUser} /> 
-    </View>
-)
+
+function MainTabs() {
+  return (
+    <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { height: 150 } }}>
+      <Tab.Screen
+        name="Home"
+        component={PapsFeed}
+        options={{ title: 'Home' }}
+      />
+      <Tab.Screen
+        name="Post"
+        component={Post}
+        options={{ title: 'Post' }}
+      />
+      <Tab.Screen
+        name="Message"
+        component={Message}
+        options={{ title: 'Message' }}
+      />
+    </Tab.Navigator>
+  );
+}
 
 
 interface MainViewProps {
@@ -92,41 +107,16 @@ export default function MainView({ logoutUser }: MainViewProps) {
 
 
   return (
-    <View style={{flexDirection: 'column', flex: 1}}>
-      <View >
-        
-      
-      </View>
+    <View style={{ flexDirection: 'column', flex: 1 }}>
       <NavigationContainer>
-        <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { height: 150 } }}>
-          <Tab.Screen
-          name="Home"
-          component={PapsFeed}
-          options={{ title: 'Home' }}
-        />
-          <Tab.Screen
-            name="Post"
-            component={Post}
-            options={{ title: 'Post' }}
-          />
-          <Tab.Screen
-            name="Message"
-            component={Message}
-            options={{ title: 'Message' }}
-          />
-          <Tab.Screen
-            name="Profile"
-            component={ProfilePage}
-            options={{ title: 'ProfilePage' }}
-          />
-          <Tab.Screen
-            name="Settings"
-            
-            children={() => <SettingsPage logoutUser={logoutUser} />}
-            options={{ title: 'Calendar' }}
-        />
-          
-        </Tab.Navigator>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Main" component={MainTabs} />
+          <Stack.Screen name="Notification" component={NotificationPage} />
+          <Stack.Screen name="Profile" component={ProfilePage} />
+          <Stack.Screen name="Settings">
+            {() => <SettingsPage logoutUser={logoutUser} />}
+          </Stack.Screen>
+        </Stack.Navigator>
       </NavigationContainer>
     </View>
   )
