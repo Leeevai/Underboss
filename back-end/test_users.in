@@ -1,8 +1,5 @@
-# format: username,email,password,is_admin
+# format: login,pass,admin,and,other,csv,entries
 # the first TRUE/FALSE accounts are extracted for ADMIN/NOADM tests
-calvin,calvin@example.com,hobbes,TRUE
-hobbes,hobbes@example.com,calvin,FALSE
-hassan,h@test.com,123,FALSE
-clement,c@test.com,123,FALSE
-osman,o@test.com,123,FALSE
-enrique,e@test.com,123,FALSE
+calvin,hobbes,TRUE
+hobbes,calvin,FALSE
+# add other test users below

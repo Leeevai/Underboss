@@ -6,7 +6,7 @@ SHELL	= /bin/bash
 .ONESHELL:
 
 # app parameters
-include config/local.mk
+include local.mk
 
 ifndef APP
 $(error missing APP macro)
@@ -54,23 +54,23 @@ banner:
 .PHONY: default
 default: clean
 
-# special excluded python files (now in src/ and scripts/)
-E.py    = src/version.py tests/test.py scripts/pass2csv.py scripts/query.py $(APP).wsgi
+# special excluded python files
+E.py    = version.py test.py pass2csv.py query.py $(APP).wsgi
 
 # application files
-F.py	= $(wildcard src/*.py)
-F.sql	= $(wildcard sql/*.sql)
+F.py	= $(filter-out $(E.py), $(wildcard *.py))
+F.sql	= $(wildcard *.sql)
 F.conf	= $(wildcard *.conf)
 F.in	= $(wildcard *.in)
-F.md	= $(wildcard www/*.md docs/*.md)
-F.html  = www/index.html
+F.md	=
+F.html  =
 
 # file derivations
 F.csv	= $(F.in:%.in=%.csv)
-F.gen	= src/version.py $(APP).wsgi
+F.gen	= version.py $(APP).wsgi
 
 # all application source files, whether generated or not
-F.src	= $(F.py) $(F.gen) $(F.csv) $(F.sql) $(F.conf) Makefile
+F.src	= $(F.py) $(F.gen) $(F.csv) $(F.sql) $(F.conf) Makefile api/*.py
 
 #
 # Local Postgres Database for Testing
@@ -79,7 +79,7 @@ F.src	= $(F.py) $(F.gen) $(F.csv) $(F.sql) $(F.conf) Makefile
 PG		= psql -X -v ON_ERROR_STOP=1 -v name=$(APP)
 PGOPT	=
 DB		= $(APP)
-DB.sql  = sql/drop.sql sql/create.sql sql/data.sql
+DB.sql  = drop.sql create.sql data.sql
 
 # .postgres file is created by tee
 # FIXME not reintrant
@@ -99,62 +99,9 @@ DB.sql  = sql/drop.sql sql/create.sql sql/data.sql
 	}
 	$(PG) $(PGOPT) $(addprefix -f , $(DB.sql)) $(DB) | tee -a app.log $@
 
-
-# build the database and copy test profile images
+# build the database
 .PHONY: $(APP).db
 $(APP).db: .postgres
-
-# Setup test data using Python script
-.PHONY: setup-test-data
-setup-test-data: $(PYTHON_RUN) .postgres src/version.py
-	###
-	#
-	# Setting up test data (users, profiles, interests, etc.)
-	#
-	source $(PYTHON_VENV)/bin/activate
-	export PYTHONPATH="$$PWD/src:$$PYTHONPATH"
-	export APP_NAME=$(APP) APP_SECRET=$(APP.secret) APP_CONFIG=config/local.conf
-	$(PYTHON) scripts/setup_test_data.py
-	###
-	#
-	# Setting up category icons
-	#
-	$(PYTHON) scripts/setup_category_icons.py
-
-# Legacy target - kept for backwards compatibility but not used
-.PHONY: paps-media
-paps-media:
-	@echo "# Copying default PAPS media for test PAPS..."
-	# Example for two PAPS: webdev (hassan), mobile (hassan)
-	webdev_id=$$(psql -t -A -d $(DB) -c "SELECT id FROM PAPS WHERE title = 'Full-Stack Web Developer Needed';"); \
-	hassan_id=$$(psql -t -A -d $(DB) -c "SELECT id FROM \"USER\" WHERE username = 'hassan';"); \
-	if [ -n "$$webdev_id" ] && [ -n "$$hassan_id" ]; then \
-	  cp ./test_data/post/webdev1.png ./media/post/$$webdev_id"_"$$hassan_id"_1.png"; \
-	  echo "Copied webdev1.png to ./media/post/$$webdev_id"_"$$hassan_id"_1.png"; \
-	fi
-	mobile_id=$$(psql -t -A -d $(DB) -c "SELECT id FROM PAPS WHERE title = 'Mobile App Development';"); \
-	if [ -n "$$mobile_id" ] && [ -n "$$hassan_id" ]; then \
-	  cp ./test_data/post/mobile1.mp4 ./media/post/$$mobile_id"_"$$hassan_id"_1.mp4"; \
-	  echo "Copied mobile1.mp4 to ./media/post/$$mobile_id"_"$$hassan_id"_1.mp4"; \
-	fi
-
-# Rename test profile images for test users (clement, enrique, osman) to user_id.extension
-.PHONY: profile-pics
-profile-pics:
-	@echo "# Renaming test profile images to user_id.extension format..."
-	# Get user IDs for clement, enrique, osman from the DB and rename files
-	for user in clement enrique osman; do \
-	  uid=$$(psql -t -A -d $(DB) -c "SELECT id FROM \"USER\" WHERE username = '$$user';"); \
-	  ext=jpg; \
-	  src=./test_data/profile/$$user.jpg; \
-	  dest=./media/user/profile/$$uid.$$ext; \
-	  if [ -f "$$src" ] && [ -n "$$uid" ]; then \
-	    cp "$$src" "$$dest"; \
-	    echo "Renamed $$user.jpg to $$uid.$$ext"; \
-	  else \
-	    echo "Warning: missing source or user id for $$user"; \
-	  fi; \
-	done
 
 .PHONY: db
 db: $(APP).db
@@ -169,8 +116,8 @@ query: $(PYTHON_RUN) .postgres
 	# Querying $(DB) database…
 	#
 	source $(PYTHON_VENV)/bin/activate
-	export APP_NAME=$(APP) APP_SECRET=$(APP.secret) APP_CONFIG=config/local.conf
-	$(PYTHON) scripts/query.py '$(subst ',\',$(Q))'  # '
+	export APP_NAME=$(APP) APP_SECRET=$(APP.secret) APP_CONFIG=local.conf
+	$(PYTHON) ./query.py '$(subst ',\',$(Q))'  # '
 
 #
 # Cleanup
@@ -184,9 +131,8 @@ clean: full-stop
 	#
 	[ -f app.log ] && echo -e "# REMOVING app.log! RESTART \"make log\"…" >> app.log
 	$(RM) app.log app.pid $(F.gen) $(F.csv) .coverage *~
-	$(RM) -r __pycache__ src/__pycache__ tests/__pycache__ scripts/__pycache__ .pytype .pytest_cache .postgres htmlcov .ruff_cache
-	$(RM) -r media/category/*
-	psql $(DB) < /dev/null >& /dev/null && dropdb $(DB) || exit 0
+	$(RM) -r __pycache__ .pytype .pytest_cache .postgres htmlcov .ruff_cache
+	dropdb $(DB) || exit 0
 
 .PHONY: clean.dev
 clean.dev: clean
@@ -266,7 +212,7 @@ dev: $(PYTHON_RUN) $(PYTHON_DEV)
 #
 
 # version information accessible under /info
-src/version.py: $(F.py) $(F.sql) Makefile
+version.py: $(F.py) $(F.sql) Makefile
 	###
 	#
 	# Generating file "$@"
@@ -291,7 +237,7 @@ src/version.py: $(F.py) $(F.sql) Makefile
 # force rebuilding version.py
 .PHONY: version
 version:
-	$(RM) src/version.py && $(MAKE) src/version.py
+	$(RM) version.py && $(MAKE) version.py
 
 # application WSGI launcher with environment
 
@@ -300,7 +246,7 @@ version:
 # this is mostly okay for development and pre-prod
 #
 HASH        = shasum -a 256
-F.secret    = $(F.py) $(F.sql) $(F.in) $(F.md) Makefile www/index.html
+F.secret    = $(F.py) $(F.sql) $(F.in) Makefile api/*.py
 APP.secret  = $(shell cat $(F.secret) | $(HASH) | cut -d' ' -f1)
 
 .PHONY: secret
@@ -320,8 +266,6 @@ $(APP).wsgi: $(F.secret)
 	#
 	{
 	  echo "# GENERATED FILE, DO NOT EDIT!"
-	  echo "import sys"
-	  echo "sys.path.insert(0, '/home/$(APP)/src')"
 	  echo "import os"
 	  echo "os.environ[\"APP_NAME\"] = \"$(APP)\""
 	  echo "os.environ[\"APP_CONFIG\"] = \"/home/$(APP)/conf/server.conf\""
@@ -342,7 +286,7 @@ $(F.csv): $(PYTHON_RUN)
 	# Generating user accounts for "$(APP)"
 	#
 	source $(PYTHON_VENV)/bin/activate
-	$(PYTHON) scripts/pass2csv.py < $< > $@
+	$(PYTHON) ./pass2csv.py < $< > $@
 
 #
 # Flask process management
@@ -350,11 +294,11 @@ $(F.csv): $(PYTHON_RUN)
 
 # defaults for local tests
 FLASK		= flask
-FLASK.opt	= --host="0.0.0.0" --port="$(PORT)" --extra-files config/local.conf:sql/queries.sql
+FLASK.opt	= --host="0.0.0.0" --port="$(PORT)" --extra-files local.conf:queries.sql
 
 # start app: as it is launched in background, we do not know if it failed
 .PRECIOUS: app.pid
-app.pid: $(PYTHON_RUN) .postgres setup-test-data
+app.pid: $(PYTHON_RUN) .postgres
 	###
 	#
 	# Starting local Flask server
@@ -363,10 +307,9 @@ app.pid: $(PYTHON_RUN) .postgres setup-test-data
 	shopt -s -o pipefail errexit
 	# hidden dependency to avoid restarting vs reloading
 	$(MAKE) banner
-	$(MAKE) src/version.py
+	$(MAKE) version.py
 	source $(PYTHON_VENV)/bin/activate
-	export PYTHONPATH="$$PWD/src:$$PYTHONPATH"
-	export APP_NAME=$(APP) APP_CONFIG="config/local.conf" APP_SECRET=$(APP.secret)
+	export APP_NAME=$(APP) APP_CONFIG="local.conf" APP_SECRET=$(APP.secret)
 	export PPP_WERKZEUG_WORKAROUND="1"  # grrr…
 	type $(FLASK) || exit 1  # check for flask command
 	# check for port availability
@@ -376,7 +319,7 @@ app.pid: $(PYTHON_RUN) .postgres setup-test-data
 	}
 	echo "# starting application…" >> app.log
 	$(call banner, "$(APP)  log  file") >> app.log
-	$(FLASK) --debug --app=src/app.py run $(FLASK.opt) >> app.log 2>&1 &
+	$(FLASK) --debug --app=app.py run $(FLASK.opt) >> app.log 2>&1 &
 	pid=$$!
 	echo $$pid > $@
 	echo "# $(APP) pid: $$pid" | tee -a app.log
@@ -440,9 +383,8 @@ routes: $(PYTHON_RUN) version .postgres
 	# Showing application routes
 	#
 	source $(PYTHON_VENV)/bin/activate
-	export PYTHONPATH="$$PWD/src:$$PYTHONPATH"
-	export APP_NAME=$(APP) APP_CONFIG=\"config/local.conf\" APP_SECRET=$(APP.secret)
-	$(FLASK) --debug --app=src/app.py routes -s match
+	export APP_NAME=$(APP) APP_CONFIG="local.conf" APP_SECRET=$(APP.secret)
+	$(FLASK) --debug --app=app.py routes -s match
 
 .PHONY: log
 log: running
@@ -527,23 +469,22 @@ check.pytest.external: $(PYTHON_DEV) $(PYTHON_RUN) $(F.src)
 	# external tests: URL to retrieve the server + admin/noadmin auth
 	export FLASK_TESTER_USER="login" FLASK_TESTER_PASS="password" FLASK_TESTER_AUTH="$(APP_AUTH)"
 	export FLASK_TESTER_APP="$(LOC_URL)"
-	$(PYTEST) $(PYTOPT) tests/test.py
+	$(PYTEST) $(PYTOPT) test.py
 	# stop test server
 	$(MAKE) stop
 
 .PHONY: check.pytest.internal
-check.pytest.internal: $(PYTHON_DEV) $(PYTHON_RUN) $(F.src) .postgres setup-test-data
+check.pytest.internal: $(PYTHON_DEV) $(PYTHON_RUN) $(F.src) .postgres
 	###
 	#
 	# Checking INTERNAL tests
 	#
 	source $(PYTHON_VENV)/bin/activate
 	# internal tests: CONFIG but **no** URL
-	export PYTHONPATH="$$PWD/src:$$PYTHONPATH"
-	export APP_NAME=$(APP) APP_CONFIG="config/local.conf" APP_SECRET=$(APP.secret)
+	export APP_NAME=$(APP) APP_CONFIG="local.conf" APP_SECRET=$(APP.secret)
 	export FLASK_TESTER_USER="login" FLASK_TESTER_PASS="password" FLASK_TESTER_AUTH="$(APP_AUTH)"
 	export FLASK_TESTER_APP="app"
-	$(PYTEST) $(PYTOPT) tests/test.py
+	$(PYTEST) $(PYTOPT) test.py
 
 .PHONY: check.local.pytest
 check.local.pytest: check.pytest
@@ -565,7 +506,7 @@ check.pyright: $(PYTHON_DEV) $(F.py) $(F.gen)
 	# Checking types with pyright
 	#
 	source $(PYTHON_VENV)/bin/activate
-	pyright $(F.py) $(F.gen) tests/test.py
+	pyright $(F.py) $(F.gen) test.py
 
 .PHONY: check.mypy
 check.mypy: $(PYTHON_DEV) $(F.py) $(F.gen)
@@ -575,7 +516,7 @@ check.mypy: $(PYTHON_DEV) $(F.py) $(F.gen)
 	#
 	# report syntax and type errors
 	source $(PYTHON_VENV)/bin/activate
-	mypy --ignore-missing-imports --implicit-optional $(F.py) $(F.gen) tests/test.py
+	mypy --ignore-missing-imports --implicit-optional $(F.py) $(F.gen) test.py
 
 .PHONY: check.pytype
 check.pytype: $(PYTHON_DEV) $(F.py) $(F.gen)
@@ -585,7 +526,7 @@ check.pytype: $(PYTHON_DEV) $(F.py) $(F.gen)
 	#
 	# report syntax and type errors
 	source $(PYTHON_VENV)/bin/activate
-	pytype $(F.py) $(F.gen) tests/test.py
+	pytype $(F.py) $(F.gen) test.py
 
 # NOTE just for tests
 # I'm not a fan of black agressive reformating, especially what is
@@ -597,7 +538,7 @@ check.black: $(PYTHON_DEV) $(F.py)
 	# Checking style with black
 	#
 	source $(PYTHON_VENV)/bin/activate
-	black --check --diff --verbose -l 100 $(F.py) tests/test.py
+	black --check --diff --verbose -l 100 $(F.py) test.py
 
 # flake8/ruff rules to ignore
 IGNORE  = E227,E302,E305,F401,E402,E501,F811
@@ -609,7 +550,7 @@ check.ruff: $(PYTHON_DEV) $(F.py)
 	# Checking style with ruff
 	#
 	source $(PYTHON_VENV)/bin/activate
-	ruff check --ignore=$(IGNORE) $(F.py) tests/test.py
+	ruff check --ignore=$(IGNORE) $(F.py) test.py
 
 .PHONY: check.flake8
 check.flake8: $(PYTHON_DEV) $(F.py) $(F.gen)
@@ -618,7 +559,7 @@ check.flake8: $(PYTHON_DEV) $(F.py) $(F.gen)
 	# Checking style with flake8
 	#
 	source $(PYTHON_VENV)/bin/activate
-	flake8 --ignore=E126,E127,E128,$(IGNORE),W503,W504 $(F.py) $(F.gen) tests/test.py
+	flake8 --ignore=E126,E127,$(IGNORE),W503,W504 $(F.py) $(F.gen) test.py
 
 .PHONY: check
 check: clean
@@ -639,7 +580,7 @@ check: clean
 #
 # DEPLOY
 #
-include config/deploy.mk
+-include deploy.mk
 
 .PHONY: www
 www:
@@ -658,7 +599,7 @@ counts:
 	# queries: $(shell egrep "^\\s*--\\s*name\\s*:" $(F.sql) | wc -l)
 	# tables: $(shell egrep -i "^\\s*create\\s+table" $(F.sql) | wc -l)
 	# routes: $(shell egrep -i "^\\s*@app\.(route|get|post|patch|put|delete)" $(F.py) | wc -l)
-	cloc --by-file-by-lang $(F.py) tests/test.py $(F.sql)
+	cloc --by-file-by-lang $(F.py) test.py $(F.sql)
 
 .PHONY: commits
 commits:

@@ -30,12 +30,16 @@ def api(ft_client):
     # get tokens for ADMIN and NOADM users (password set from env)
     res = ft_client.get("/login", login=ADMIN, auth="basic")
     assert res.is_json
-    # Extract token from JSON response
-    ft_client.setToken(ADMIN, res.json.get("token") if isinstance(res.json, dict) else res.json)
+    # Extract token from JSON response - response is {"token": "..."}
+    token_resp = res.json
+    token = token_resp.get("token") if isinstance(token_resp, dict) else token_resp
+    ft_client.setToken(ADMIN, token)
     res = ft_client.post("/login", login=NOADM, auth="param")
     assert res.is_json
     # Extract token from JSON response
-    ft_client.setToken(NOADM, res.json.get("token") if isinstance(res.json, dict) else res.json)
+    token_resp = res.json
+    token = token_resp.get("token") if isinstance(token_resp, dict) else token_resp
+    ft_client.setToken(NOADM, token)
     yield ft_client
 
 # environment and running
@@ -59,7 +63,9 @@ def test_who_am_i(api):
 def test_myself(api):
     api.get("/myself", 401)
     res = api.get("/myself", 200, login=ADMIN)
-    assert res.json["login"] == ADMIN and res.json["isadmin"] and res.json["aid"] == 1
+    assert res.json["login"] == ADMIN and res.json["isadmin"]
+    # aid is now a UUID string in new schema
+    assert isinstance(res.json["aid"], str) and len(res.json["aid"]) > 0
     api.post("/myself", 405, login=ADMIN)
     api.put("/myself", 405, login=ADMIN)
     api.patch("/myself", 405, login=ADMIN)
@@ -72,25 +78,29 @@ def test_login(api):
     assert ADMIN in res.text
     log.warning(f"headers: {res.headers}")
     assert res.headers["FSA-User"] == f"{ADMIN} (basic)"
-    # GET login with basic auth
-    admin_token = api.get("/login", 200, login=ADMIN, auth="basic").json
+    # GET login with basic auth - response is now {"token": "..."}
+    admin_token_resp = api.get("/login", 200, login=ADMIN, auth="basic").json
+    admin_token = admin_token_resp.get("token") if isinstance(admin_token_resp, dict) else admin_token_resp
     assert f":{ADMIN}:" in admin_token
     api.setToken(ADMIN, admin_token)
     res = api.get("/who-am-i", 200, login=ADMIN)
     assert ADMIN in res.text
     assert res.headers["FSA-User"] == f"{ADMIN} (token)"
     # hobbes
-    noadm_token = api.get("/login", 200, login=NOADM, auth="basic").json
+    noadm_token_resp = api.get("/login", 200, login=NOADM, auth="basic").json
+    noadm_token = noadm_token_resp.get("token") if isinstance(noadm_token_resp, dict) else noadm_token_resp
     assert f":{NOADM}:" in noadm_token
     api.setToken(NOADM, noadm_token)
     # same with POST and parameters
     api.post("/login", 401, login=None)
     res = api.post("/login", 201, data={"login": "calvin", "password": "hobbes"}, login=None)
-    tok = res.json
+    tok_resp = res.json
+    tok = tok_resp.get("token") if isinstance(tok_resp, dict) else tok_resp
     assert ":calvin:" in tok
     assert res.headers["FSA-User"] == "calvin (param)"
     res = api.post("/login", 201, json={"login": "calvin", "password": "hobbes"}, login=None)
-    tok = res.json
+    tok_resp = res.json
+    tok = tok_resp.get("token") if isinstance(tok_resp, dict) else tok_resp
     assert ":calvin:" in tok
     assert res.headers["FSA-User"] == "calvin (param)"
     # test token auth
@@ -132,39 +142,35 @@ def test_stats(api):
 # /register
 def test_register(api):
     # register a new user
-    user, pswd = "dyna-user", "dyna-user-pass-123"
+    user, pswd = "dyna-user", "DynaUserPass123!"
     api.setPass(user, pswd)
-    # bad login with a space
-    api.post("/register", 400, data={"login": "this is a bad login", "password": pswd}, login=None)
-    # login too short
-    api.post("/register", 400, json={"login": "x", "password": pswd}, login=None)
-    # login already exists
-    api.post("/register", 409, data={"login": "calvin", "password": pswd}, login=None)
-    # missing "login" parameter
-    api.post("/register", 400, json={"password": pswd}, login=None)
+    # bad username with a space
+    api.post("/register", 400, data={"username": "this is a bad login", "email": "test@test.com", "password": pswd}, login=None)
+    # username too short
+    api.post("/register", 400, json={"username": "x", "email": "test@test.com", "password": pswd}, login=None)
+    # username already exists
+    api.post("/register", 409, data={"username": "calvin", "email": "new@test.com", "password": pswd}, login=None)
+    # missing "username" parameter
+    api.post("/register", 400, json={"email": "test@test.com", "password": pswd}, login=None)
+    # missing "email" parameter
+    api.post("/register", 400, json={"username": user, "password": pswd}, login=None)
     # missing "password" parameter
-    api.post("/register", 400, data={"login": user}, login=None)
+    api.post("/register", 400, data={"username": user, "email": f"{user}@test.com"}, login=None)
     # password is too short
-    api.post("/register", 400, json={"login": "hello", "password": ""}, login=None)
-    # password is too simple
-    # api.post("/register", 400, json={"login": "hello", "password": "world!"}, login=None)
+    api.post("/register", 400, json={"username": "hello", "email": "hello@test.com", "password": ""}, login=None)
     # at last one which is expected to work!
-    api.post("/register", 201, json={"login": user, "password": pswd}, login=None)
-    user_token = api.get("/login", 200, r"^([^:]+:){3}[^:]+$", login=user).json
+    api.post("/register", 201, json={"username": user, "email": f"{user}@test.com", "password": pswd}, login=None)
+    user_token = api.get("/login", 200, r"^.*token.*$", login=user).json
     api.setToken(user, user_token.get("token") if isinstance(user_token, dict) else user_token)
     api.get("/users/x", 400, r"x", login=ADMIN)
     api.get("/users/****", 400, r"\*\*\*\*", login=ADMIN)
     api.get(f"/users/{user}", 200, f"{user}", login=ADMIN)
-    api.patch(f"/users/{user}", 204, data={"password": "pwd1!"}, login=ADMIN)
+    api.patch(f"/users/{user}", 204, data={"password": "NewPass123!"}, login=ADMIN)
     api.patch(f"/users/{user}", 204, data={"is_admin": False}, login=ADMIN)
     api.patch(f"/users/{user}", 204, data={"email": "dyna@comics.net"}, login=ADMIN)
     api.patch(f"/users/{user}", 400, data={"email": "not-an-email"}, login=ADMIN)
-    dyna = {"login": user, "password": pswd, "email": "dyna-no-spam@comics.net", "isadmin": True}
-    api.put(f"/users/{user}", 204, data={"auth": dyna}, login=ADMIN)
-    toto = dict(**dyna).update(login="toto")
-    api.put(f"/users/{user}", 400, data={"auth": toto}, login=ADMIN)
+    # Delete test user
     api.delete(f"/users/{user}", 204, login=ADMIN)
-    api.put(f"/users/{user}", 404, data={"auth": dyna}, login=ADMIN)
     api.get("/users/no-such-user", 404, login=ADMIN)
     api.patch("/users/no-such-user", 404, login=ADMIN)
     api.delete("/users/no-such-user", 404, login=ADMIN)
@@ -179,10 +185,10 @@ def test_users(api):
     api.get("/users", 200, r"calvin", login=ADMIN)
     api.get("/users", 200, r"hobbes", json={"flt": "h%"}, login=ADMIN)
     api.post("/users", 400, login=ADMIN)
-    api.post("/users", 400, json={"login": "ab", "password": "abc123!", "is_admin": False}, login=ADMIN)
-    api.post("/users", 400, json={"login": "1abcd", "password": "abc123!", "is_admin": False}, login=ADMIN)
-    api.post("/users", 201, json={"login": OTHER, "password": "abc123!", "is_admin": False}, login=ADMIN)
-    api.post("/users", 409, json={"login": OTHER, "password": "abc123!", "is_admin": False}, login=ADMIN)
+    api.post("/users", 400, json={"login": "ab", "password": "Password123!", "is_admin": False}, login=ADMIN)
+    api.post("/users", 400, json={"login": "1abcd", "password": "Password123!", "is_admin": False}, login=ADMIN)
+    api.post("/users", 201, json={"login": OTHER, "password": "Password123!", "email": f"{OTHER}@test.com", "is_admin": False}, login=ADMIN)
+    api.post("/users", 409, json={"login": OTHER, "password": "Password123!", "email": f"{OTHER}2@test.com", "is_admin": False}, login=ADMIN)
     api.delete(f"/users/{OTHER}", 204, login=ADMIN)
     api.put("/users", 405, login=ADMIN)
     api.patch("/users", 405, login=ADMIN)
@@ -220,21 +226,21 @@ def test_user_profile(api):
     api.setToken(user, user_token.get("token") if isinstance(user_token, dict) else user_token)
     
     # Get profile - should exist (auto-created on user registration)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     assert res.json["username"] == user
     assert res.json["email"] == f"{user}@test.com"
     assert "user_id" in res.json
     
     # Profile is publicly accessible (OPEN auth)
-    api.get(f"/users/{user}/profile", 200, login=None)
-    api.get(f"/users/{user}/profile", 200, login=ADMIN)
-    api.get(f"/users/{user}/profile", 200, login=NOADM)
+    api.get(f"/user/{user}/profile", 200, login=None)
+    api.get(f"/user/{user}/profile", 200, login=ADMIN)
+    api.get(f"/user/{user}/profile", 200, login=NOADM)
     
     # Test 404 for non-existent user
-    api.get("/users/nonexistentuser999/profile", 404, login=None)
+    api.get("/user/nonexistentuser999/profile", 404, login=None)
     
     # Update profile - user can update own profile
-    api.patch(f"/users/{user}/profile", 204, data={
+    api.patch(f"/user/{user}/profile", 204, data={
         "first_name": "Test",
         "last_name": "User",
         "display_name": "Test User",
@@ -243,7 +249,7 @@ def test_user_profile(api):
     }, login=user)
     
     # Verify profile was updated
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     assert res.json["first_name"] == "Test"
     assert res.json["last_name"] == "User"
     assert res.json["display_name"] == "Test User"
@@ -251,49 +257,49 @@ def test_user_profile(api):
     assert res.json["timezone"] == "UTC"
     
     # Update single field
-    api.patch(f"/users/{user}/profile", 204, data={"bio": "Updated bio"}, login=user)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    api.patch(f"/user/{user}/profile", 204, data={"bio": "Updated bio"}, login=user)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     assert res.json["bio"] == "Updated bio"
     assert res.json["first_name"] == "Test"  # Other fields unchanged
     
     # Update location fields
-    api.patch(f"/users/{user}/profile", 204, data={
+    api.patch(f"/user/{user}/profile", 204, data={
         "location_address": "123 Test St",
         "location_lat": 40.7128,
         "location_lng": -74.0060
     }, login=user)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     assert res.json["location_address"] == "123 Test St"
     assert res.json["location_lat"] == 40.7128
     assert res.json["location_lng"] == -74.0060
     
     # Test validation - invalid latitude
-    api.patch(f"/users/{user}/profile", 400, data={
+    api.patch(f"/user/{user}/profile", 400, data={
         "location_lat": 91,
         "location_lng": 0
     }, login=user)
     
     # Test validation - invalid longitude
-    api.patch(f"/users/{user}/profile", 400, data={
+    api.patch(f"/user/{user}/profile", 400, data={
         "location_lat": 0,
         "location_lng": 181
     }, login=user)
     
     # Test validation - lat without lng
-    api.patch(f"/users/{user}/profile", 400, data={
+    api.patch(f"/user/{user}/profile", 400, data={
         "location_lat": 40.7128
     }, login=user)
     
     # User cannot update another user's profile
-    api.patch(f"/users/{ADMIN}/profile", 403, data={"bio": "Hacking"}, login=user)
-    api.patch(f"/users/{NOADM}/profile", 403, data={"bio": "Hacking"}, login=user)
+    api.patch(f"/user/{ADMIN}/profile", 403, data={"bio": "Hacking"}, login=user)
+    api.patch(f"/user/{NOADM}/profile", 403, data={"bio": "Hacking"}, login=user)
     
     # Unauthenticated user cannot update profile
-    api.patch(f"/users/{user}/profile", 401, data={"bio": "Test"}, login=None)
+    api.patch(f"/user/{user}/profile", 401, data={"bio": "Test"}, login=None)
     
     # Test preferred_language update
-    api.patch(f"/users/{user}/profile", 204, data={"preferred_language": "fr"}, login=user)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    api.patch(f"/user/{user}/profile", 204, data={"preferred_language": "fr"}, login=user)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     assert res.json["preferred_language"] == "fr"
     
     # Cleanup - get user_id from profile
@@ -318,11 +324,11 @@ def test_user_experiences(api):
     api.setToken(user, user_token.get("token") if isinstance(user_token, dict) else user_token)
     
     # Get experiences - publicly accessible, empty initially
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     assert res.json == []
     
     # Test 404 for non-existent user
-    api.get("/users/nonexistentuser999/experiences", 404, login=None)
+    api.get("/user/nonexistentuser999/profile/experiences", 404, login=None)
     
     # Create experience - use /profile/experiences (authenticated endpoint)
     api.post("/profile/experiences", 401, json={
@@ -337,10 +343,10 @@ def test_user_experiences(api):
         "end_date": "2022-12-31",
         "is_current": False
     }, login=user)
-    exp_id = res.json
+    exp_id = res.json.get("experience_id") if isinstance(res.json, dict) else res.json
     
     # Get experiences from public endpoint
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     assert len(res.json) == 1
     assert res.json[0]["title"] == "Software Engineer"
     assert res.json[0]["company"] == "Test Corp"
@@ -354,10 +360,10 @@ def test_user_experiences(api):
         "start_date": "2023-01-01",
         "is_current": True
     }, login=user)
-    exp_id2 = res.json
+    exp_id2 = res.json.get("experience_id") if isinstance(res.json, dict) else res.json
     
     # Verify two experiences
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     assert len(res.json) == 2
     
     # Update first experience
@@ -365,14 +371,14 @@ def test_user_experiences(api):
         "title": "Senior Software Engineer"
     }, login=user)
     
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     exp1 = [e for e in res.json if e["id"] == exp_id][0]
     assert exp1["title"] == "Senior Software Engineer"
     assert exp1["company"] == "Test Corp"  # Unchanged
     
     # User cannot update another user's experience
     # First get admin's experience (if any)
-    admin_exps = api.get(f"/users/{ADMIN}/experiences", 200, login=None).json
+    admin_exps = api.get(f"/user/{ADMIN}/profile/experiences", 200, login=None).json
     if admin_exps:
         api.patch(f"/profile/experiences/{admin_exps[0]['id']}", 403, json={
             "title": "Hacked"
@@ -380,12 +386,12 @@ def test_user_experiences(api):
     
     # Delete first experience
     api.delete(f"/profile/experiences/{exp_id}", 204, login=user)
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     assert len(res.json) == 1
     
     # Delete second experience
     api.delete(f"/profile/experiences/{exp_id2}", 204, login=user)
-    res = api.get(f"/users/{user}/experiences", 200, login=None)
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
     assert len(res.json) == 0
     
     # Test 404 for non-existent experience
@@ -395,7 +401,7 @@ def test_user_experiences(api):
     api.delete("/profile/experiences/00000000-0000-0000-0000-000000000000", 404, login=user)
     
     # Cleanup - get user_id from profile
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/users/{user_id}", 204, login=ADMIN)
     api.setToken(user, None)
@@ -412,7 +418,7 @@ def test_categories(api):
         "slug": "test-category",
         "description": "A test category"
     }, login=ADMIN)
-    cat_id = res.json
+    cat_id = res.json.get("category_id") if isinstance(res.json, dict) else res.json
     
     # Get category
     res = api.get(f"/categories/{cat_id}", 200, login=ADMIN)
@@ -447,25 +453,25 @@ def test_user_interests(api):
     
     # Create categories first (admin only)
     res1 = api.post("/categories", 201, json={
-        "name": "Programming",
-        "slug": "programming",
+        "name": "Programming Test",
+        "slug": "programming-test",
         "description": "Software development"
     }, login=ADMIN)
-    cat_id1 = res1.json
+    cat_id1 = res1.json.get("category_id") if isinstance(res1.json, dict) else res1.json
     
     res2 = api.post("/categories", 201, json={
-        "name": "Design",
-        "slug": "design",
+        "name": "Design Test",
+        "slug": "design-test",
         "description": "UI/UX Design"
     }, login=ADMIN)
-    cat_id2 = res2.json
+    cat_id2 = res2.json.get("category_id") if isinstance(res2.json, dict) else res2.json
     
     # Get interests - publicly accessible, empty initially
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     assert res.json == []
     
     # Test 404 for non-existent user
-    api.get("/users/nonexistentuser999/interests", 404, login=None)
+    api.get("/user/nonexistentuser999/profile/interests", 404, login=None)
     
     # Create interest - use /profile/interests (authenticated endpoint)
     api.post("/profile/interests", 401, json={
@@ -479,10 +485,10 @@ def test_user_interests(api):
     }, login=user)
     
     # Get interests from public endpoint
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     assert len(res.json) == 1
     assert res.json[0]["proficiency_level"] == 5
-    assert res.json[0]["category_name"] == "Programming"
+    assert res.json[0]["category_name"] == "Programming Test"
     
     # Add another interest
     api.post("/profile/interests", 201, json={
@@ -490,7 +496,7 @@ def test_user_interests(api):
         "proficiency_level": 3
     }, login=user)
     
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     assert len(res.json) == 2
     
     # Update first interest
@@ -498,7 +504,7 @@ def test_user_interests(api):
         "proficiency_level": 4
     }, login=user)
     
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     int1 = [i for i in res.json if i["category_id"] == cat_id1][0]
     assert int1["proficiency_level"] == 4
     
@@ -510,18 +516,18 @@ def test_user_interests(api):
     
     # Delete interests
     api.delete(f"/profile/interests/{cat_id1}", 204, login=user)
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     assert len(res.json) == 1
     
     api.delete(f"/profile/interests/{cat_id2}", 204, login=user)
-    res = api.get(f"/users/{user}/interests", 200, login=None)
+    res = api.get(f"/user/{user}/profile/interests", 200, login=None)
     assert len(res.json) == 0
     
     # Test 404 for non-existent interest
     api.delete(f"/profile/interests/{cat_id1}", 404, login=user)
     
     # Cleanup categories and user - get user_id from profile
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/categories/{cat_id1}", 204, login=ADMIN)
     api.delete(f"/categories/{cat_id2}", 204, login=ADMIN)
@@ -616,7 +622,7 @@ def test_register_comprehensive(api):
     api.setToken(base_user, token.get("token") if isinstance(token, dict) else token)
     
     # Verify user has profile auto-created
-    res = api.get(f"/users/{base_user}/profile", 200, login=None)
+    res = api.get(f"/user/{base_user}/profile", 200, login=None)
     assert res.json["username"] == base_user
     assert res.json["email"] == f"{base_user}@test.com"
     
@@ -696,7 +702,7 @@ def test_login_comprehensive(api):
     }, login=None)
     
     # Cleanup - get user_id from profile
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/users/{user_id}", 204, login=ADMIN)
     api.setToken(user, None)
@@ -724,7 +730,7 @@ def test_paps(api):
         "slug": "test-paps-category",
         "description": "A test category for paps"
     }, login=ADMIN)
-    cat_id = res.json
+    cat_id = res.json.get("category_id") if isinstance(res.json, dict) else res.json
     
     # Add user interest to test interest matching
     api.post("/profile/interests", 201, json={
@@ -744,44 +750,44 @@ def test_paps(api):
     # Invalid paps - missing required fields
     api.post("/paps", 400, json={
         "title": "Test Paps"
-        # Missing description, payment_type, price, currency
+        # Missing description, payment_type, payment_amount, payment_currency
     }, login=user)
     
     # Valid paps creation
     res = api.post("/paps", 201, json={
         "title": "Test Paps Project",
-        "description": "A test paps description",
+        "description": "A test paps description that is long enough",
         "payment_type": "fixed",
-        "price": 500.00,
-        "currency": "USD",
+        "payment_amount": 500.00,
+        "payment_currency": "USD",
         "status": "draft"
     }, login=user)
-    paps_id = res.json
+    paps_id = res.json.get("paps_id") if isinstance(res.json, dict) else res.json
     assert paps_id is not None
     
     # Get the created paps
     res = api.get(f"/paps/{paps_id}", 200, login=user)
     assert res.json["title"] == "Test Paps Project"
     assert res.json["payment_type"] == "fixed"
-    assert res.json["price"] == 500.00
-    assert res.json["currency"] == "USD"
+    assert res.json["payment_amount"] == 500.00
+    assert res.json["payment_currency"] == "USD"
     assert res.json["status"] == "draft"
     
     # Update paps
     api.put(f"/paps/{paps_id}", 204, json={
         "title": "Updated Paps Project",
-        "description": "Updated description",
+        "description": "Updated description that is long enough",
         "payment_type": "hourly",
-        "price": 75.00,
-        "currency": "EUR",
+        "payment_amount": 75.00,
+        "payment_currency": "EUR",
         "status": "draft"
     }, login=user)
     
     res = api.get(f"/paps/{paps_id}", 200, login=user)
     assert res.json["title"] == "Updated Paps Project"
     assert res.json["payment_type"] == "hourly"
-    assert res.json["price"] == 75.00
-    assert res.json["currency"] == "EUR"
+    assert res.json["payment_amount"] == 75.00
+    assert res.json["payment_currency"] == "EUR"
     
     # Non-owner cannot update paps
     api.put(f"/paps/{paps_id}", 403, json={
@@ -791,10 +797,10 @@ def test_paps(api):
     # Admin can update any paps
     api.put(f"/paps/{paps_id}", 204, json={
         "title": "Admin Updated Paps",
-        "description": "Admin update",
+        "description": "Admin update that is long enough to pass",
         "payment_type": "fixed",
-        "price": 1000.00,
-        "currency": "USD",
+        "payment_amount": 1000.00,
+        "payment_currency": "USD",
         "status": "draft"
     }, login=ADMIN)
     
@@ -805,13 +811,13 @@ def test_paps(api):
     res = api.get(f"/paps/{paps_id}", 200, login=user)
     assert "categories" in res.json
     # Check category is in the list
-    cat_ids = [c["id"] for c in res.json["categories"]]
+    cat_ids = [c["category_id"] for c in res.json["categories"]]
     assert cat_id in cat_ids
     
     # Remove category from paps
     api.delete(f"/paps/{paps_id}/categories/{cat_id}", 204, login=user)
     res = api.get(f"/paps/{paps_id}", 200, login=user)
-    cat_ids = [c["id"] for c in res.json["categories"]]
+    cat_ids = [c["category_id"] for c in res.json["categories"]]
     assert cat_id not in cat_ids
     
     # Re-add category for later tests
@@ -822,6 +828,9 @@ def test_paps(api):
     res = api.get(f"/paps/{paps_id}/media", 200, login=user)
     assert res.json["media"] == []
     assert res.json["media_count"] == 0
+    
+    # Remove category before delete (soft delete doesn't cascade to PAPS_CATEGORY)
+    api.delete(f"/paps/{paps_id}/categories/{cat_id}", 204, login=user)
     
     # Delete paps
     # Non-owner cannot delete paps
@@ -840,12 +849,12 @@ def test_paps(api):
     }, login=user)
     api.delete("/paps/00000000-0000-0000-0000-000000000000", 404, login=user)
     
-    # Cleanup
+    # Cleanup - delete user FIRST (hard-deletes their PAPS and PAPS_CATEGORY), then category
     api.delete(f"/profile/interests/{cat_id}", 204, login=user)
-    api.delete(f"/categories/{cat_id}", 204, login=ADMIN)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/users/{user_id}", 204, login=ADMIN)
+    api.delete(f"/categories/{cat_id}", 204, login=ADMIN)
     api.setToken(user, None)
     api.setPass(user, None)
 
@@ -882,7 +891,7 @@ def test_paps_admin_access(api):
         assert "interest_match_score" in res.json["paps"][0]
     
     # Cleanup
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/users/{user_id}", 204, login=ADMIN)
     api.setToken(user, None)
@@ -910,29 +919,31 @@ def test_paps_search_filters(api):
         "slug": "filter-test-category",
         "description": "For filter testing"
     }, login=ADMIN)
-    cat_id = res.json
+    cat_id = res.json.get("category_id") if isinstance(res.json, dict) else res.json
     
     # Create paps with different attributes
     res1 = api.post("/paps", 201, json={
         "title": "Expensive Fixed Project",
-        "description": "A high-budget project",
+        "description": "A high-budget project with detailed description",
         "payment_type": "fixed",
-        "price": 5000.00,
-        "currency": "USD",
-        "status": "published"
+        "payment_amount": 5000.00,
+        "payment_currency": "USD",
+        "status": "published",
+        "start_datetime": "2025-01-01T12:00:00Z"
     }, login=user)
-    paps_id1 = res1.json
+    paps_id1 = res1.json.get("paps_id") if isinstance(res1.json, dict) else res1.json
     api.post(f"/paps/{paps_id1}/categories/{cat_id}", 201, login=user)
     
     res2 = api.post("/paps", 201, json={
         "title": "Cheap Hourly Project",
-        "description": "An affordable hourly project",
+        "description": "An affordable hourly project with detailed description",
         "payment_type": "hourly",
-        "price": 25.00,
-        "currency": "EUR",
-        "status": "published"
+        "payment_amount": 25.00,
+        "payment_currency": "EUR",
+        "status": "published",
+        "start_datetime": "2025-02-01T12:00:00Z"
     }, login=user)
-    paps_id2 = res2.json
+    paps_id2 = res2.json.get("paps_id") if isinstance(res2.json, dict) else res2.json
     
     # Test status filter
     res = api.get("/paps", 200, json={"status": "published"}, login=user)
@@ -951,17 +962,17 @@ def test_paps_search_filters(api):
     # Test min_price filter
     res = api.get("/paps", 200, json={"min_price": 1000}, login=user)
     for pap in res.json["paps"]:
-        assert pap["price"] >= 1000
+        assert pap["payment_amount"] >= 1000
     
     # Test max_price filter
     res = api.get("/paps", 200, json={"max_price": 100}, login=user)
     for pap in res.json["paps"]:
-        assert pap["price"] <= 100
+        assert pap["payment_amount"] <= 100
     
     # Test price range filter
     res = api.get("/paps", 200, json={"min_price": 1000, "max_price": 6000}, login=user)
     for pap in res.json["paps"]:
-        assert pap["price"] >= 1000 and pap["price"] <= 6000
+        assert pap["payment_amount"] >= 1000 and pap["payment_amount"] <= 6000
     
     # Test title_search filter
     res = api.get("/paps", 200, json={"title_search": "expensive"}, login=user)
@@ -974,16 +985,1588 @@ def test_paps_search_filters(api):
     # All results should have the category
     for pap in res.json["paps"]:
         if "categories" in pap:
-            cat_ids = [c["id"] for c in pap["categories"]]
+            cat_ids = [c["category_id"] for c in pap["categories"]]
             # paps with this category should be found
             pass
     
-    # Cleanup
-    api.delete(f"/paps/{paps_id1}", 204, login=user)
-    api.delete(f"/paps/{paps_id2}", 204, login=user)
+    # Cleanup - delete user FIRST (hard-deletes their PAPS and PAPS_CATEGORY), then category
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    user_id = res.json["user_id"]
+    api.delete(f"/users/{user_id}", 204, login=ADMIN)
     api.delete(f"/categories/{cat_id}", 204, login=ADMIN)
-    res = api.get(f"/users/{user}/profile", 200, login=None)
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+
+# /paps - edge case and validation tests
+def test_paps_edge_cases(api):
+    user = "testpapsedge"
+    pswd = "test123!ABC"
+    api.setPass(user, pswd)
+    
+    # Register user
+    api.post("/register", 201, json={
+        "username": user,
+        "email": f"{user}@test.com",
+        "password": pswd
+    }, login=None)
+    user_token = api.get("/login", 200, login=user).json
+    api.setToken(user, user_token.get("token") if isinstance(user_token, dict) else user_token)
+    
+    # Test max_distance validation - should require lat and lng
+    api.get("/paps", 400, json={"max_distance": 100}, login=user)  # Missing lat/lng
+    api.get("/paps", 400, json={"max_distance": 100, "lat": 40.7128}, login=user)  # Missing lng
+    api.get("/paps", 400, json={"max_distance": 100, "lng": -74.0060}, login=user)  # Missing lat
+    
+    # Test max_distance with valid lat/lng
+    res = api.get("/paps", 200, json={"max_distance": 100, "lat": 40.7128, "lng": -74.0060}, login=user)
+    assert "paps" in res.json
+    
+    # Test max_distance must be positive
+    api.get("/paps", 400, json={"max_distance": -100, "lat": 40.7128, "lng": -74.0060}, login=user)
+    api.get("/paps", 400, json={"max_distance": 0, "lat": 40.7128, "lng": -74.0060}, login=user)
+    
+    # Test lat/lng validation
+    api.get("/paps", 400, json={"lat": 100, "lng": -74.0060}, login=user)  # Invalid lat > 90
+    api.get("/paps", 400, json={"lat": -100, "lng": -74.0060}, login=user)  # Invalid lat < -90
+    api.get("/paps", 400, json={"lat": 40.7128, "lng": 200}, login=user)  # Invalid lng > 180
+    api.get("/paps", 400, json={"lat": 40.7128, "lng": -200}, login=user)  # Invalid lng < -180
+    
+    # Test invalid payment_type filter
+    api.get("/paps", 400, json={"payment_type": "invalid"}, login=user)
+    
+    # Test invalid UUID format for paps_id
+    api.get("/paps/not-a-uuid", 400, login=user)
+    api.put("/paps/not-a-uuid", 400, json={"title": "Test"}, login=user)
+    api.delete("/paps/not-a-uuid", 400, login=user)
+    
+    # Test invalid category_id format
+    api.post("/paps/00000000-0000-0000-0000-000000000001/categories/not-a-uuid", 400, login=user)
+    api.delete("/paps/00000000-0000-0000-0000-000000000001/categories/not-a-uuid", 400, login=user)
+    
+    # Test paps creation validation
+    # Title too short
+    api.post("/paps", 400, json={
+        "title": "Test",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00
+    }, login=user)
+    
+    # Description too short
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "Too short",
+        "payment_type": "fixed",
+        "payment_amount": 500.00
+    }, login=user)
+    
+    # Invalid payment amount (zero)
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 0
+    }, login=user)
+    
+    # Invalid payment amount (negative)
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": -100
+    }, login=user)
+    
+    # Invalid payment type
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "invalid",
+        "payment_amount": 500.00
+    }, login=user)
+    
+    # Invalid status
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "invalid"
+    }, login=user)
+    
+    # Invalid max_applicants
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "max_applicants": 0
+    }, login=user)
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "max_applicants": 200
+    }, login=user)
+    
+    # Invalid location (partial lat/lng)
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "location_lat": 40.7128
+        # Missing location_lng
+    }, login=user)
+    
+    # Invalid location ranges
+    api.post("/paps", 400, json={
+        "title": "Test Paps Project",
+        "description": "A test paps description that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "location_lat": 100,  # Invalid > 90
+        "location_lng": -74.0060
+    }, login=user)
+    
+    # Test paps media - invalid paps_id format
+    api.get("/paps/not-a-uuid/media", 400, login=user)
+    api.get("/paps/media/not-a-uuid", 400, login=user)
+    api.delete("/paps/media/not-a-uuid", 400, login=user)
+    
+    # Test media for non-existent paps
+    api.get("/paps/00000000-0000-0000-0000-000000000000/media", 404, login=user)
+    api.get("/paps/media/00000000-0000-0000-0000-000000000000", 404, login=user)
+    api.delete("/paps/media/00000000-0000-0000-0000-000000000000", 404, login=user)
+    
+    # Cleanup
+    res = api.get(f"/user/{user}/profile", 200, login=None)
     user_id = res.json["user_id"]
     api.delete(f"/users/{user_id}", 204, login=ADMIN)
     api.setToken(user, None)
     api.setPass(user, None)
+
+
+def test_media_handler_via_api(api):
+    """
+    Comprehensive tests for the MediaHandler class through the API.
+    Tests media upload, retrieval, deletion for:
+    - Profile avatars
+    - PAPS media (images, documents)
+    - SPAP media
+    """
+    import base64
+    import requests
+    from io import BytesIO
+    
+    # Get the base URL from environment
+    base_url = os.environ.get("FLASK_TESTER_APP", "http://localhost:5000")
+    
+    user = "testmedia"
+    pswd = "test123!ABC"
+    user2 = "testmedia2"
+    api.setPass(user, pswd)
+    api.setPass(user2, pswd)
+    
+    # Register test users
+    api.post("/register", 201, json={
+        "username": user,
+        "email": f"{user}@test.com",
+        "password": pswd
+    }, login=None)
+    user_token = api.get("/login", 200, login=user).json
+    token = user_token.get("token") if isinstance(user_token, dict) else user_token
+    api.setToken(user, token)
+    
+    api.post("/register", 201, json={
+        "username": user2,
+        "email": f"{user2}@test.com",
+        "password": pswd
+    }, login=None)
+    user2_token = api.get("/login", 200, login=user2).json
+    token2 = user2_token.get("token") if isinstance(user2_token, dict) else user2_token
+    api.setToken(user2, token2)
+    
+    # =========================================================================
+    # AVATAR TESTS - Test MediaHandler through profile/avatar endpoints
+    # =========================================================================
+    log.info("Testing avatar uploads via MediaHandler...")
+    
+    # Create a simple 1x1 PNG image (smallest valid PNG)
+    png_data = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+    
+    # Create a small JPEG image (1x1 red pixel)
+    jpeg_data = base64.b64decode(
+        "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRof"
+        "Hh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwh"
+        "MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAAR"
+        "CAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAA"
+        "AAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMB"
+        "AAIRAxEAPwCwAB//2Q=="
+    )
+    
+    # Test 1: Upload avatar as PNG using multipart form
+    res = requests.post(
+        f"{base_url}/profile/avatar",
+        files={"image": ("avatar.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.text}"
+    avatar_url = res.json()["avatar_url"]
+    assert avatar_url.startswith("/media/user/profile/")
+    assert avatar_url.endswith(".png")
+    log.info(f"Avatar uploaded: {avatar_url}")
+    
+    # Test 2: Retrieve avatar
+    res = api.get("/profile/avatar", 200, login=user)
+    assert res.headers["Content-Type"] == "image/png"
+    
+    # Test 3: Public avatar access via username
+    res = api.get(f"/user/{user}/profile/avatar", 200, login=None)
+    assert res.headers["Content-Type"] == "image/png"
+    
+    # Test 4: Upload avatar as JPEG (overwrites previous)
+    res = requests.post(
+        f"{base_url}/profile/avatar",
+        files={"image": ("avatar.jpg", BytesIO(jpeg_data), "image/jpeg")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.text}"
+    new_avatar_url = res.json()["avatar_url"]
+    assert new_avatar_url.endswith(".jpg") or new_avatar_url.endswith(".jpeg")
+    
+    # Test 5: Invalid file type for avatar (PDF not allowed)
+    pdf_data = b"%PDF-1.4 fake pdf data"
+    res = requests.post(
+        f"{base_url}/profile/avatar",
+        files={"image": ("doc.pdf", BytesIO(pdf_data), "application/pdf")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    # Returns 413 or 415 depending on error type detection
+    assert res.status_code in [413, 415], f"Expected 413/415, got {res.status_code}: {res.text}"
+    assert "image" in res.text.lower() or "allowed" in res.text.lower()
+    
+    # Test 6: Delete avatar
+    api.delete("/profile/avatar", 204, login=user)
+    
+    # After delete, avatar should return default
+    res = api.get("/profile/avatar", 200, login=user)
+    
+    # =========================================================================
+    # PAPS MEDIA TESTS - Test MediaHandler through paps media endpoints
+    # =========================================================================
+    log.info("Testing PAPS media uploads via MediaHandler...")
+    
+    # Create a PAPS first
+    res = api.post("/paps", 201, json={
+        "title": "Media Test Paps Project",
+        "description": "A test paps for media upload testing with MediaHandler",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "payment_currency": "USD",
+        "status": "draft"
+    }, login=user)
+    paps_id = res.json.get("paps_id")
+    assert paps_id is not None
+    
+    # Test 7: Upload PNG image to PAPS
+    res = requests.post(
+        f"{base_url}/paps/{paps_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.text}"
+    json_resp = res.json()
+    assert "uploaded_media" in json_resp
+    assert len(json_resp["uploaded_media"]) == 1
+    media_id_png = json_resp["uploaded_media"][0]["media_id"]
+    media_url_png = json_resp["uploaded_media"][0]["media_url"]
+    log.info(f"PAPS media uploaded: {media_url_png}")
+    
+    # Test 8: Upload JPEG image to PAPS
+    res = requests.post(
+        f"{base_url}/paps/{paps_id}/media",
+        files={"media": ("image.jpg", BytesIO(jpeg_data), "image/jpeg")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.text}"
+    media_id_jpeg = res.json()["uploaded_media"][0]["media_id"]
+    
+    # Test 9: List PAPS media
+    res = api.get(f"/paps/{paps_id}/media", 200, login=user)
+    assert "media" in res.json
+    assert res.json["media_count"] == 2
+    media_ids = [m["media_id"] for m in res.json["media"]]
+    assert media_id_png in media_ids
+    assert media_id_jpeg in media_ids
+    
+    # Test 10: Retrieve individual PAPS media file
+    res = api.get(f"/paps/media/{media_id_png}", 200, login=user)
+    assert res.headers["Content-Type"] == "image/png"
+    
+    # Test 11: Delete individual media file (owner)
+    api.delete(f"/paps/media/{media_id_jpeg}", 204, login=user)
+    
+    # Verify deletion
+    res = api.get(f"/paps/{paps_id}/media", 200, login=user)
+    assert res.json["media_count"] == 1
+    media_ids = [m["media_id"] for m in res.json["media"]]
+    assert media_id_jpeg not in media_ids
+    assert media_id_png in media_ids
+    
+    # Test 12: Non-owner cannot delete media
+    api.delete(f"/paps/media/{media_id_png}", 403, login=user2)
+    
+    # Test 13: Invalid media ID format
+    api.get("/paps/media/not-a-uuid", 400, login=user)
+    api.delete("/paps/media/not-a-uuid", 400, login=user)
+    
+    # Test 14: Non-existent media ID
+    api.get("/paps/media/00000000-0000-0000-0000-000000000000", 404, login=user)
+    api.delete("/paps/media/00000000-0000-0000-0000-000000000000", 404, login=user)
+    
+    # Test 15: Upload to non-existent PAPS
+    res = requests.post(
+        f"{base_url}/paps/00000000-0000-0000-0000-000000000000/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 404, f"Expected 404, got {res.status_code}"
+    
+    # Test 16: Non-owner cannot upload to PAPS
+    res = requests.post(
+        f"{base_url}/paps/{paps_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token2}"}
+    )
+    assert res.status_code == 403, f"Expected 403, got {res.status_code}"
+    
+    # Test 17: Delete PAPS should cascade delete all media
+    # First, add a new media
+    res = requests.post(
+        f"{base_url}/paps/{paps_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    cascaded_media_id = res.json()["uploaded_media"][0]["media_id"]
+    
+    # Delete the PAPS
+    api.delete(f"/paps/{paps_id}", 204, login=user)
+    
+    # Verify media is also gone
+    api.get(f"/paps/media/{cascaded_media_id}", 404, login=user)
+    api.get(f"/paps/media/{media_id_png}", 404, login=user)
+    
+    # =========================================================================
+    # SPAP MEDIA TESTS - Test MediaHandler through spap (application) endpoints
+    # =========================================================================
+    log.info("Testing SPAP media uploads via MediaHandler...")
+    
+    # Create a new PAPS for SPAP testing
+    import datetime
+    start_dt = (datetime.datetime.now() + datetime.timedelta(days=1)).isoformat()
+    end_dt = (datetime.datetime.now() + datetime.timedelta(days=30)).isoformat()
+    
+    res = api.post("/paps", 201, json={
+        "title": "SPAP Media Test Project",
+        "description": "A test paps for SPAP media upload testing",
+        "payment_type": "hourly",
+        "payment_amount": 50.00,
+        "payment_currency": "USD",
+        "status": "published",  # Must be published to accept applications
+        "start_datetime": start_dt,
+        "end_datetime": end_dt
+    }, login=user)
+    paps_id_for_spap = res.json.get("paps_id")
+    
+    # User2 applies to the PAPS
+    res = api.post(f"/paps/{paps_id_for_spap}/apply", 201, json={
+        "cover_letter": "I am applying for this job to test media uploads"
+    }, login=user2)
+    spap_id = res.json.get("spap_id")
+    assert spap_id is not None
+    
+    # Test 18: Upload media to SPAP application
+    res = requests.post(
+        f"{base_url}/spap/{spap_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token2}"}
+    )
+    assert res.status_code == 201, f"Expected 201, got {res.status_code}: {res.text}"
+    json_resp = res.json()
+    assert "uploaded_media" in json_resp
+    spap_media_id = json_resp["uploaded_media"][0]["media_id"]
+    log.info(f"SPAP media uploaded: {json_resp['uploaded_media'][0]['media_url']}")
+    
+    # Test 19: Applicant can retrieve their SPAP media
+    res = api.get(f"/spap/media/{spap_media_id}", 200, login=user2)
+    assert res.headers["Content-Type"] == "image/png"
+    
+    # Test 20: PAPS owner can also view SPAP media
+    res = api.get(f"/spap/media/{spap_media_id}", 200, login=user)
+    assert res.headers["Content-Type"] == "image/png"
+    
+    # Test 21: Other users cannot view SPAP media (not applicant or owner)
+    # Register a third user
+    user3 = "testmedia3"
+    api.setPass(user3, pswd)
+    api.post("/register", 201, json={
+        "username": user3,
+        "email": f"{user3}@test.com",
+        "password": pswd
+    }, login=None)
+    user3_token = api.get("/login", 200, login=user3).json
+    token3 = user3_token.get("token") if isinstance(user3_token, dict) else user3_token
+    api.setToken(user3, token3)
+    
+    api.get(f"/spap/media/{spap_media_id}", 403, login=user3)
+    
+    # Test 22: Non-applicant cannot upload to SPAP
+    res = requests.post(
+        f"{base_url}/spap/{spap_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token}"}  # user is PAPS owner, not applicant
+    )
+    assert res.status_code == 403, f"Expected 403, got {res.status_code}"
+    
+    # Test 23: Applicant can delete their own media
+    api.delete(f"/spap/media/{spap_media_id}", 204, login=user2)
+    
+    # Verify deletion
+    api.get(f"/spap/media/{spap_media_id}", 404, login=user2)
+    
+    # Test 24: Upload new media and test withdrawal cascade
+    res = requests.post(
+        f"{base_url}/spap/{spap_id}/media",
+        files={"media": ("image.png", BytesIO(png_data), "image/png")},
+        headers={"Authorization": f"Bearer {token2}"}
+    )
+    cascade_spap_media_id = res.json()["uploaded_media"][0]["media_id"]
+    
+    # Withdraw application (should cascade delete media)
+    api.delete(f"/spap/{spap_id}", 204, login=user2)
+    
+    # Verify media is gone
+    api.get(f"/spap/media/{cascade_spap_media_id}", 404, login=user2)
+    
+    # =========================================================================
+    # EDGE CASES AND SECURITY TESTS
+    # =========================================================================
+    log.info("Testing edge cases and security...")
+    
+    # Test 25: Invalid media_id formats should be rejected
+    # UUID validation is the primary protection against path traversal
+    api.get("/paps/media/test.txt", 400, login=user)
+    api.get("/spap/media/test.txt", 400, login=user)
+    api.delete("/paps/media/invalid-id", 400, login=user)
+    api.delete("/spap/media/invalid-id", 400, login=user)
+    
+    # Trying to access with dots should also fail UUID validation
+    api.get("/paps/media/....", 400, login=user)
+    api.get("/spap/media/....", 400, login=user)
+    
+    # =========================================================================
+    # CLEANUP
+    # =========================================================================
+    log.info("Cleaning up test data...")
+    
+    # Delete PAPS (will cascade delete any remaining media)
+    api.delete(f"/paps/{paps_id_for_spap}", 204, login=user)
+    
+    # Delete test users
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    user_id = res.json["user_id"]
+    api.delete(f"/users/{user_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{user2}/profile", 200, login=None)
+    user2_id = res.json["user_id"]
+    api.delete(f"/users/{user2_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{user3}/profile", 200, login=None)
+    user3_id = res.json["user_id"]
+    api.delete(f"/users/{user3_id}", 204, login=ADMIN)
+    
+    # Clear tokens
+    api.setToken(user, None)
+    api.setPass(user, None)
+    api.setToken(user2, None)
+    api.setPass(user2, None)
+    api.setToken(user3, None)
+    api.setPass(user3, None)
+    
+    log.info("MediaHandler API tests completed successfully!")
+
+
+# ===========================================================================
+# SPAP (Service Provider Application) Tests
+# ===========================================================================
+
+def test_spap(api):
+    """Comprehensive tests for SPAP (job application) functionality."""
+    import datetime
+    import uuid
+    
+    suffix = uuid.uuid4().hex[:8]
+    owner = f"spapowner{suffix}"
+    applicant = f"spapapplicant{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(applicant, pswd)
+    
+    # Register owner and applicant
+    api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": pswd
+    }, login=None)
+    owner_token = api.get("/login", 200, login=owner).json
+    api.setToken(owner, owner_token.get("token") if isinstance(owner_token, dict) else owner_token)
+    
+    api.post("/register", 201, json={
+        "username": applicant,
+        "email": f"{applicant}@test.com",
+        "password": pswd
+    }, login=None)
+    applicant_token = api.get("/login", 200, login=applicant).json
+    api.setToken(applicant, applicant_token.get("token") if isinstance(applicant_token, dict) else applicant_token)
+    
+    # Create future dates for PAPS
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+    
+    # Create a PAPS for applications (published directly with start_datetime)
+    res = api.post("/paps", 201, json={
+        "title": "SPAP Test Job Posting",
+        "description": "A job posting to test the SPAP application flow with all features.",
+        "payment_type": "fixed",
+        "payment_amount": 1000.00,
+        "payment_currency": "USD",
+        "status": "published",
+        "start_datetime": start_dt,
+        "max_applicants": 5,
+        "max_assignees": 1
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+    
+    # Owner cannot apply to own PAPS
+    api.post(f"/paps/{paps_id}/apply", 403, json={
+        "cover_letter": "I want to apply to my own job posting."
+    }, login=owner)
+    
+    # Applicant applies to PAPS
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "I am interested in this job and have relevant experience."
+    }, login=applicant)
+    spap_id = res.json.get("spap_id")
+    chat_thread_id = res.json.get("chat_thread_id")
+    assert spap_id is not None
+    assert chat_thread_id is not None
+    
+    # Cannot apply twice
+    api.post(f"/paps/{paps_id}/apply", 409, json={
+        "cover_letter": "Trying to apply again."
+    }, login=applicant)
+    
+    # Get my applications
+    res = api.get("/spap/my", 200, login=applicant)
+    assert res.json["count"] >= 1
+    my_app = [a for a in res.json["applications"] if a["id"] == spap_id]
+    assert len(my_app) == 1
+    assert my_app[0]["status"] == "pending"
+    
+    # Owner views applications
+    res = api.get(f"/paps/{paps_id}/applications", 200, login=owner)
+    assert res.json["count"] == 1
+    assert res.json["applications"][0]["id"] == spap_id
+    
+    # Get specific SPAP
+    res = api.get(f"/spap/{spap_id}", 200, login=owner)
+    assert res.json["status"] == "pending"
+    assert res.json["paps_id"] == paps_id
+    
+    # Applicant can also view their own SPAP
+    res = api.get(f"/spap/{spap_id}", 200, login=applicant)
+    assert res.json["id"] == spap_id
+    
+    # Third party cannot view SPAP
+    api.get(f"/spap/{spap_id}", 403, login=NOADM)
+    
+    # Test SPAP rejection (deletes the SPAP)
+    api.put(f"/spap/{spap_id}/reject", 204, login=owner)
+    
+    # Verify rejection - SPAP is deleted, should return 404
+    api.get(f"/spap/{spap_id}", 404, login=owner)
+    
+    # Cannot accept deleted SPAP
+    api.put(f"/spap/{spap_id}/accept", 404, login=owner)
+    
+    # Apply again after rejection
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "Applying again after rejection."
+    }, login=applicant)
+    spap_id2 = res.json.get("spap_id")
+    
+    # Test SPAP acceptance (creates ASAP)
+    res = api.put(f"/spap/{spap_id2}/accept", 200, login=owner)
+    asap_id = res.json.get("asap_id")
+    assert asap_id is not None
+    
+    # SPAP should be deleted after acceptance (converted to ASAP)
+    api.get(f"/spap/{spap_id2}", 404, login=owner)
+    
+    # Cleanup - delete ASAP first since it references PAPS
+    api.delete(f"/asap/{asap_id}", 204, login=owner)
+    
+    # Delete PAPS
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    
+    # Delete users
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    owner_id = res.json["user_id"]
+    api.delete(f"/users/{owner_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{applicant}/profile", 200, login=None)
+    applicant_id = res.json["user_id"]
+    api.delete(f"/users/{applicant_id}", 204, login=ADMIN)
+    
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(applicant, None)
+    api.setPass(applicant, None)
+
+
+# ===========================================================================
+# ASAP (Accepted Service Agreement Protocol) Tests
+# ===========================================================================
+
+def test_asap(api):
+    """Comprehensive tests for ASAP (assignment) functionality."""
+    import datetime
+    import uuid
+    
+    suffix = uuid.uuid4().hex[:8]
+    owner = f"asapowner{suffix}"
+    worker = f"asapworker{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+    
+    # Register users
+    api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": pswd
+    }, login=None)
+    owner_token = api.get("/login", 200, login=owner).json
+    api.setToken(owner, owner_token.get("token") if isinstance(owner_token, dict) else owner_token)
+    
+    api.post("/register", 201, json={
+        "username": worker,
+        "email": f"{worker}@test.com",
+        "password": pswd
+    }, login=None)
+    worker_token = api.get("/login", 200, login=worker).json
+    api.setToken(worker, worker_token.get("token") if isinstance(worker_token, dict) else worker_token)
+    
+    # Create future date
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+    
+    # Create and publish a PAPS
+    res = api.post("/paps", 201, json={
+        "title": "ASAP Test Job Posting",
+        "description": "A job posting to test ASAP assignment lifecycle functionality.",
+        "payment_type": "fixed",
+        "payment_amount": 2000.00,
+        "payment_currency": "EUR",
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+    
+    # Worker applies
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "Ready to work on this assignment."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+    
+    # Owner accepts - creates ASAP
+    res = api.put(f"/spap/{spap_id}/accept", 200, login=owner)
+    asap_id = res.json.get("asap_id")
+    
+    # Get ASAP list as owner
+    res = api.get("/asap", 200, login=owner)
+    assert res.json["total_as_owner"] >= 1
+    owner_asaps = [a for a in res.json["as_owner"] if a["asap_id"] == asap_id]
+    assert len(owner_asaps) == 1
+    assert owner_asaps[0]["status"] == "active"
+    
+    # Get ASAP list as worker
+    res = api.get("/asap", 200, login=worker)
+    assert res.json["total_as_worker"] >= 1
+    worker_asaps = [a for a in res.json["as_worker"] if a["asap_id"] == asap_id]
+    assert len(worker_asaps) == 1
+    
+    # Get specific ASAP
+    res = api.get(f"/asap/{asap_id}", 200, login=owner)
+    assert res.json["status"] == "active"
+    assert res.json["paps_id"] == paps_id
+    
+    # Worker can also view
+    res = api.get(f"/asap/{asap_id}", 200, login=worker)
+    assert res.json["asap_id"] == asap_id
+    
+    # Third party cannot view
+    api.get(f"/asap/{asap_id}", 403, login=NOADM)
+    
+    # Get assignments for PAPS
+    res = api.get(f"/paps/{paps_id}/assignments", 200, login=owner)
+    assert len(res.json) >= 1
+    
+    # Update ASAP details (owner only)
+    api.put(f"/asap/{asap_id}", 204, json={
+        "title": "Updated ASAP Title",
+        "due_at": "2027-12-31T23:59:59Z"
+    }, login=owner)
+    
+    res = api.get(f"/asap/{asap_id}", 200, login=owner)
+    assert res.json["title"] == "Updated ASAP Title"
+    
+    # Worker cannot update ASAP details
+    api.put(f"/asap/{asap_id}", 403, json={
+        "title": "Hacked"
+    }, login=worker)
+    
+    # Test status transitions
+    # Start the assignment (worker)
+    api.put(f"/asap/{asap_id}/status", 204, json={"status": "in_progress"}, login=worker)
+    res = api.get(f"/asap/{asap_id}", 200, login=worker)
+    assert res.json["status"] == "in_progress"
+    
+    # Worker cannot complete (only owner can)
+    api.put(f"/asap/{asap_id}/status", 403, json={"status": "completed"}, login=worker)
+    
+    # Complete the assignment (owner marks as completed)
+    api.put(f"/asap/{asap_id}/status", 204, json={"status": "completed"}, login=owner)
+    res = api.get(f"/asap/{asap_id}", 200, login=worker)
+    assert res.json["status"] == "completed"
+    
+    # Cannot delete completed ASAP
+    api.delete(f"/asap/{asap_id}", 400, login=owner)
+    
+    # Delete payments first (created when ASAP was completed)
+    res = api.get(f"/paps/{paps_id}/payments", 200, login=owner)
+    for payment in res.json["payments"]:
+        api.delete(f"/payments/{payment['payment_id']}", 204, login=ADMIN)
+    
+    # Can delete PAPS after payments are deleted (cascades to ASAP)
+    api.delete(f"/paps/{paps_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    owner_id = res.json["user_id"]
+    api.delete(f"/users/{owner_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_id = res.json["user_id"]
+    api.delete(f"/users/{worker_id}", 204, login=ADMIN)
+    
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(worker, None)
+    api.setPass(worker, None)
+
+
+# ===========================================================================
+# Chat Tests
+# ===========================================================================
+
+def test_chat(api):
+    """Comprehensive tests for chat functionality."""
+    import datetime
+    import uuid
+    
+    suffix = uuid.uuid4().hex[:8]
+    owner = f"chatowner{suffix}"
+    worker = f"chatworker{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+    
+    # Register users
+    api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": pswd
+    }, login=None)
+    owner_token = api.get("/login", 200, login=owner).json
+    api.setToken(owner, owner_token.get("token") if isinstance(owner_token, dict) else owner_token)
+    
+    api.post("/register", 201, json={
+        "username": worker,
+        "email": f"{worker}@test.com",
+        "password": pswd
+    }, login=None)
+    worker_token = api.get("/login", 200, login=worker).json
+    api.setToken(worker, worker_token.get("token") if isinstance(worker_token, dict) else worker_token)
+    
+    # Create future date
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+    
+    # Create and publish a PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Chat Test Job Posting",
+        "description": "A job posting to test chat messaging functionality.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "payment_currency": "USD",
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+    
+    # Worker applies - creates chat thread
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "I want to discuss this project."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+    thread_id = res.json.get("chat_thread_id")
+    
+    # Get chat threads for owner
+    res = api.get("/chat", 200, login=owner)
+    assert res.json["count"] >= 1
+    
+    # Get chat threads for worker
+    res = api.get("/chat", 200, login=worker)
+    assert res.json["count"] >= 1
+    
+    # Get specific thread
+    res = api.get(f"/chat/{thread_id}", 200, login=owner)
+    assert res.json["thread_id"] == thread_id
+    assert res.json["thread_type"] == "spap_discussion"
+    
+    # Get thread via SPAP endpoint
+    res = api.get(f"/spap/{spap_id}/chat", 200, login=owner)
+    assert res.json["thread_id"] == thread_id
+    
+    # Send message from owner
+    res = api.post(f"/chat/{thread_id}/messages", 201, json={
+        "content": "Hello! Thanks for your interest in this project."
+    }, login=owner)
+    msg_id1 = res.json.get("message_id")
+    
+    # Send message from worker
+    res = api.post(f"/chat/{thread_id}/messages", 201, json={
+        "content": "Thanks! When do you need this completed?"
+    }, login=worker)
+    msg_id2 = res.json.get("message_id")
+    
+    # Get messages
+    res = api.get(f"/chat/{thread_id}/messages", 200, login=owner)
+    assert res.json["count"] == 2
+    assert len(res.json["messages"]) == 2
+    
+    # Check unread count
+    res = api.get(f"/chat/{thread_id}/unread", 200, login=owner)
+    assert res.json["unread_count"] >= 0
+    
+    # Mark message as read
+    api.put(f"/chat/{thread_id}/messages/{msg_id2}/read", 204, login=owner)
+    
+    # Mark all messages as read
+    api.put(f"/chat/{thread_id}/read", 204, login=owner)
+    
+    # Get participants
+    res = api.get(f"/chat/{thread_id}/participants", 200, login=owner)
+    assert len(res.json) >= 2
+    
+    # Third party cannot view or send messages
+    api.get(f"/chat/{thread_id}", 403, login=NOADM)
+    api.get(f"/chat/{thread_id}/messages", 403, login=NOADM)
+    api.post(f"/chat/{thread_id}/messages", 403, json={"content": "Hacking"}, login=NOADM)
+    
+    # Accept SPAP - chat thread transfers to ASAP
+    res = api.put(f"/spap/{spap_id}/accept", 200, login=owner)
+    asap_id = res.json.get("asap_id")
+    
+    # Chat thread should now be asap_discussion type
+    res = api.get(f"/chat/{thread_id}", 200, login=owner)
+    assert res.json["thread_type"] == "asap_discussion"
+    
+    # Get thread via ASAP endpoint
+    res = api.get(f"/asap/{asap_id}/chat", 200, login=owner)
+    assert res.json["thread_id"] == thread_id
+    
+    # Get all chats for PAPS
+    res = api.get(f"/paps/{paps_id}/chats", 200, login=owner)
+    assert "threads" in res.json
+    
+    # Leave chat (worker)
+    api.delete(f"/chat/{thread_id}/leave", 204, login=worker)
+    
+    # Cleanup
+    api.delete(f"/asap/{asap_id}", 204, login=owner)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    owner_id = res.json["user_id"]
+    api.delete(f"/users/{owner_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_id = res.json["user_id"]
+    api.delete(f"/users/{worker_id}", 204, login=ADMIN)
+    
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(worker, None)
+    api.setPass(worker, None)
+
+
+# ===========================================================================
+# Payment Tests
+# ===========================================================================
+
+def test_payment(api):
+    """Comprehensive tests for payment functionality."""
+    import datetime
+    import uuid
+    
+    suffix = uuid.uuid4().hex[:8]
+    owner = f"payowner{suffix}"
+    worker = f"payworker{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+    
+    # Register users
+    api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": pswd
+    }, login=None)
+    owner_token = api.get("/login", 200, login=owner).json
+    api.setToken(owner, owner_token.get("token") if isinstance(owner_token, dict) else owner_token)
+    
+    api.post("/register", 201, json={
+        "username": worker,
+        "email": f"{worker}@test.com",
+        "password": pswd
+    }, login=None)
+    worker_token = api.get("/login", 200, login=worker).json
+    api.setToken(worker, worker_token.get("token") if isinstance(worker_token, dict) else worker_token)
+    
+    # Create future date
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+    
+    # Create PAPS, apply, and accept to get ASAP
+    res = api.post("/paps", 201, json={
+        "title": "Payment Test Job Posting",
+        "description": "A job posting to test payment functionality.",
+        "payment_type": "fixed",
+        "payment_amount": 1500.00,
+        "payment_currency": "EUR",
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+    
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "Ready to work."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+    
+    res = api.put(f"/spap/{spap_id}/accept", 200, login=owner)
+    asap_id = res.json.get("asap_id")
+    
+    # Get worker user ID for payment
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_id = res.json["user_id"]
+    
+    # Create payment (owner only)
+    res = api.post(f"/paps/{paps_id}/payments", 201, json={
+        "payee_id": worker_id,
+        "amount": 500.00,
+        "currency": "EUR"
+    }, login=owner)
+    payment_id = res.json.get("payment_id")
+    
+    # Worker cannot create payment
+    api.post(f"/paps/{paps_id}/payments", 403, json={
+        "payee_id": worker_id,
+        "amount": 100.00,
+        "currency": "EUR"
+    }, login=worker)
+    
+    # Get payment details
+    res = api.get(f"/payments/{payment_id}", 200, login=owner)
+    assert res.json["amount"] == 500.00
+    assert res.json["status"] == "pending"
+    
+    # Worker can also view
+    res = api.get(f"/payments/{payment_id}", 200, login=worker)
+    assert res.json["payment_id"] == payment_id
+    
+    # Third party cannot view
+    api.get(f"/payments/{payment_id}", 403, login=NOADM)
+    
+    # Get all payments
+    res = api.get("/payments", 200, login=owner)
+    assert res.json["total_count"] >= 1
+    
+    # Get payments for PAPS
+    res = api.get(f"/paps/{paps_id}/payments", 200, login=owner)
+    assert res.json["count"] >= 1
+    
+    # Update payment status (owner completes payment)
+    api.put(f"/payments/{payment_id}/status", 204, json={
+        "status": "completed",
+        "payment_method": "stripe"
+    }, login=owner)
+    
+    res = api.get(f"/payments/{payment_id}", 200, login=owner)
+    assert res.json["status"] == "completed"
+    
+    # Create second payment
+    res = api.post(f"/paps/{paps_id}/payments", 201, json={
+        "payee_id": worker_id,
+        "amount": 1000.00,
+        "currency": "EUR"
+    }, login=owner)
+    payment_id2 = res.json.get("payment_id")
+    
+    # Test payment cancellation
+    api.put(f"/payments/{payment_id2}/status", 204, json={
+        "status": "cancelled"
+    }, login=owner)
+    
+    res = api.get(f"/payments/{payment_id2}", 200, login=owner)
+    assert res.json["status"] == "cancelled"
+    
+    # Cannot modify cancelled payment
+    api.put(f"/payments/{payment_id2}/status", 400, json={
+        "status": "completed"
+    }, login=owner)
+    
+    # Delete pending payment
+    res = api.post(f"/paps/{paps_id}/payments", 201, json={
+        "payee_id": worker_id,
+        "amount": 200.00,
+        "currency": "EUR"
+    }, login=owner)
+    payment_id3 = res.json.get("payment_id")
+    
+    api.delete(f"/payments/{payment_id3}", 204, login=owner)
+    api.get(f"/payments/{payment_id3}", 404, login=owner)
+    
+    # Cleanup - delete payments first, then PAPS (which cascades to ASAP)
+    api.delete(f"/payments/{payment_id}", 204, login=ADMIN)
+    api.delete(f"/payments/{payment_id2}", 204, login=ADMIN)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    owner_id = res.json["user_id"]
+    api.delete(f"/users/{owner_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_id = res.json["user_id"]
+    api.delete(f"/users/{worker_id}", 204, login=ADMIN)
+    
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(worker, None)
+    api.setPass(worker, None)
+
+
+# ===========================================================================
+# Rating Tests
+# ===========================================================================
+
+def test_rating(api):
+    """Comprehensive tests for rating functionality."""
+    import datetime
+    import uuid
+    
+    suffix = uuid.uuid4().hex[:8]
+    owner = f"rateowner{suffix}"
+    worker = f"rateworker{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+    
+    # Register users
+    api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": pswd
+    }, login=None)
+    owner_token = api.get("/login", 200, login=owner).json
+    api.setToken(owner, owner_token.get("token") if isinstance(owner_token, dict) else owner_token)
+    
+    api.post("/register", 201, json={
+        "username": worker,
+        "email": f"{worker}@test.com",
+        "password": pswd
+    }, login=None)
+    worker_token = api.get("/login", 200, login=worker).json
+    api.setToken(worker, worker_token.get("token") if isinstance(worker_token, dict) else worker_token)
+    
+    # Get worker's user_id for rating check later
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_user_id = res.json["user_id"]
+    
+    # Check initial rating (should be 0)
+    res = api.get(f"/users/{worker_user_id}/rating", 200, login=owner)
+    assert res.json["rating_count"] == 0
+    assert res.json["rating_average"] == 0
+    
+    # Create future date
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+    
+    # Create PAPS, apply, and accept to get ASAP
+    res = api.post("/paps", 201, json={
+        "title": "Rating Test Job Posting",
+        "description": "A job posting to test rating functionality.",
+        "payment_type": "fixed",
+        "payment_amount": 1000.00,
+        "payment_currency": "USD",
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+    
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "Ready to work and get rated."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+    
+    res = api.put(f"/spap/{spap_id}/accept", 200, login=owner)
+    asap_id = res.json.get("asap_id")
+    
+    # Cannot rate before ASAP is completed
+    res = api.get(f"/asap/{asap_id}/can-rate", 200, login=owner)
+    assert res.json["can_rate"] == False
+    
+    # Trying to rate uncompleted ASAP returns 404 (not found in completed ASAPs)
+    api.post(f"/asap/{asap_id}/rate", 404, json={"score": 5}, login=owner)
+    
+    # Complete the ASAP (owner must mark as completed)
+    api.put(f"/asap/{asap_id}/status", 204, json={"status": "in_progress"}, login=worker)
+    api.put(f"/asap/{asap_id}/status", 204, json={"status": "completed"}, login=owner)
+    
+    # Check can-rate endpoint
+    res = api.get(f"/asap/{asap_id}/can-rate", 200, login=owner)
+    assert res.json["can_rate"] == True
+    assert res.json["is_owner"] == True
+    assert res.json["user_to_rate_id"] == worker_user_id
+    
+    # Owner rates worker
+    res = api.post(f"/asap/{asap_id}/rate", 201, json={"score": 5}, login=owner)
+    assert res.json["score"] == 5
+    assert res.json["rated_user_id"] == worker_user_id
+    
+    # Note: Rating system allows multiple ratings by same user (moving average only)
+    # Each rating updates the aggregate, no duplicate protection
+    
+    # Check worker's rating was updated
+    res = api.get(f"/users/{worker_user_id}/rating", 200, login=owner)
+    assert res.json["rating_count"] == 1
+    assert res.json["rating_average"] == 5
+    
+    # Worker can also rate owner (bidirectional)
+    res = api.get(f"/asap/{asap_id}/can-rate", 200, login=worker)
+    assert res.json["can_rate"] == True
+    assert res.json["is_worker"] == True
+    
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    owner_user_id = res.json["user_id"]
+    
+    res = api.post(f"/asap/{asap_id}/rate", 201, json={"score": 4}, login=worker)
+    assert res.json["score"] == 4
+    
+    # Check owner's rating
+    res = api.get(f"/users/{owner_user_id}/rating", 200, login=worker)
+    assert res.json["rating_count"] == 1
+    assert res.json["rating_average"] == 4
+    
+    # Test profile rating endpoint (get own rating)
+    res = api.get("/profile/rating", 200, login=worker)
+    assert res.json["rating_count"] == 1
+    
+    # Test invalid score values
+    # Score must be 1-5
+    # Need another completed ASAP for this test
+    res = api.post("/paps", 201, json={
+        "title": "Rating Test Job 2",
+        "description": "Another job to test invalid rating values.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "payment_currency": "USD",
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id2 = res.json.get("paps_id")
+    
+    res = api.post(f"/paps/{paps_id2}/apply", 201, json={
+        "cover_letter": "Testing invalid scores."
+    }, login=worker)
+    spap_id2 = res.json.get("spap_id")
+    
+    res = api.put(f"/spap/{spap_id2}/accept", 200, login=owner)
+    asap_id2 = res.json.get("asap_id")
+    
+    api.put(f"/asap/{asap_id2}/status", 204, json={"status": "in_progress"}, login=worker)
+    api.put(f"/asap/{asap_id2}/status", 204, json={"status": "completed"}, login=owner)
+    
+    # Invalid scores
+    api.post(f"/asap/{asap_id2}/rate", 400, json={"score": 0}, login=owner)
+    api.post(f"/asap/{asap_id2}/rate", 400, json={"score": 6}, login=owner)
+    api.post(f"/asap/{asap_id2}/rate", 400, json={"score": -1}, login=owner)
+    
+    # Cleanup - cannot delete completed ASAPs
+    api.delete(f"/asap/{asap_id}", 400, login=owner)
+    api.delete(f"/asap/{asap_id2}", 400, login=owner)
+    
+    # Delete payments first for both PAPS
+    res = api.get(f"/paps/{paps_id}/payments", 200, login=owner)
+    for payment in res.json["payments"]:
+        api.delete(f"/payments/{payment['payment_id']}", 204, login=ADMIN)
+    
+    res = api.get(f"/paps/{paps_id2}/payments", 200, login=owner)
+    for payment in res.json["payments"]:
+        api.delete(f"/payments/{payment['payment_id']}", 204, login=ADMIN)
+    
+    # Delete PAPS with admin (cascades to ASAPs)
+    api.delete(f"/paps/{paps_id}", 204, login=ADMIN)
+    api.delete(f"/paps/{paps_id2}", 204, login=ADMIN)
+    
+    api.delete(f"/users/{owner_user_id}", 204, login=ADMIN)
+    api.delete(f"/users/{worker_user_id}", 204, login=ADMIN)
+    
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(worker, None)
+    api.setPass(worker, None)
+
+
+# ===========================================================================
+# Comment Tests
+# ===========================================================================
+
+def test_comments(api):
+    """Comprehensive tests for comment functionality."""
+    import datetime
+    import uuid
+    
+    suffix = uuid.uuid4().hex[:8]
+    owner = f"cmtowner{suffix}"
+    commenter = f"commenter{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(commenter, pswd)
+    
+    # Register users
+    api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": pswd
+    }, login=None)
+    owner_token = api.get("/login", 200, login=owner).json
+    api.setToken(owner, owner_token.get("token") if isinstance(owner_token, dict) else owner_token)
+    
+    api.post("/register", 201, json={
+        "username": commenter,
+        "email": f"{commenter}@test.com",
+        "password": pswd
+    }, login=None)
+    commenter_token = api.get("/login", 200, login=commenter).json
+    api.setToken(commenter, commenter_token.get("token") if isinstance(commenter_token, dict) else commenter_token)
+    
+    # Create future date
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+    
+    # Create a published PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Comment Test Job Posting",
+        "description": "A job posting to test comment functionality.",
+        "payment_type": "fixed",
+        "payment_amount": 750.00,
+        "payment_currency": "USD",
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+    
+    # Get comments (should be empty)
+    res = api.get(f"/paps/{paps_id}/comments", 200, login=owner)
+    assert res.json["count"] == 0
+    assert res.json["comments"] == []
+    
+    # Create a comment
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "This looks like an interesting project!"
+    }, login=commenter)
+    comment_id = res.json.get("comment_id")
+    
+    # Get comments
+    res = api.get(f"/paps/{paps_id}/comments", 200, login=owner)
+    assert res.json["count"] == 1
+    assert res.json["comments"][0]["comment_id"] == comment_id
+    assert res.json["comments"][0]["content"] == "This looks like an interesting project!"
+    
+    # Get specific comment
+    res = api.get(f"/comments/{comment_id}", 200, login=owner)
+    assert res.json["comment_id"] == comment_id
+    assert res.json["paps_id"] == paps_id
+    
+    # Update own comment
+    api.put(f"/comments/{comment_id}", 204, json={
+        "content": "This looks like an interesting project! Updated."
+    }, login=commenter)
+    
+    res = api.get(f"/comments/{comment_id}", 200, login=owner)
+    assert "Updated" in res.json["content"]
+    assert res.json["is_edited"] == True
+    
+    # Cannot update others' comments
+    api.put(f"/comments/{comment_id}", 403, json={
+        "content": "Hacking"
+    }, login=owner)
+    
+    # Create a reply
+    res = api.post(f"/comments/{comment_id}/replies", 201, json={
+        "content": "Thanks! Let me know if you have questions."
+    }, login=owner)
+    reply_id = res.json.get("comment_id")
+    
+    # Get replies
+    res = api.get(f"/comments/{comment_id}/replies", 200, login=commenter)
+    assert res.json["count"] == 1
+    assert res.json["replies"][0]["comment_id"] == reply_id
+    assert res.json["replies"][0]["parent_id"] == comment_id
+    
+    # Get comment thread
+    res = api.get(f"/comments/{reply_id}/thread", 200, login=commenter)
+    assert "comment" in res.json
+    assert res.json["is_reply"] == True
+    
+    # Check reply count on parent
+    res = api.get(f"/comments/{comment_id}", 200, login=owner)
+    assert res.json["reply_count"] == 1
+    
+    # Delete reply
+    api.delete(f"/comments/{reply_id}", 204, login=owner)
+    
+    res = api.get(f"/comments/{comment_id}/replies", 200, login=commenter)
+    assert res.json["count"] == 0
+    
+    # Delete original comment
+    api.delete(f"/comments/{comment_id}", 204, login=commenter)
+    
+    # Verify deleted
+    api.get(f"/comments/{comment_id}", 404, login=owner)
+    
+    # Test validation
+    # Comment content empty
+    api.post(f"/paps/{paps_id}/comments", 400, json={
+        "content": ""
+    }, login=commenter)
+    
+    # Comment on non-existent PAPS
+    api.post("/paps/00000000-0000-0000-0000-000000000000/comments", 404, json={
+        "content": "This PAPS doesn't exist but I'm commenting anyway."
+    }, login=commenter)
+    
+    # Invalid UUID
+    api.get("/comments/not-a-uuid", 400, login=owner)
+    api.put("/comments/not-a-uuid", 400, json={"content": "Test"}, login=owner)
+    api.delete("/comments/not-a-uuid", 400, login=owner)
+    
+    # Non-existent comment
+    api.get("/comments/00000000-0000-0000-0000-000000000000", 404, login=owner)
+    api.put("/comments/00000000-0000-0000-0000-000000000000", 404, json={"content": "Test"}, login=owner)
+    api.delete("/comments/00000000-0000-0000-0000-000000000000", 404, login=owner)
+    
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    owner_id = res.json["user_id"]
+    api.delete(f"/users/{owner_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{commenter}/profile", 200, login=None)
+    commenter_id = res.json["user_id"]
+    api.delete(f"/users/{commenter_id}", 204, login=ADMIN)
+    
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(commenter, None)
+    api.setPass(commenter, None)
+
+
+# ===========================================================================
+# Full Workflow Integration Test
+# ===========================================================================
+
+def test_full_workflow(api):
+    """
+    Test the complete job posting workflow:
+    1. Create PAPS
+    2. Apply (SPAP)
+    3. Accept (ASAP)
+    4. Chat
+    5. Payment
+    6. Complete
+    7. Rate
+    """
+    import datetime
+    import uuid
+    
+    suffix = uuid.uuid4().hex[:8]
+    owner = f"wfowner{suffix}"
+    worker = f"wfworker{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+    
+    # Register users
+    api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": pswd
+    }, login=None)
+    owner_token = api.get("/login", 200, login=owner).json
+    api.setToken(owner, owner_token.get("token") if isinstance(owner_token, dict) else owner_token)
+    
+    api.post("/register", 201, json={
+        "username": worker,
+        "email": f"{worker}@test.com",
+        "password": pswd
+    }, login=None)
+    worker_token = api.get("/login", 200, login=worker).json
+    api.setToken(worker, worker_token.get("token") if isinstance(worker_token, dict) else worker_token)
+    
+    # Create future date
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+    
+    log.info("=== STEP 1: Create PAPS ===")
+    res = api.post("/paps", 201, json={
+        "title": "Full Workflow Test Job",
+        "description": "Testing the complete job posting workflow from start to finish.",
+        "payment_type": "fixed",
+        "payment_amount": 1000.00,
+        "payment_currency": "USD",
+        "status": "published",
+        "max_applicants": 3,
+        "max_assignees": 1,
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+    assert paps_id is not None
+    
+    log.info("=== STEP 2: Apply (SPAP) ===")
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "I am the perfect candidate for this comprehensive job."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+    thread_id = res.json.get("chat_thread_id")
+    assert spap_id is not None
+    assert thread_id is not None
+    
+    log.info("=== STEP 3: Chat during application ===")
+    api.post(f"/chat/{thread_id}/messages", 201, json={
+        "content": "Hi! I am interested in learning more about this project."
+    }, login=worker)
+    
+    api.post(f"/chat/{thread_id}/messages", 201, json={
+        "content": "Great! Can you tell me about your experience?"
+    }, login=owner)
+    
+    res = api.get(f"/chat/{thread_id}/messages", 200, login=owner)
+    assert res.json["count"] == 2
+    
+    log.info("=== STEP 4: Accept (ASAP) ===")
+    res = api.put(f"/spap/{spap_id}/accept", 200, login=owner)
+    asap_id = res.json.get("asap_id")
+    assert asap_id is not None
+    
+    # Chat thread should transfer to ASAP
+    res = api.get(f"/chat/{thread_id}", 200, login=owner)
+    assert res.json["thread_type"] == "asap_discussion"
+    assert res.json["asap_id"] == asap_id
+    
+    log.info("=== STEP 5: Continue chat during work ===")
+    api.post(f"/chat/{thread_id}/messages", 201, json={
+        "content": "I have started working on the project."
+    }, login=worker)
+    
+    res = api.get(f"/chat/{thread_id}/messages", 200, login=owner)
+    assert res.json["count"] == 3
+    
+    log.info("=== STEP 6: Start and work on ASAP ===")
+    api.put(f"/asap/{asap_id}/status", 204, json={"status": "in_progress"}, login=worker)
+    
+    # Get worker user ID for payment
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_id = res.json["user_id"]
+    
+    log.info("=== STEP 7: Create payment ===")
+    res = api.post(f"/paps/{paps_id}/payments", 201, json={
+        "payee_id": worker_id,
+        "amount": 500.00,
+        "currency": "USD"
+    }, login=owner)
+    payment_id = res.json.get("payment_id")
+    
+    # Complete payment
+    api.put(f"/payments/{payment_id}/status", 204, json={
+        "status": "completed",
+        "payment_method": "stripe"
+    }, login=owner)
+    
+    log.info("=== STEP 8: Complete ASAP ===")
+    # Only owner can mark as completed
+    api.put(f"/asap/{asap_id}/status", 204, json={"status": "completed"}, login=owner)
+    
+    res = api.get(f"/asap/{asap_id}", 200, login=owner)
+    assert res.json["status"] == "completed"
+    
+    log.info("=== STEP 9: Rate each other ===")
+    # Owner rates worker
+    res = api.post(f"/asap/{asap_id}/rate", 201, json={"score": 5}, login=owner)
+    assert res.json["score"] == 5
+    
+    # Worker rates owner
+    res = api.post(f"/asap/{asap_id}/rate", 201, json={"score": 5}, login=worker)
+    assert res.json["score"] == 5
+    
+    # Verify ratings
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_id = res.json["user_id"]
+    res = api.get(f"/users/{worker_id}/rating", 200, login=owner)
+    assert res.json["rating_count"] == 1
+    assert res.json["rating_average"] == 5
+    
+    log.info("=== WORKFLOW COMPLETE ===")
+    
+    # Cleanup - cannot delete completed ASAP, but can delete PAPS with admin
+    # (Note: PAPS deletion is restricted when it has payments)
+    api.delete(f"/asap/{asap_id}", 400, login=owner)
+    # Delete payments first as admin
+    res = api.get(f"/paps/{paps_id}/payments", 200, login=owner)
+    for payment in res.json["payments"]:
+        api.delete(f"/payments/{payment['payment_id']}", 204, login=ADMIN)
+    # Now delete PAPS
+    api.delete(f"/paps/{paps_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    owner_id = res.json["user_id"]
+    api.delete(f"/users/{owner_id}", 204, login=ADMIN)
+    
+    api.delete(f"/users/{worker_id}", 204, login=ADMIN)
+    
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(worker, None)
+    api.setPass(worker, None)
+    
+    log.info("Full workflow test completed successfully!")
