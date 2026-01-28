@@ -3,10 +3,20 @@ import { View, StyleSheet, TouchableOpacity, Text, Button } from 'react-native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
-import PapsFeed from '../feed/PapsFeed'
+import PapsFeed from '../feed/PapsFeed';
+import Header from '../header/Header';
+
+
+import { serv, getCurrentUser } from '../serve';
+
+
+const currentUser = getCurrentUser();
+
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+
 
 const styles = StyleSheet.create({
   container: {
@@ -83,15 +93,16 @@ export default function MainView({ logoutUser }: MainViewProps) {
 
   return (
     <View style={{flexDirection: 'column', flex: 1}}>
-      <View style={{ height: 50, backgroundColor: '#1E375A', justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginTop: 10, color:"white" }}>UnderBoss</Text>
+      <View >
+        
+      
       </View>
       <NavigationContainer>
         <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { height: 150 } }}>
           <Tab.Screen
-          name="PapsFeed"
+          name="Home"
           component={PapsFeed}
-          options={{ title: 'PapsFeed' }}
+          options={{ title: 'Home' }}
         />
           <Tab.Screen
             name="Post"
@@ -109,11 +120,11 @@ export default function MainView({ logoutUser }: MainViewProps) {
             options={{ title: 'ProfilePage' }}
           />
           <Tab.Screen
-                        name="Settings"
-                        
-                        children={() => <SettingsPage logoutUser={logoutUser} />}
-                        options={{ title: 'SettingsPage' }}
-                    />
+            name="Settings"
+            
+            children={() => <SettingsPage logoutUser={logoutUser} />}
+            options={{ title: 'Calendar' }}
+        />
           
         </Tab.Navigator>
       </NavigationContainer>

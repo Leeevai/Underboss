@@ -1,0 +1,296 @@
+erDiagram
+    %% Core User Tables
+    ROLE ||--o{ USER : has
+    USER ||--|| USER_PROFILE : has
+    USER ||--o{ USER_EXPERIENCE : has
+    USER ||--o{ USER_INTEREST : has
+    USER ||--o{ PAPS : owns
+    USER ||--o{ SPAP : applies
+    USER ||--o{ ASAP : "is assigned"
+    USER ||--o{ PAYMENT : "pays/receives"
+    USER ||--o{ CHAT_PARTICIPANT : participates
+    USER ||--o{ CHAT_MESSAGE : sends
+    USER ||--o{ COMMENT : writes
+
+    %% Category Relationships
+    CATEGORY ||--o{ CATEGORY : "has parent"
+    CATEGORY ||--o{ USER_INTEREST : "categorizes"
+    CATEGORY ||--o{ PAPS_CATEGORY : "categorizes"
+
+    %% PAPS (Job Posting) Relationships
+    PAPS ||--o{ PAPS_CATEGORY : "belongs to"
+    PAPS ||--o{ PAPS_MEDIA : "has media"
+    PAPS ||--o{ PAPS_SCHEDULE : "has schedule"
+    PAPS ||--o{ SPAP : "receives applications"
+    PAPS ||--o{ ASAP : "has assignments"
+    PAPS ||--o{ PAYMENT : "has payments"
+    PAPS ||--o{ CHAT_THREAD : "has threads"
+    PAPS ||--o{ COMMENT : "has comments"
+
+    %% SPAP (Application) Relationships
+    SPAP ||--o{ SPAP_MEDIA : "has media"
+    SPAP ||--o| CHAT_THREAD : "has thread"
+
+    %% ASAP (Assignment) Relationships
+    ASAP ||--o{ ASAP_MEDIA : "has media"
+    ASAP ||--o| CHAT_THREAD : "has thread"
+
+    %% Chat Relationships
+    CHAT_THREAD ||--o{ CHAT_PARTICIPANT : "has participants"
+    CHAT_THREAD ||--o{ CHAT_MESSAGE : "contains messages"
+
+    %% Comment Relationships
+    COMMENT ||--o{ COMMENT : "has replies"
+
+    %% Entity Definitions
+    ROLE {
+        uuid id PK
+        varchar name UK
+        text description
+        timestamp created_at
+    }
+
+    USER {
+        uuid id PK
+        varchar username UK
+        varchar email UK
+        varchar phone
+        varchar password_hash
+        uuid role_id FK
+        boolean is_active
+        boolean is_verified
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    USER_PROFILE {
+        uuid id PK
+        uuid user_id FK,UK
+        varchar first_name
+        varchar last_name
+        varchar display_name
+        text bio
+        varchar avatar_url
+        date date_of_birth
+        char gender
+        text location_address
+        decimal location_lat
+        decimal location_lng
+        varchar timezone
+        varchar preferred_language
+        decimal rating_average
+        integer rating_count
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    USER_EXPERIENCE {
+        uuid id PK
+        uuid user_id FK
+        varchar title
+        varchar company
+        text description
+        date start_date
+        date end_date
+        boolean is_current
+        integer display_order
+        timestamp created_at
+    }
+
+    CATEGORY {
+        uuid id PK
+        varchar name UK
+        varchar slug UK
+        text description
+        uuid parent_id FK
+        varchar icon_url
+        boolean is_active
+        timestamp created_at
+    }
+
+    USER_INTEREST {
+        uuid user_id PK,FK
+        uuid category_id PK,FK
+        integer proficiency_level
+        timestamp created_at
+    }
+
+    PAPS {
+        uuid id PK
+        uuid owner_id FK
+        varchar title
+        varchar subtitle
+        text description
+        varchar status
+        text location_address
+        decimal location_lat
+        decimal location_lng
+        varchar location_timezone
+        timestamp start_datetime
+        timestamp end_datetime
+        integer estimated_duration_minutes
+        decimal payment_amount
+        varchar payment_currency
+        varchar payment_type
+        integer max_applicants
+        integer max_assignees
+        boolean is_public
+        timestamp publish_at
+        timestamp expires_at
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    PAPS_CATEGORY {
+        uuid paps_id PK,FK
+        uuid category_id PK,FK
+        boolean is_primary
+    }
+
+    PAPS_MEDIA {
+        uuid id PK
+        uuid paps_id FK
+        varchar media_type
+        varchar file_extension
+        integer file_size_bytes
+        varchar mime_type
+        integer display_order
+        timestamp uploaded_at
+    }
+
+    PAPS_SCHEDULE {
+        uuid id PK
+        uuid paps_id FK
+        varchar recurrence_rule
+        varchar cron_expression
+        date start_date
+        date end_date
+        timestamp next_run_at
+        timestamp last_run_at
+        boolean is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    SPAP {
+        uuid id PK
+        uuid paps_id FK
+        uuid applicant_id FK
+        varchar title
+        varchar subtitle
+        text message
+        decimal proposed_payment
+        text location_address
+        decimal location_lat
+        decimal location_lng
+        varchar location_timezone
+        varchar status
+        timestamp applied_at
+        timestamp reviewed_at
+        timestamp accepted_at
+        timestamp rejected_at
+    }
+
+    SPAP_MEDIA {
+        uuid id PK
+        uuid spap_id FK
+        varchar media_type
+        varchar file_extension
+        integer file_size_bytes
+        varchar mime_type
+        integer display_order
+        timestamp uploaded_at
+    }
+
+    ASAP {
+        uuid id PK
+        uuid paps_id FK
+        uuid accepted_user_id FK
+        uuid owner_id FK
+        varchar title
+        varchar subtitle
+        text location_address
+        decimal location_lat
+        decimal location_lng
+        varchar location_timezone
+        varchar status
+        timestamp assigned_at
+        timestamp started_at
+        timestamp due_at
+        timestamp completed_at
+        timestamp expires_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ASAP_MEDIA {
+        uuid id PK
+        uuid asap_id FK
+        varchar media_type
+        varchar file_extension
+        integer file_size_bytes
+        varchar mime_type
+        integer display_order
+        timestamp uploaded_at
+    }
+
+    PAYMENT {
+        uuid id PK
+        uuid paps_id FK
+        uuid payer_id FK
+        uuid payee_id FK
+        decimal amount
+        varchar currency
+        varchar payment_method
+        varchar status
+        varchar external_reference
+        varchar transaction_id
+        timestamp created_at
+        timestamp updated_at
+        timestamp paid_at
+    }
+
+    CHAT_THREAD {
+        uuid id PK
+        uuid paps_id FK
+        uuid spap_id FK
+        uuid asap_id FK
+        varchar thread_type
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    CHAT_PARTICIPANT {
+        uuid id PK
+        uuid thread_id FK
+        uuid user_id FK
+        varchar role
+        timestamp joined_at
+        timestamp left_at
+    }
+
+    CHAT_MESSAGE {
+        uuid id PK
+        uuid thread_id FK
+        uuid sender_id FK
+        text content
+        varchar message_type
+        varchar attachment_url
+        boolean is_read
+        timestamp read_at
+        timestamp sent_at
+        timestamp edited_at
+    }
+
+    COMMENT {
+        uuid id PK
+        uuid paps_id FK
+        uuid user_id FK
+        uuid parent_id FK
+        text content
+        boolean is_edited
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
