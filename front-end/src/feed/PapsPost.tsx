@@ -7,15 +7,44 @@ import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 const { width } = Dimensions.get('window')
 
 interface Pap {
-  id: string
-  title: string
+  created_at: string // RFC 1123 date string
   description: string
+
+  distance_km: number | null
+  end_datetime: string | null
+  estimated_duration_minutes: number | null
+  expires_at: string | null
+
+  id: string
+  interest_match_score: number
+  is_public: boolean
+
+  location_address: string | null
+  location_lat: number | null
+  location_lng: number | null
+  location_timezone: string | null
+
+  max_applicants: number | null
+  max_assignees: number | null
+
+  owner_avatar: string | null
+  owner_email: string | null
+  owner_id: string
+  owner_name: string | null
+  owner_username: string | null
+
   payment_amount: number | null
   payment_currency: string
-  media_urls?: { media_url: string; media_type: string; display_order: number }[]
-  location_address?: string
+  payment_type: 'hourly' | 'fixed' | string
+
+  publish_at: string
+  start_datetime: string | null
+
   status: string
-  owner_id?: string
+  subtitle: string
+  title: string
+
+  updated_at: string | null
   // Add other fields if returned by API
 }
 
@@ -30,8 +59,8 @@ export default function PapsPost({ pap }: PapsPostProps) {
     : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjRjBGMEYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5OTk5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4='
   const [modalVisible, setModalVisible] = useState(false);
   return (
-    <View style={{flexDirection:'column'}}>
-      <View style={{flex: 1, backgroundColor:'#792c2c13'}}>
+    <View style={{ flexDirection: 'column' }}>
+      <View style={{ flex: 1, backgroundColor: '#792c2c13' }}>
         <View style={styles.container}>
           <View style={styles.cardHeader}>
             <View style={styles.categoryTag}>
@@ -42,27 +71,27 @@ export default function PapsPost({ pap }: PapsPostProps) {
           <View style={styles.cardBody}>
             <Text style={styles.cardTitle}>{pap.title}</Text>
             <Text style={styles.cardDescription} numberOfLines={2}>
-              {pap.description}
+              {pap.subtitle||pap.description}
             </Text>
 
             <View style={styles.cardMeta}>
               <View style={styles.metaRow}>
                 <Text style={styles.metaIcon}>📍</Text>
-                <Text style={styles.metaText}>{pap.location_address || 'Downtown Madrid'}</Text>
+                <Text style={styles.metaText}>{pap.location_address}</Text>
               </View>
               <View style={styles.metaRow}>
                 <Text style={styles.metaIcon}>🕒</Text>
-                <Text style={styles.metaText}>2-3 hours</Text>
+                <Text style={styles.metaText}>{pap.start_datetime || 'To be decided with the boss'}</Text>
               </View>
               <View style={styles.metaRow}>
                 <Text style={styles.metaIcon}>💰</Text>
-                <Text style={styles.metaText}>€{pap.payment_amount || '30'}</Text>
+                <Text style={styles.metaText}>{pap.payment_amount} {pap.payment_currency} {pap.payment_type} </Text>
               </View>
             </View>
           </View>
 
           <View style={styles.cardFooter}>
-            <Text style={styles.footerUser}>User #{'unknown'}</Text>
+            <Text style={styles.footerUser}>User @{pap.owner_username}</Text>
             <TouchableOpacity
               style={styles.applyButton}
               onPress={() => setModalVisible(true)}
@@ -98,10 +127,13 @@ export default function PapsPost({ pap }: PapsPostProps) {
                         <Text style={styles.categoryTextSmall}>Moving</Text>
                       </View>
                     </View>
-
+            
                     <View style={styles.postedTimeRow}>
-                      <Text style={styles.postedTimeText}>🕒 Posted 4 hours ago(exemple)</Text>
+                       <Text style={styles.cardDescription} numberOfLines={2}>{pap.subtitle}</Text>
+                      <Text style={styles.postedTimeText}>🕒 Posted the {pap.publish_at||'Unkown'}</Text>
+                      
                     </View>
+                  
 
                     <View style={styles.infoBoxesRow}>
                       <View style={styles.infoBox}>
@@ -114,15 +146,15 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>🕒</Text>
                         <View>
-                          <Text style={styles.infoBoxLabel}>Duration</Text>
-                          <Text style={styles.infoBoxValue}>1 (exemple)</Text>
+                          <Text style={styles.infoBoxLabel}>Staring day</Text>
+                          <Text style={styles.infoBoxValue}>{pap.start_datetime || 'To be decided with the boss'}</Text>
                         </View>
                       </View>
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>📍</Text>
                         <View>
-                          <Text style={styles.infoBoxLabel}>Location</Text>
-                          <Text style={styles.infoBoxValue} numberOfLines={2}>Barcelona, Exemple</Text>
+                          <Text style={styles.infoBoxLabel}>{pap.location_address}</Text>
+                          <Text style={styles.infoBoxValue} numberOfLines={2}>{pap.location_address}</Text>
                         </View>
                       </View>
                     </View>
@@ -136,11 +168,17 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <Text style={styles.sectionTitle}>Posted by</Text>
                       <View style={styles.postedByCard}>
                         <View style={styles.avatarCircle}>
-                          <Text style={styles.avatarInitial}>CR</Text>
+                          {pap.owner_avatar ? (
+                            <Image source={{ uri: pap.owner_avatar }} style={styles.avatarImage} />
+                          ) : (
+                            <Text style={styles.avatarInitial}>
+                              {pap.owner_username ? pap.owner_username.charAt(0).toUpperCase() : '?'}
+                            </Text>
+                          )}
                         </View>
                         <View style={styles.postedByInfo}>
-                          <Text style={styles.postedByName}>Carlos R.(exemple)</Text>
-                          <Text style={styles.postedByStats}>⭐ 4.8  💼 23 jobs(exemple)</Text>
+                          <Text style={styles.postedByName}>{pap.owner_username}</Text>
+                          <Text style={styles.postedByStats}></Text>
                         </View>
                         <TouchableOpacity style={styles.viewProfileButton}>
                           <Text style={styles.viewProfileText}>View profile</Text>
@@ -153,17 +191,17 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <View style={styles.infoList}>
                         <View style={styles.infoListItem}>
                           <Text style={styles.infoListLabel}>Job ID</Text>
-                          <Text style={styles.infoListValue}>#000002(exemple)</Text>
+                          <Text style={styles.infoListValue}>{pap.id}</Text>
                         </View>
                         <View style={styles.infoListItem}>
                           <Text style={styles.infoListLabel}>Status</Text>
                           <View style={styles.statusBadge}>
-                            <Text style={styles.statusBadgeText}>Open(exemple)</Text>
+                            <Text style={styles.statusBadgeText}>{pap.status}</Text>
                           </View>
                         </View>
                         <View style={styles.infoListItem}>
-                          <Text style={styles.infoListLabel}>Applications</Text>
-                          <Text style={styles.infoListValue}>3 people applied(exemple)</Text>
+                          <Text style={styles.infoListLabel}>Numbers of workers</Text>
+                          <Text style={styles.infoListValue}>{pap.max_assignees}</Text>
                         </View>
                       </View>
                     </View>
@@ -186,8 +224,8 @@ export default function PapsPost({ pap }: PapsPostProps) {
           </Modal>
         </View>
       </View>
-      <View style={{flex:2}}></View>
-  </View>
+      <View style={{ flex: 2 }}></View>
+    </View>
   )
 }
 
@@ -199,7 +237,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     marginVertical: 8,
     width: 280,
-    height:300,
+    height: 300,
     borderWidth: 1,
     borderColor: '#F0F4F8',
     shadowColor: '#000',
@@ -416,6 +454,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  avatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   postedByInfo: {
     flex: 1,
