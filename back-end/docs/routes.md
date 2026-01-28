@@ -1293,9 +1293,8 @@ file: [binary file data]
       "applicant_username": "string",
       "applicant_avatar": "string|null",
       "status": "pending",
-      "cover_letter": "string|null",
-      "applied_at": "iso8601-timestamp",
-      "updated_at": "iso8601-timestamp"
+      "message": "string|null",
+      "applied_at": "iso8601-timestamp"
     }
   ]
 }
@@ -1312,7 +1311,7 @@ file: [binary file data]
 ```json
 {
   "paps_id": "uuid (required)",
-  "cover_letter": "string (optional, max 2000 chars)"
+  "message": "string (optional, application message/cover letter)"
 }
 ```
 
@@ -1320,7 +1319,6 @@ file: [binary file data]
 - Cannot apply to your own PAPS
 - Cannot apply twice to same PAPS
 - PAPS must be in "published" status
-- `cover_letter`: Max 2000 characters
 
 **Success Response (201)**:
 ```json
@@ -1355,9 +1353,8 @@ file: [binary file data]
   "applicant_email": "string",
   "applicant_phone": "string|null",
   "status": "pending",
-  "cover_letter": "string|null",
+  "message": "string|null",
   "applied_at": "iso8601-timestamp",
-  "updated_at": "iso8601-timestamp",
   "media": [
     {
       "media_id": "uuid",
@@ -1375,8 +1372,8 @@ file: [binary file data]
 ---
 
 ### PATCH /spaps/{spap_id}
-**Description**: Update application status or cover letter  
-**Authorization**: AUTH (owner to update cover_letter, PAPS owner to update status)
+**Description**: Update application status or message  
+**Authorization**: AUTH (applicant to update message, PAPS owner to update status)
 
 **Path Parameters**:
 - `spap_id`: string (UUID)
@@ -1385,12 +1382,12 @@ file: [binary file data]
 ```json
 {
   "status": "string (optional): pending, accepted, rejected, withdrawn",
-  "cover_letter": "string (optional, max 2000 chars)"
+  "message": "string (optional, application message)"
 }
 ```
 
 **Validation Rules**:
-- Only applicant can update `cover_letter`
+- Only applicant can update `message`
 - Only PAPS owner can update `status` to "accepted" or "rejected"
 - Only applicant can set status to "withdrawn"
 
@@ -1461,7 +1458,7 @@ file: [binary file data]
 **Query Parameters**:
 - `paps_id`: string UUID (optional) - Filter by job posting
 - `accepted_user_id`: string UUID (optional) - Filter by accepted user
-- `status`: string (optional) - Filter by status: "pending", "in_progress", "completed", "cancelled"
+- `status`: string (optional) - Filter by status: "active", "in_progress", "completed", "cancelled", "disputed"
 
 **Success Response (200)**:
 ```json
@@ -1471,16 +1468,12 @@ file: [binary file data]
       "asap_id": "uuid",
       "paps_id": "uuid",
       "paps_title": "string",
-      "spap_id": "uuid",
       "accepted_user_id": "uuid",
       "accepted_username": "string",
-      "owner_id": "uuid",
-      "owner_username": "string",
       "status": "in_progress",
       "assigned_at": "iso8601-timestamp",
-      "completed_at": "iso8601-timestamp|null",
-      "expires_at": "iso8601-timestamp|null",
-      "updated_at": "iso8601-timestamp"
+      "started_at": "iso8601-timestamp|null",
+      "completed_at": "iso8601-timestamp|null"
     }
   ]
 }
@@ -1496,15 +1489,15 @@ file: [binary file data]
 **Request Body**:
 ```json
 {
-  "spap_id": "uuid (required)",
-  "expires_at": "iso8601-timestamp (optional)"
+  "paps_id": "uuid (required)",
+  "accepted_user_id": "uuid (required)"
 }
 ```
 
 **Validation Rules**:
-- SPAP must be in "accepted" status
-- SPAP must belong to your PAPS
-- `expires_at`: Must be in future if provided
+- User must be PAPS owner
+- accepted_user_id must have an accepted SPAP for this PAPS
+- PAPS must be in "published" status
 
 **Success Response (201)**:
 ```json
@@ -1514,13 +1507,13 @@ file: [binary file data]
 ```
 
 **Side Effects**:
-- Sets SPAP status to "assigned"
-- Creates assignment with status "pending"
+- Creates assignment with status "active"
+- Links accepted user to PAPS
 
 **Error Responses**:
-- **400 Bad Request**: SPAP not accepted or validation failed
+- **400 Bad Request**: User has no accepted SPAP or validation failed
 - **403 Forbidden**: Not PAPS owner
-- **404 Not Found**: SPAP not found
+- **404 Not Found**: PAPS or user not found
 
 ---
 
@@ -1541,18 +1534,14 @@ file: [binary file data]
   "paps_location": "string|null",
   "paps_payment_amount": "float|null",
   "paps_payment_currency": "USD",
-  "spap_id": "uuid",
   "accepted_user_id": "uuid",
   "accepted_username": "string",
   "accepted_user_email": "string",
   "accepted_user_phone": "string|null",
-  "owner_id": "uuid",
-  "owner_username": "string",
   "status": "in_progress",
   "assigned_at": "iso8601-timestamp",
+  "started_at": "iso8601-timestamp|null",
   "completed_at": "iso8601-timestamp|null",
-  "expires_at": "iso8601-timestamp|null",
-  "updated_at": "iso8601-timestamp",
   "media": [
     {
       "media_id": "uuid",
@@ -1579,14 +1568,14 @@ file: [binary file data]
 **Request Body**:
 ```json
 {
-  "status": "string (required): pending, in_progress, completed, cancelled"
+  "status": "string (required): active, in_progress, completed, cancelled, disputed"
 }
 ```
 
 **Validation Rules**:
-- Owner can set: "in_progress", "completed", "cancelled"
+- Owner can set: "active", "in_progress", "completed", "cancelled", "disputed"
 - Accepted user can set: "in_progress", "completed"
-- Cannot change status of expired or already completed assignment
+- Cannot change status of already completed assignment
 
 **Success Response (204)**: No content
 

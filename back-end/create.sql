@@ -248,30 +248,11 @@ CREATE TABLE SPAP (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     paps_id UUID NOT NULL REFERENCES PAPS(id) ON DELETE RESTRICT,
     applicant_id UUID NOT NULL REFERENCES "USER"(id) ON DELETE RESTRICT,
-    -- Application content
-    title VARCHAR(200),
-    subtitle VARCHAR(300),
     message TEXT,
-    -- Optional proposed terms
-    proposed_payment DECIMAL(12, 2),
-    -- Applicant location at time of application
-    location_address TEXT,
-    location_lat DECIMAL(10, 8),
-    location_lng DECIMAL(11, 8),
-    location_timezone VARCHAR(50),
-    -- Status tracking
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'withdrawn', 'rejected', 'accepted')),
-    -- Timestamps
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    reviewed_at TIMESTAMP,
-    accepted_at TIMESTAMP,
-    rejected_at TIMESTAMP,
     
-    CONSTRAINT spap_unique_application UNIQUE (paps_id, applicant_id),
-    CONSTRAINT spap_latitude_range CHECK (location_lat IS NULL OR (location_lat >= -90 AND location_lat <= 90)),
-    CONSTRAINT spap_longitude_range CHECK (location_lng IS NULL OR (location_lng >= -180 AND location_lng <= 180)),
-    CONSTRAINT spap_coordinates_pair CHECK ((location_lat IS NULL AND location_lng IS NULL) OR (location_lat IS NOT NULL AND location_lng IS NOT NULL)),
-    CONSTRAINT spap_proposed_payment_non_negative CHECK (proposed_payment IS NULL OR proposed_payment >= 0)
+    CONSTRAINT spap_unique_application UNIQUE (paps_id, applicant_id)
 );
 
 -- SPAP_MEDIA: Media files for applications
@@ -298,39 +279,14 @@ CREATE TABLE SPAP_MEDIA (
 CREATE TABLE ASAP (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     paps_id UUID NOT NULL REFERENCES PAPS(id) ON DELETE RESTRICT,
-    -- The user who was accepted for the job
     accepted_user_id UUID NOT NULL REFERENCES "USER"(id) ON DELETE RESTRICT,
-    -- The PAPS owner (denormalized for easier queries)
-    owner_id UUID NOT NULL REFERENCES "USER"(id) ON DELETE RESTRICT,
-    -- Assignment details (can be copied/modified from PAPS)
-    title VARCHAR(200),
-    subtitle VARCHAR(300),
-    -- Location for the assignment
-    location_address TEXT,
-    location_lat DECIMAL(10, 8),
-    location_lng DECIMAL(11, 8),
-    location_timezone VARCHAR(50),
-    -- Status tracking
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'in_progress', 'completed', 'cancelled', 'disputed')),
-    -- Lifecycle timestamps
     assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     started_at TIMESTAMP,
-    due_at TIMESTAMP,
     completed_at TIMESTAMP,
-    -- For auto-cleanup after completion
-    expires_at TIMESTAMP,
-    -- Timestamps
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Each user can only have one active assignment per PAPS
     CONSTRAINT asap_unique_assignment UNIQUE (paps_id, accepted_user_id),
-    CONSTRAINT asap_latitude_range CHECK (location_lat IS NULL OR (location_lat >= -90 AND location_lat <= 90)),
-    CONSTRAINT asap_longitude_range CHECK (location_lng IS NULL OR (location_lng >= -180 AND location_lng <= 180)),
-    CONSTRAINT asap_coordinates_pair CHECK ((location_lat IS NULL AND location_lng IS NULL) OR (location_lat IS NOT NULL AND location_lng IS NOT NULL)),
-    CONSTRAINT asap_due_after_start CHECK (due_at IS NULL OR started_at IS NULL OR due_at >= started_at),
-    CONSTRAINT asap_completed_after_start CHECK (completed_at IS NULL OR started_at IS NULL OR completed_at >= started_at),
-    CONSTRAINT asap_no_self_assignment CHECK (accepted_user_id != owner_id)
+    CONSTRAINT asap_completed_after_start CHECK (completed_at IS NULL OR started_at IS NULL OR completed_at >= started_at)
 );
 
 -- ASAP_MEDIA: Media files for assignments (uploaded by PAPS owner only)
@@ -492,11 +448,9 @@ CREATE INDEX idx_spap_applied ON SPAP(applied_at);
 -- ASAP indexes
 CREATE INDEX idx_asap_paps ON ASAP(paps_id);
 CREATE INDEX idx_asap_accepted_user ON ASAP(accepted_user_id);
-CREATE INDEX idx_asap_owner ON ASAP(owner_id);
 CREATE INDEX idx_asap_status ON ASAP(status);
 CREATE INDEX idx_asap_assigned ON ASAP(assigned_at);
 CREATE INDEX idx_asap_completed ON ASAP(completed_at) WHERE completed_at IS NOT NULL;
-CREATE INDEX idx_asap_expires ON ASAP(expires_at) WHERE expires_at IS NOT NULL;
 
 -- Payment indexes
 CREATE INDEX idx_payment_paps ON PAYMENT(paps_id);
@@ -546,9 +500,6 @@ CREATE TRIGGER update_paps_updated_at BEFORE UPDATE ON PAPS
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_paps_schedule_updated_at BEFORE UPDATE ON PAPS_SCHEDULE
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_asap_updated_at BEFORE UPDATE ON ASAP
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_payment_updated_at BEFORE UPDATE ON PAYMENT

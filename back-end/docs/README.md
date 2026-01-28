@@ -120,7 +120,7 @@ back-end/
 
 ### SPAP (Some People Are Participating)
 
-**Applications** submitted by workers wanting to do the job.
+**Applications** submitted by workers wanting to do the job. SPAP is a minimal association table linking users to PAPS they've applied for.
 
 **Lifecycle**:
 1. **Pending**: Submitted, awaiting review
@@ -129,25 +129,31 @@ back-end/
 4. **Withdrawn**: Applicant cancelled
 
 **Features**:
-- Cover letter
+- Application message (optional cover letter)
+- Status tracking
 - Media attachments (portfolio, certifications)
 - Application timestamp
 
+**Note**: All job details (title, location, payment) are in PAPS, not duplicated in SPAP.
+
 ### ASAP (Assignments Specified Are Possible)
 
-**Assignments** created when owner accepts an application.
+**Assignments** created when owner accepts an application. ASAP is a minimal association table linking accepted users to PAPS.
 
 **Lifecycle**:
-1. **Pending**: Assignment created, not started
+1. **Active**: Assignment created, ready to start
 2. **In Progress**: Work has begun
 3. **Completed**: Work finished
 4. **Cancelled**: Assignment terminated
+5. **Disputed**: Issues with assignment
 
 **Features**:
-- Links SPAP to actual work
-- Expiration date
+- Links accepted users to PAPS
+- Status and timestamp tracking (assigned_at, started_at, completed_at)
 - Media attachments (proof of work)
-- **Auto-payment**: When marked "completed" with payment_amount set
+- **Auto-payment**: When marked "completed" with payment_amount set in PAPS
+
+**Note**: All job details (title, location, payment, owner) are in PAPS, not duplicated in ASAP.
 
 ### PAYMENT
 
@@ -299,14 +305,13 @@ CREATE TABLE PAPS (
 ```sql
 CREATE TABLE SPAP (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    paps_id UUID NOT NULL REFERENCES PAPS(id) ON DELETE CASCADE,
+    paps_id UUID NOT NULL REFERENCES PAPS(id) ON DELETE RESTRICT,
     applicant_id UUID NOT NULL REFERENCES "USER"(id) ON DELETE RESTRICT,
-    status VARCHAR(20) DEFAULT 'pending',
-    cover_letter TEXT,
-    applied_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW(),
-    deleted_at TIMESTAMP,
-    UNIQUE(paps_id, applicant_id)
+    message TEXT,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'withdrawn', 'rejected', 'accepted')),
+    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT spap_unique_application UNIQUE (paps_id, applicant_id)
 );
 ```
 
@@ -314,16 +319,15 @@ CREATE TABLE SPAP (
 ```sql
 CREATE TABLE ASAP (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    paps_id UUID NOT NULL REFERENCES PAPS(id) ON DELETE CASCADE,
-    spap_id UUID REFERENCES SPAP(id) ON DELETE SET NULL,
+    paps_id UUID NOT NULL REFERENCES PAPS(id) ON DELETE RESTRICT,
     accepted_user_id UUID NOT NULL REFERENCES "USER"(id) ON DELETE RESTRICT,
-    owner_id UUID NOT NULL REFERENCES "USER"(id) ON DELETE RESTRICT,
-    status VARCHAR(20) DEFAULT 'pending',
-    assigned_at TIMESTAMP DEFAULT NOW(),
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'in_progress', 'completed', 'cancelled', 'disputed')),
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP,
     completed_at TIMESTAMP,
-    expires_at TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT NOW(),
-    deleted_at TIMESTAMP
+    
+    CONSTRAINT asap_unique_assignment UNIQUE (paps_id, accepted_user_id),
+    CONSTRAINT asap_completed_after_start CHECK (completed_at IS NULL OR started_at IS NULL OR completed_at >= started_at)
 );
 ```
 
@@ -348,6 +352,8 @@ CREATE TABLE PAYMENT (
 
 ### Relationship Tables
 
+- **SPAP**: Minimal association table linking users (applicants) to PAPS (many-to-many)
+- **ASAP**: Minimal association table linking accepted users to PAPS (many-to-many)
 - **PAPS_CATEGORY**: Links PAPS to categories (many-to-many)
 - **USER_INTEREST**: Links users to category interests
 - **USER_EXPERIENCE**: Work experience entries
