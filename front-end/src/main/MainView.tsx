@@ -5,7 +5,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import PapsFeed from '../feed/PapsFeed';
 import Header from '../header/Header';
-import UnderbossBar from '../header/underbossbar';
+
+
 import { serv, getCurrentUser } from '../serve';
 
 
@@ -14,6 +15,8 @@ const currentUser = getCurrentUser();
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+
 
 const styles = StyleSheet.create({
   container: {
@@ -91,15 +94,15 @@ export default function MainView({ logoutUser }: MainViewProps) {
   return (
     <View style={{flexDirection: 'column', flex: 1}}>
       <View >
-        <UnderbossBar />
+        
       
       </View>
       <NavigationContainer>
         <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { height: 150 } }}>
           <Tab.Screen
-          name="PapsFeed"
+          name="Home"
           component={PapsFeed}
-          options={{ title: 'PapsFeed' }}
+          options={{ title: 'Home' }}
         />
           <Tab.Screen
             name="Post"
@@ -117,11 +120,11 @@ export default function MainView({ logoutUser }: MainViewProps) {
             options={{ title: 'ProfilePage' }}
           />
           <Tab.Screen
-                        name="Settings"
-                        
-                        children={() => <SettingsPage logoutUser={logoutUser} />}
-                        options={{ title: 'SettingsPage' }}
-                    />
+            name="Settings"
+            
+            children={() => <SettingsPage logoutUser={logoutUser} />}
+            options={{ title: 'Calendar' }}
+        />
           
         </Tab.Navigator>
       </NavigationContainer>

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { View, FlatList, ActivityIndicator, Text, StyleSheet, RefreshControl, TouchableWithoutFeedback, TextInput } from 'react-native'
-import { serv, ApiError } from '../serve'
-import PapsPost from './PapsPost'
+import { serv, ApiError } from '../serve';
+import PapsPost from './PapsPost';
+import UnderbossBar from '../header/underbossbar';
 
 export default function PapsFeed() {
   const [paps, setPaps] = useState<any[]>([])
@@ -53,6 +54,7 @@ export default function PapsFeed() {
 
   return (
     <View style={styles.container}>
+      <View><UnderbossBar /></View>
       <View style ={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#ccc', }}>
         <TextInput style = {{borderWidth: 1, borderColor : '#646464',borderRadius:30, margin:10, backgroundColor : '#ecf1f2', color:'#5074b2'}} placeholder = '🔍 Research a job ...' ></TextInput>
       </View>
