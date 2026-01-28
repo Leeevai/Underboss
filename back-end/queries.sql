@@ -939,25 +939,17 @@ SELECT
     a.id::text as asap_id,
     a.paps_id::text,
     a.accepted_user_id::text,
-    a.owner_id::text,
-    a.title,
-    a.subtitle,
-    a.location_address,
-    a.location_lat,
-    a.location_lng,
-    a.location_timezone,
+    p.owner_id::text,
+    p.title,
     a.status,
     a.assigned_at,
     a.started_at,
-    a.due_at,
     a.completed_at,
-    a.expires_at,
-    a.created_at,
-    a.updated_at,
     u.username as accepted_user_username,
     up.display_name as accepted_user_display_name,
     up.avatar_url as accepted_user_avatar
 FROM ASAP a
+JOIN PAPS p ON a.paps_id = p.id
 JOIN "USER" u ON a.accepted_user_id = u.id
 LEFT JOIN USER_PROFILE up ON u.id = up.user_id
 WHERE a.paps_id = :paps_id::uuid
@@ -969,21 +961,16 @@ SELECT
     a.id::text as asap_id,
     a.paps_id::text,
     a.accepted_user_id::text,
-    a.owner_id::text,
-    a.title,
-    a.subtitle,
-    a.location_address,
-    a.location_lat,
-    a.location_lng,
-    a.location_timezone,
+    p.owner_id::text,
+    p.title,
+    p.subtitle,
+    p.location_address,
+    p.location_lat,
+    p.location_lng,
     a.status,
     a.assigned_at,
     a.started_at,
-    a.due_at,
     a.completed_at,
-    a.expires_at,
-    a.created_at,
-    a.updated_at,
     u.username as accepted_user_username,
     up.display_name as accepted_user_display_name,
     up.avatar_url as accepted_user_avatar,
@@ -992,10 +979,10 @@ SELECT
     p.payment_currency,
     owner.username as owner_username
 FROM ASAP a
+JOIN PAPS p ON a.paps_id = p.id
 JOIN "USER" u ON a.accepted_user_id = u.id
 LEFT JOIN USER_PROFILE up ON u.id = up.user_id
-JOIN PAPS p ON a.paps_id = p.id
-JOIN "USER" owner ON a.owner_id = owner.id
+JOIN "USER" owner ON p.owner_id = owner.id
 WHERE a.id = :asap_id::uuid;
 
 -- Get ASAPs by accepted user
@@ -1004,13 +991,11 @@ SELECT
     a.id::text as asap_id,
     a.paps_id::text,
     a.accepted_user_id::text,
-    a.owner_id::text,
-    a.title,
-    a.subtitle,
+    p.owner_id::text,
+    p.title,
     a.status,
     a.assigned_at,
     a.started_at,
-    a.due_at,
     a.completed_at,
     p.title as paps_title,
     p.payment_amount,
@@ -1019,7 +1004,7 @@ SELECT
     owner_profile.display_name as owner_display_name
 FROM ASAP a
 JOIN PAPS p ON a.paps_id = p.id
-JOIN "USER" owner ON a.owner_id = owner.id
+JOIN "USER" owner ON p.owner_id = owner.id
 LEFT JOIN USER_PROFILE owner_profile ON owner.id = owner_profile.user_id
 WHERE a.accepted_user_id = :user_id::uuid
 ORDER BY a.assigned_at DESC;
@@ -1030,13 +1015,11 @@ SELECT
     a.id::text as asap_id,
     a.paps_id::text,
     a.accepted_user_id::text,
-    a.owner_id::text,
-    a.title,
-    a.subtitle,
+    p.owner_id::text,
+    p.title,
     a.status,
     a.assigned_at,
     a.started_at,
-    a.due_at,
     a.completed_at,
     p.title as paps_title,
     p.payment_amount,
@@ -1047,7 +1030,7 @@ FROM ASAP a
 JOIN PAPS p ON a.paps_id = p.id
 JOIN "USER" u ON a.accepted_user_id = u.id
 LEFT JOIN USER_PROFILE up ON u.id = up.user_id
-WHERE a.owner_id = :owner_id::uuid
+WHERE p.owner_id = :owner_id::uuid
 ORDER BY a.assigned_at DESC;
 
 -- Count ASAPs for a PAPS
@@ -1060,30 +1043,17 @@ SELECT id::text as asap_id, status FROM ASAP
 WHERE paps_id = :paps_id::uuid AND accepted_user_id = :user_id::uuid;
 
 -- Insert new ASAP (when accepting an application)
--- name: insert_asap(paps_id, accepted_user_id, owner_id, title, subtitle, location_address, location_lat, location_lng, location_timezone, due_at)$
-INSERT INTO ASAP (paps_id, accepted_user_id, owner_id, title, subtitle, location_address, location_lat, location_lng, location_timezone, due_at)
-VALUES (:paps_id::uuid, :accepted_user_id::uuid, :owner_id::uuid, :title, :subtitle, :location_address, :location_lat, :location_lng, :location_timezone, :due_at)
+-- name: insert_asap(paps_id, accepted_user_id)$
+INSERT INTO ASAP (paps_id, accepted_user_id)
+VALUES (:paps_id::uuid, :accepted_user_id::uuid)
 RETURNING id::text;
 
 -- Update ASAP status
--- name: update_asap_status(asap_id, status, started_at, completed_at, expires_at)!
+-- name: update_asap_status(asap_id, status, started_at, completed_at)!
 UPDATE ASAP SET
     status = COALESCE(:status, status),
     started_at = COALESCE(:started_at, started_at),
-    completed_at = COALESCE(:completed_at, completed_at),
-    expires_at = COALESCE(:expires_at, expires_at)
-WHERE id = :asap_id::uuid;
-
--- Update ASAP details
--- name: update_asap(asap_id, title, subtitle, location_address, location_lat, location_lng, location_timezone, due_at)!
-UPDATE ASAP SET
-    title = COALESCE(:title, title),
-    subtitle = COALESCE(:subtitle, subtitle),
-    location_address = COALESCE(:location_address, location_address),
-    location_lat = COALESCE(:location_lat, location_lat),
-    location_lng = COALESCE(:location_lng, location_lng),
-    location_timezone = COALESCE(:location_timezone, location_timezone),
-    due_at = COALESCE(:due_at, due_at)
+    completed_at = COALESCE(:completed_at, completed_at)
 WHERE id = :asap_id::uuid;
 
 -- Delete ASAP
@@ -1093,12 +1063,6 @@ DELETE FROM ASAP WHERE id = :asap_id::uuid;
 -- Delete all ASAPs for a PAPS
 -- name: delete_asaps_for_paps(paps_id)!
 DELETE FROM ASAP WHERE paps_id = :paps_id::uuid;
-
--- Get expired ASAPs (for cleanup job)
--- name: get_expired_asaps()
-SELECT id::text as asap_id, paps_id::text, accepted_user_id::text
-FROM ASAP 
-WHERE expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP;
 
 -- ============================================
 -- ASAP_MEDIA QUERIES
@@ -1436,13 +1400,14 @@ SELECT
     a.id::text as asap_id,
     a.status,
     a.accepted_user_id::text,
-    a.owner_id::text,
+    p.owner_id::text,
     CASE 
-        WHEN a.owner_id = :rater_id::uuid THEN a.accepted_user_id
-        WHEN a.accepted_user_id = :rater_id::uuid THEN a.owner_id
+        WHEN p.owner_id = :rater_id::uuid THEN a.accepted_user_id
+        WHEN a.accepted_user_id = :rater_id::uuid THEN p.owner_id
         ELSE NULL
     END as can_rate_user_id
 FROM ASAP a
+JOIN PAPS p ON a.paps_id = p.id
 WHERE a.id = :asap_id::uuid AND a.status = 'completed';
 
 -- ============================================
