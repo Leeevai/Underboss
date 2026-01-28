@@ -4,6 +4,46 @@ Hey Clement! This document explains everything you need to know about our API se
 
 ---
 
+## 🧪 Running Tests
+
+### Run All Tests
+
+To run the complete test suite against the backend:
+
+```bash
+npx tsx src/serve/run-tests.ts
+```
+
+This will test all endpoints: auth, profile, categories, PAPS, comments, applications, etc.
+
+### Run a Single Test
+
+To run just one specific test function, edit [run-tests.ts](run-tests.ts) and modify the `runTests()` function at the bottom to call only the test you want:
+
+```typescript
+// At the bottom of run-tests.ts, comment out tests you don't want to run:
+async function runTests() {
+  // ... setup code ...
+  
+  // Comment out sections you don't need:
+  // section('AUTH');
+  // track(await testLogin());
+  
+  // Run only what you need:
+  section('PAPS');
+  track(await testPapsList());
+  track(await testPapsCreate());
+  
+  // ... etc
+}
+```
+
+### Reference File
+
+[serv.test.ts](serv.test.ts) is a reference file showing how to use every endpoint. It's not meant to be executed - it's documentation with TypeScript examples.
+
+---
+
 ## 🎯 TL;DR (Quick Start)
 
 ```typescript
