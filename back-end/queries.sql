@@ -1400,13 +1400,14 @@ SELECT
     a.id::text as asap_id,
     a.status,
     a.accepted_user_id::text,
-    a.owner_id::text,
+    p.owner_id::text,
     CASE 
-        WHEN a.owner_id = :rater_id::uuid THEN a.accepted_user_id
-        WHEN a.accepted_user_id = :rater_id::uuid THEN a.owner_id
+        WHEN p.owner_id = :rater_id::uuid THEN a.accepted_user_id
+        WHEN a.accepted_user_id = :rater_id::uuid THEN p.owner_id
         ELSE NULL
     END as can_rate_user_id
 FROM ASAP a
+JOIN PAPS p ON a.paps_id = p.id
 WHERE a.id = :asap_id::uuid AND a.status = 'completed';
 
 -- ============================================
