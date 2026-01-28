@@ -1724,19 +1724,8 @@ def test_asap(api):
     res = api.get(f"/paps/{paps_id}/assignments", 200, login=owner)
     assert len(res.json) >= 1
     
-    # Update ASAP details (owner only)
-    api.put(f"/asap/{asap_id}", 204, json={
-        "title": "Updated ASAP Title",
-        "due_at": "2027-12-31T23:59:59Z"
-    }, login=owner)
-    
-    res = api.get(f"/asap/{asap_id}", 200, login=owner)
-    assert res.json["title"] == "Updated ASAP Title"
-    
-    # Worker cannot update ASAP details
-    api.put(f"/asap/{asap_id}", 403, json={
-        "title": "Hacked"
-    }, login=worker)
+    # ASAP no longer has updatable fields (title, location, etc. are in PAPS)
+    # All job details come from PAPS table
     
     # Test status transitions
     # Start the assignment (worker)
