@@ -94,22 +94,53 @@ async function testAvatarUpload() {
   console.log('Avatar URL:', result.avatar_url);
 }
 
-/** GET /profile/avatar - Returns Blob */
-async function testAvatarGet() {
-  const blob = await serv('avatar.get');
-  console.log('Avatar size:', blob.size);
+/**
+ * Fetch avatar using media URL
+ * Avatar URLs should be accessed via /media/user/profile/{filename}
+ * NOT through authenticated endpoints
+ */
+async function testAvatarFetch() {
+  // First get the profile to retrieve avatar_url
+  const profile = await serv('profile.get');
+  
+  if (profile.avatar_url) {
+    // Use getMediaUrl helper to construct full URL
+    const { getMediaUrl } = await import('./serv');
+    const avatarUrl = getMediaUrl(profile.avatar_url);
+    
+    if (avatarUrl) {
+      // Fetch using standard fetch API (no auth needed for /media endpoints)
+      const response = await fetch(avatarUrl);
+      const blob = await response.blob();
+      console.log('Avatar fetched:', blob.size, 'bytes');
+    }
+  } else {
+    console.log('No avatar set');
+  }
+}
+
+/**
+ * Fetch another user's avatar using media URL
+ */
+async function testAvatarByUsername() {
+  const profile = await serv('profile.getByUsername', { username: 'johndoe' });
+  
+  if (profile.avatar_url) {
+    const { getMediaUrl } = await import('./serv');
+    const avatarUrl = getMediaUrl(profile.avatar_url);
+    
+    if (avatarUrl) {
+      const response = await fetch(avatarUrl);
+      const blob = await response.blob();
+      console.log('User avatar fetched:', blob.size, 'bytes');
+    }
+  }
 }
 
 /** DELETE /profile/avatar */
 async function testAvatarDelete() {
   await serv('avatar.delete');
   console.log('Avatar deleted');
-}
-
-/** GET /user/{username}/profile/avatar */
-async function testAvatarByUsername() {
-  const blob = await serv('avatar.getByUsername', { username: 'johndoe' });
-  console.log('Avatar size:', blob.size);
 }
 
 // =============================================================================
@@ -666,7 +697,7 @@ export {
   testProfileByUsername,
   // Avatar
   testAvatarUpload,
-  testAvatarGet,
+  testAvatarFetch,
   testAvatarDelete,
   testAvatarByUsername,
   // Experiences

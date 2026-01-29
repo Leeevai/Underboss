@@ -134,6 +134,38 @@ function toQueryString(params: Record<string, any>): string {
   return '?' + entries.map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&');
 }
 
+/**
+ * Build media URL for public access to media files
+ * Use this to construct URLs for avatars, category icons, paps media, etc.
+ * 
+ * @param path - The media path returned from backend (e.g., "media/user/profile/uuid.ext")
+ * @returns Full URL to access the media file
+ * 
+ * @example
+ * // Avatar from profile
+ * const profile = await serv('profile.get');
+ * const avatarUrl = getMediaUrl(profile.avatar_url); // http://localhost:5000/media/user/profile/uuid.jpg
+ * 
+ * @example  
+ * // Category icon
+ * const category = await serv('categories.get', { category_id: 'uuid' });
+ * const iconUrl = getMediaUrl(category.icon_url); // http://localhost:5000/media/category/uuid.png
+ */
+export function getMediaUrl(mediaPath: string | null | undefined): string | null {
+  if (!mediaPath) return null;
+  
+  // If already a full URL, return as-is
+  if (mediaPath.startsWith('http://') || mediaPath.startsWith('https://')) {
+    return mediaPath;
+  }
+  
+  // Remove leading slash if present
+  const cleanPath = mediaPath.startsWith('/') ? mediaPath.slice(1) : mediaPath;
+  
+  // Construct full URL
+  return `${API_BASE_URL}/${cleanPath}`;
+}
+
 /** Get auth headers */
 function getAuthHeaders(): Record<string, string> {
   return AppSettings.token ? { Authorization: `Bearer ${AppSettings.token}` } : {};

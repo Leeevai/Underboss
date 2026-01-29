@@ -204,6 +204,101 @@ async function testProfileByUsername() {
 }
 
 // =============================================================================
+// AVATAR TESTS
+// =============================================================================
+
+let uploadedAvatarUrl: string | null = null;
+
+async function testAvatarUpload() {
+  try {
+    // Create a simple test image blob
+    const canvas = { width: 100, height: 100 };
+    const blob = new Blob(['fake-image-data'], { type: 'image/png' });
+    
+    const formData = new FormData();
+    formData.append('image', blob, 'test-avatar.png');
+    
+    const res = await axios.post(`${BASE_URL}/profile/avatar`, formData, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    uploadedAvatarUrl = res.data.avatar_url;
+    success('avatar.upload', `Uploaded: ${uploadedAvatarUrl}`);
+    return true;
+  } catch (e) {
+    fail('avatar.upload', e);
+    return false;
+  }
+}
+
+async function testAvatarFetch() {
+  if (!uploadedAvatarUrl) {
+    skip('avatar.fetch', 'No avatar uploaded');
+    return false;
+  }
+  
+  try {
+    // Fetch avatar using public media endpoint (no auth required)
+    const mediaUrl = `${BASE_URL}/${uploadedAvatarUrl}`;
+    const res = await axios.get(mediaUrl, {
+      responseType: 'arraybuffer',
+    });
+    
+    const size = res.data.byteLength;
+    success('avatar.fetch', `Fetched ${size} bytes via ${uploadedAvatarUrl}`);
+    return true;
+  } catch (e) {
+    fail('avatar.fetch', e);
+    return false;
+  }
+}
+
+async function testAvatarFetchByUsername() {
+  if (!testUsername) {
+    skip('avatar.fetchByUsername', 'No username');
+    return false;
+  }
+  
+  try {
+    // Get user profile to retrieve avatar_url
+    const profileRes = await api('GET', `/user/${testUsername}/profile`, null, false);
+    
+    if (!profileRes.data.avatar_url) {
+      skip('avatar.fetchByUsername', 'User has no avatar');
+      return true;
+    }
+    
+    // Fetch avatar using public media endpoint
+    const mediaUrl = `${BASE_URL}/${profileRes.data.avatar_url}`;
+    const res = await axios.get(mediaUrl, {
+      responseType: 'arraybuffer',
+    });
+    
+    const size = res.data.byteLength;
+    success('avatar.fetchByUsername', `Fetched ${size} bytes for ${testUsername}`);
+    return true;
+  } catch (e) {
+    fail('avatar.fetchByUsername', e);
+    return false;
+  }
+}
+
+async function testAvatarDelete() {
+  try {
+    await api('DELETE', '/profile/avatar');
+    uploadedAvatarUrl = null;
+    success('avatar.delete', `Avatar deleted`);
+    return true;
+  } catch (e) {
+    fail('avatar.delete', e);
+    return false;
+  }
+}
+
+// =============================================================================
 // EXPERIENCES TESTS
 // =============================================================================
 
@@ -572,6 +667,34 @@ async function runTests() {
   // Auth
   await testRegister();
   await testLogin();
+  
+  // Profile
+  section('PROFILE');
+  track(await testProfileGet());
+  track(await testProfileUpdate());
+  track(await testProfileByUsername());
+  
+  // Avatar
+  section('AVATAR');
+  track(await testAvatarUpload());
+  track(await testAvatarFetch());
+  track(await testAvatarFetchByUsername());
+  track(await testAvatarDelete());
+  
+  // Experiences
+  section('EXPERIENCES');
+  track(await testExperiencesList());
+  track(await testExperiencesCreate());
+  track(await testExperiencesDelete());
+  
+  // Interests
+  section('INTERESTS');
+  track(await testInterestsList());
+  
+  // Categories
+  section('CATEGORIES');
+  track(await testCategoriesList());
+  track(await testCategoriesGet());
   
   // PAPS
   section('PAPS');

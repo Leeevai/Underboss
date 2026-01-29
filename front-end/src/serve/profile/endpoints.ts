@@ -52,20 +52,10 @@ export const profileEndpoints: Record<string, EndpointConfig> = {
     isFileUpload: true,
     fileField: 'image',
   },
-  'avatar.get': {
-    method: 'GET',
-    path: '/profile/avatar',
-    auth: true,
-  },
   'avatar.delete': {
     method: 'DELETE',
     path: '/profile/avatar',
     auth: true,
-  },
-  'avatar.getByUsername': {
-    method: 'GET',
-    path: '/user/{username}/profile/avatar',
-    auth: false,
   },
 
   // Experiences

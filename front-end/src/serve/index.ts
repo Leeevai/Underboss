@@ -29,6 +29,7 @@ export {
   serv,
   axiosInstance,
   API_BASE_URL,
+  getMediaUrl,
   isAuthenticated,
   setAuthToken,
   clearAuth,
