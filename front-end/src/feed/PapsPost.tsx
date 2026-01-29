@@ -2,56 +2,14 @@ import React, { useState,useEffect } from 'react';
 import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import {serv} from '../serve';
+import type { Paps } from '../serve/paps';
 
 
 // Get screen width for full-width images
 const { width } = Dimensions.get('window')
 
-interface Pap {
-  created_at: string // RFC 1123 date string
-  description: string
-
-  distance_km: number | null
-  end_datetime: string | null
-  estimated_duration_minutes: number | null
-  expires_at: string | null
-
-  id: string
-  interest_match_score: number
-  is_public: boolean
-
-  location_address: string | null
-  location_lat: number | null
-  location_lng: number | null
-  location_timezone: string | null
-
-  max_applicants: number | null
-  max_assignees: number | null
-
-  owner_avatar: string | null
-  owner_email: string | null
-  owner_id: string
-  owner_name: string | null
-  owner_username: string 
-  owner_username: string 
-
-  payment_amount: number | null
-  payment_currency: string
-  payment_type: 'hourly' | 'fixed' | string
-
-  publish_at: string
-  start_datetime: string | null
-
-  status: string
-  subtitle: string
-  title: string
-
-  updated_at: string | null
-  media_urls?: { media_url: string }[] | null
-}
-
 interface PapsPostProps {
-  pap: Pap
+  pap: Paps
 }
 
 
@@ -66,10 +24,10 @@ export default function PapsPost({ pap }: PapsPostProps) {
       if (!pap.owner_username) return;
   
       try {
-        // 1. Fetch the binary data (Blob)
-        const response = await serv('avatar.getByUsername', { "username": pap.owner_username });
+        // Fetch the binary data (Blob) using the correct endpoint
+        const response = await serv('avatar.getByUsername', { username: pap.owner_username });
   
-        // 2. Convert Blob to Base64 string
+        // Convert Blob to Base64 string
         const reader = new FileReader();
         reader.readAsDataURL(response); 
         
@@ -78,9 +36,12 @@ export default function PapsPost({ pap }: PapsPostProps) {
           setAvatarUri(base64data); // This will be in the format "data:image/png;base64,..."
         };
   
-      } catch (error) {
-        console.error("Error fetching avatar:", error);
-        setAvatarUri(null); // Fallback to initials on error
+      } catch (error: any) {
+        // Silently handle 404 errors (user has no avatar)
+        if (error?.status !== 404) {
+          console.error("Error fetching avatar:", error);
+        }
+        setAvatarUri(null); // Fallback to initials
       }
     };
   
@@ -100,7 +61,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
           <View style={styles.cardBody}>
             <Text style={styles.cardTitle}>{pap.title}</Text>
             <Text style={styles.cardDescription} numberOfLines={2}>
-              {pap.subtitle || pap.description}
+              {pap.description}
             </Text>
 
             <View style={styles.cardMeta}>
@@ -110,11 +71,11 @@ export default function PapsPost({ pap }: PapsPostProps) {
               </View>
               <View style={styles.metaRow}>
                 <Text style={styles.metaIcon}>🕒</Text>
-                <Text style={styles.metaText}>{pap.start_datetime || 'To be decided with the boss'}</Text>
+                <Text style={styles.metaText}>{'To be decided with the boss'}</Text>
               </View>
               <View style={styles.metaRow}>
                 <Text style={styles.metaIcon}>💰</Text>
-                <Text style={styles.metaText}>{pap.payment_amount} {pap.payment_currency} {pap.payment_type} </Text>
+                <Text style={styles.metaText}>{pap.payment_amount} {pap.payment_currency}</Text>
               </View>
             </View>
           </View>
@@ -158,8 +119,8 @@ export default function PapsPost({ pap }: PapsPostProps) {
                     </View>
 
                     <View style={styles.postedTimeRow}>
-                      <Text style={styles.cardDescription} numberOfLines={2}>{pap.subtitle}</Text>
-                      <Text style={styles.postedTimeText}>🕒 Posted the {pap.publish_at || 'Unkown'}</Text>
+                      <Text style={styles.cardDescription} numberOfLines={2}>{pap.description}</Text>
+                      <Text style={styles.postedTimeText}>🕒 Posted {pap.published_at || 'Unknown'}</Text>
 
                     </View>
 
@@ -169,14 +130,14 @@ export default function PapsPost({ pap }: PapsPostProps) {
                         <Text style={styles.infoBoxIcon}>💰</Text>
                         <View>
                           <Text style={styles.infoBoxLabel}>Payment</Text>
-                          <Text style={styles.infoBoxValue}>{pap.payment_amount} {pap.payment_currency} {pap.payment_type}</Text>
+                          <Text style={styles.infoBoxValue}>{pap.payment_amount} {pap.payment_currency}</Text>
                         </View>
                       </View>
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>🕒</Text>
                         <View>
-                          <Text style={styles.infoBoxLabel}>Staring day</Text>
-                          <Text style={styles.infoBoxValue}>{pap.start_datetime || 'To be decided with the boss'}</Text>
+                          <Text style={styles.infoBoxLabel}>Starting day</Text>
+                          <Text style={styles.infoBoxValue}>To be decided with the boss</Text>
                         </View>
                       </View>
                       <View style={styles.infoBox}>
@@ -197,11 +158,11 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <Text style={styles.sectionTitle}>Posted by</Text>
                       <View style={styles.postedByCard}>
                         <View style={styles.avatarCircle}>
-                          {pap.owner_avatar ? (
+                          {avatarUri ? (
                             <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
                           ) : (
                             <Text style={styles.avatarInitial}>
-                              text
+                              {pap.owner_username.charAt(0).toUpperCase()}
                             </Text>
                           )}
                         </View>
@@ -220,7 +181,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <View style={styles.infoList}>
                         <View style={styles.infoListItem}>
                           <Text style={styles.infoListLabel}>Job ID</Text>
-                          <Text style={styles.infoListValue}>{pap.id}</Text>
+                          <Text style={styles.infoListValue}>{pap.paps_id}</Text>
                         </View>
                         <View style={styles.infoListItem}>
                           <Text style={styles.infoListLabel}>Status</Text>
@@ -230,7 +191,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
                         </View>
                         <View style={styles.infoListItem}>
                           <Text style={styles.infoListLabel}>Numbers of workers</Text>
-                          <Text style={styles.infoListValue}>{pap.max_assignees}</Text>
+                          <Text style={styles.infoListValue}>To be determined</Text>
                         </View>
                       </View>
                     </View>
