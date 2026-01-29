@@ -45,7 +45,7 @@ UPDATE USER_PROFILE SET
   location_address = 'Paris, France',
   location_lat = 48.8566,
   location_lng = 2.3522,
-  avatar_url = 'media/user/profile/00000000-0000-0000-0000-000000000101.jpg'
+  avatar_url = '/media/user/profile/00000000-0000-0000-0000-000000000101.jpg'
 WHERE user_id = '00000000-0000-0000-0000-000000000101';
 
 UPDATE USER_PROFILE SET
@@ -56,7 +56,7 @@ UPDATE USER_PROFILE SET
   location_address = 'Lyon, France',
   location_lat = 45.7640,
   location_lng = 4.8357,
-  avatar_url = 'media/user/profile/00000000-0000-0000-0000-000000000102.jpg'
+  avatar_url = '/media/user/profile/00000000-0000-0000-0000-000000000102.jpg'
 WHERE user_id = '00000000-0000-0000-0000-000000000102';
 
 UPDATE USER_PROFILE SET
@@ -67,7 +67,7 @@ UPDATE USER_PROFILE SET
   location_address = 'Paris, France',
   location_lat = 48.8566,
   location_lng = 2.3522,
-  avatar_url = 'media/user/profile/00000000-0000-0000-0000-000000000201.jpg'
+  avatar_url = '/media/user/profile/00000000-0000-0000-0000-000000000201.jpg'
 WHERE user_id = '00000000-0000-0000-0000-000000000201';
 
 UPDATE USER_PROFILE SET
@@ -78,7 +78,7 @@ UPDATE USER_PROFILE SET
   location_address = 'Lyon, France',
   location_lat = 45.7640,
   location_lng = 4.8357,
-  avatar_url = 'media/user/profile/00000000-0000-0000-0000-000000000202.jpg'
+  avatar_url = '/media/user/profile/00000000-0000-0000-0000-000000000202.jpg'
 WHERE user_id = '00000000-0000-0000-0000-000000000202';
 
 UPDATE USER_PROFILE SET
@@ -89,7 +89,7 @@ UPDATE USER_PROFILE SET
   location_address = 'Marseille, France',
   location_lat = 43.2965,
   location_lng = 5.3698,
-  avatar_url = 'media/user/profile/00000000-0000-0000-0000-000000000203.jpg'
+  avatar_url = '/media/user/profile/00000000-0000-0000-0000-000000000203.jpg'
 WHERE user_id = '00000000-0000-0000-0000-000000000203';
 
 UPDATE USER_PROFILE SET
@@ -100,7 +100,7 @@ UPDATE USER_PROFILE SET
   location_address = 'Nice, France',
   location_lat = 43.7102,
   location_lng = 7.2620,
-  avatar_url = 'media/user/profile/00000000-0000-0000-0000-000000000204.jpg'
+  avatar_url = '/media/user/profile/00000000-0000-0000-0000-000000000204.jpg'
 WHERE user_id = '00000000-0000-0000-0000-000000000204';
 
 -- ============================================
