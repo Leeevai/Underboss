@@ -231,35 +231,40 @@ Authorization: Basic base64(login:password)
 
 ---
 
-### Static Media Serving
-**Description**: All media files are served statically via Flask's built-in static file serving  
-**Authorization**: OPEN (no authentication required for reading media files)  
-**Base URL**: `/media/`
+### GET /media/{folder}/{filename}
+**Description**: Serve static media files (avatars, category icons)  
+**Authorization**: OPEN  
+**Authentication**: None
 
-**Media Paths**:
-- **User Avatars**: `/media/user/profile/{user_id}.{ext}`
-- **Category Icons**: `/media/category/{category_id}.{ext}`
-- **PAPS Media**: `/media/post/{media_id}.{ext}`
-- **SPAP Media**: `/media/spap/{media_id}.{ext}`
-- **ASAP Media**: `/media/asap/{media_id}.{ext}`
-
-**Example URLs**:
-```
-http://localhost:5000/media/user/profile/123e4567-e89b-12d3-a456-426614174000.png
-http://localhost:5000/media/post/987fcdeb-51a2-34c5-b789-123456789abc.jpg
-http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
-```
+**Path Parameters**:
+- `folder`: string - Folder name (e.g., "category", "post", "user")
+- `filename`: string - File name with extension
 
 **Success Response (200)**:
-- Returns binary file content with appropriate Content-Type header
+- Returns the binary file content
 
 **Error Responses**:
-- **404 Not Found**: File does not exist
+- **400 Bad Request**: Directory traversal attempt
+- **404 Not Found**: File not found
 
-**Security**:
-- Flask automatically handles path traversal protection
-- Media URLs are returned by API endpoints after authorization checks
-- Files are stored with UUID-based names to prevent enumeration
+---
+
+### GET /media/{folder}/{subfolder}/{filename}
+**Description**: Serve nested static media files (e.g., user/profile/avatar.jpg)  
+**Authorization**: OPEN  
+**Authentication**: None
+
+**Path Parameters**:
+- `folder`: string - Top folder name
+- `subfolder`: string - Sub-folder name
+- `filename`: string - File name with extension
+
+**Success Response (200)**:
+- Returns the binary file content
+
+**Error Responses**:
+- **400 Bad Request**: Directory traversal attempt
+- **404 Not Found**: File not found
 
 ---
 
@@ -547,7 +552,18 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 - Deletes avatar file from disk (if not default)
 - Sets avatar_url to NULL in database
 
-**Note**: Avatar images are served statically at `/media/user/profile/{user_id}.{ext}`
+---
+
+### GET /profile/avatar
+**Description**: Serve current user's avatar image  
+**Authorization**: AUTH
+
+**Success Response (200)**:
+- Returns binary image data
+- Content-Type: image/png (or appropriate type)
+
+**Error Responses**:
+- **404 Not Found**: Avatar not found
 
 ---
 
@@ -714,7 +730,20 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 **Error Responses**:
 - **404 Not Found**: User not found
 
-**Note**: User avatars are served statically at `/media/user/profile/{user_id}.{ext}`. Get user profile first to obtain the avatar URL.
+---
+
+### GET /user/{username}/profile/avatar
+**Description**: Serve another user's avatar image  
+**Authorization**: OPEN
+
+**Path Parameters**:
+- `username`: string
+
+**Success Response (200)**:
+- Returns binary image data
+
+**Error Responses**:
+- **404 Not Found**: Avatar not found
 
 ---
 
@@ -874,11 +903,9 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 **Success Response (201)**:
 ```json
 {
-  "icon_url": "/media/category/{category_id}.{ext}"
+  "icon_url": "media/category/uuid.ext"
 }
 ```
-
-**Note**: Category icons are served statically at the provided `icon_url`.
 
 **Error Responses**:
 - **404 Not Found**: Category not found
@@ -1136,20 +1163,10 @@ file: [binary file data]
 **Success Response (201)**:
 ```json
 {
-  "uploaded_media": [
-    {
-      "media_id": "uuid",
-      "media_url": "/media/post/{media_id}.{ext}",
-      "media_type": "image|video|document",
-      "file_size_bytes": 123456,
-      "display_order": 1
-    }
-  ],
-  "count": 1
+  "media_id": "uuid",
+  "file_url": "media/paps/paps_id/media_id.ext"
 }
 ```
-
-**Note**: Media files are served statically at the provided `media_url`.
 
 **Error Responses**:
 - **400 Bad Request**: Max media limit reached or no file provided
@@ -1419,20 +1436,10 @@ file: [binary file data]
 **Success Response (201)**:
 ```json
 {
-  "uploaded_media": [
-    {
-      "media_id": "uuid",
-      "media_url": "/media/spap/{media_id}.{ext}",
-      "media_type": "image|video|document",
-      "file_size_bytes": 123456,
-      "display_order": 1
-    }
-  ],
-  "count": 1
+  "media_id": "uuid",
+  "file_url": "media/spap/spap_id/media_id.ext"
 }
 ```
-
-**Note**: Media files are served statically at the provided `media_url`.
 
 **Error Responses**:
 - **400 Bad Request**: Max media limit reached
@@ -1625,20 +1632,10 @@ file: [binary file data]
 **Success Response (201)**:
 ```json
 {
-  "uploaded_media": [
-    {
-      "media_id": "uuid",
-      "media_url": "/media/asap/{media_id}.{ext}",
-      "media_type": "image|video|document",
-      "file_size_bytes": 123456,
-      "display_order": 1
-    }
-  ],
-  "count": 1
+  "media_id": "uuid",
+  "file_url": "media/asap/asap_id/media_id.ext"
 }
 ```
-
-**Note**: Media files are served statically at the provided `media_url`.
 
 **Error Responses**:
 - **400 Bad Request**: Max media limit reached
