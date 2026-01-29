@@ -1,7 +1,7 @@
 import React, { useState,useEffect } from 'react';
 import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
-import {serv} from '../serve';
+import { serv, getMediaUrl } from '../serve';
 import type { Paps } from '../serve/paps';
 
 
@@ -14,30 +14,23 @@ interface PapsPostProps {
 
 
 export default function PapsPost({ pap }: PapsPostProps) {
-  // Use first image or a placeholder
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  
   useEffect(() => {
     const fetchAvatar = async () => {
       if (!pap.owner_username) return;
   
       try {
-        // Fetch the binary data (Blob) using the correct endpoint
-        const response = await serv('avatar.getByUsername', { username: pap.owner_username });
-  
-        // Convert Blob to Base64 string
-        const reader = new FileReader();
-        reader.readAsDataURL(response); 
+        // Fetch user profile to get avatar_url
+        const profile = await serv('profile.getByUsername', { username: pap.owner_username });
         
-        reader.onloadend = () => {
-          const base64data = reader.result as string;
-          setAvatarUri(base64data); // This will be in the format "data:image/png;base64,..."
-        };
-  
+        // Convert media path to full URL
+        const mediaUrl = getMediaUrl(profile.avatar_url);
+        setAvatarUri(mediaUrl); // React Native Image component handles the fetch
+        
       } catch (error: any) {
-        // Silently handle 404 errors (user has no avatar)
+        // Silently handle 404 errors (user has no avatar/profile)
         if (error?.status !== 404) {
           console.error("Error fetching avatar:", error);
         }
