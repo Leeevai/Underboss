@@ -7,80 +7,24 @@
  * @module serve
  * 
  * @example
- * // Basic usage - import serv
  * import { serv } from '../serve';
  * 
  * // Register
- * const { user_id } = await serv("register", { 
- *   username: "john", 
- *   email: "john@example.com", 
- *   password: "secret123" 
+ * const { userId } = await serv("register", { 
+ *   username: "john", email: "john@example.com", password: "secret123" 
  * });
  * 
- * // Login
- * const { token } = await serv("login", { 
- *   login: "user@example.com", 
- *   password: "password123" 
- * });
+ * // Login (auto-saves token)
+ * const userInfo = await serv("login", { login: "john", password: "secret123" });
  * 
- * // Get published jobs nearby
- * const { paps, total_count } = await serv("paps.list", { 
- *   status: "published",
- *   lat: 37.7749,
- *   lng: -122.4194,
- *   max_distance: 25 
- * });
- * 
- * // Get a specific PAPS
- * const papsDetail = await serv("paps.get", { 
- *   paps_id: "550e8400-e29b-41d4-a716-446655440000" 
- * });
- * 
- * // Update profile
- * await serv("profile.update", {
- *   first_name: "John",
- *   last_name: "Doe",
- *   bio: "Software developer"
- * });
- * 
- * // Upload avatar
- * await serv("avatar.upload", { file: imageFile });
- * 
- * @example
- * // Error handling
- * import { serv, ApiError } from '../serve';
- * 
- * try {
- *   await serv("login", { login: "wrong", password: "wrong" });
- * } catch (error) {
- *   if (error instanceof ApiError) {
- *     if (error.isAuthError()) {
- *       // Handle auth error
- *     }
- *     console.log(error.getUserMessage()); // User-friendly message
- *   }
- * }
- * 
- * @example
- * // Using types for type safety
- * import { serv } from '../serve';
- * import type { PapsCreateRequest } from '../serve/types';
- * 
- * const newPaps: PapsCreateRequest = {
- *   title: 'Need React Developer',
- *   description: 'Looking for an experienced React developer...',
- *   payment_amount: 500,
- *   payment_type: 'fixed'
- * };
- * 
- * const { paps_id } = await serv("paps.create", newPaps);
+ * // Get jobs
+ * const { paps, total } = await serv("paps.list", { status: "published" });
  */
 
 // =============================================================================
 // MAIN EXPORTS
 // =============================================================================
 
-// Main serv function and utilities
 export {
   serv,
   axiosInstance,
@@ -93,49 +37,15 @@ export {
   getCachedProfile,
 } from './serv';
 
-// Type exports from serv
-export type {
-  Endpoint,
-  EndpointRequestMap,
-  EndpointResponseMap,
-  UserInfo,
-} from './serv';
+export type { Endpoint } from './serv';
 
 // =============================================================================
-// ERROR HANDLING
+// COMMON TYPES & ERRORS
 // =============================================================================
 
-export {
-  ApiError,
-  parseError,
-  parseAxiosError,
-  logError,
-  HTTP_STATUS,
-  ErrorCategory,
-} from './errors';
+export { ApiError, HTTP_STATUS, parseError, logError } from './common/errors';
+export type { ErrorCategory } from './common/errors';
 
-// Validation helpers
-export {
-  isValidUUID,
-  isValidEmail,
-  isValidPhone,
-  isValidUsername,
-  isValidSlug,
-  isValidLatitude,
-  isValidLongitude,
-  isValidProficiencyLevel,
-  UUID_PATTERN,
-  EMAIL_PATTERN,
-  PHONE_PATTERN,
-  USERNAME_PATTERN,
-  SLUG_PATTERN,
-} from './errors';
-
-// =============================================================================
-// TYPE EXPORTS
-// =============================================================================
-
-// Common types
 export type {
   UUID,
   ISODateTime,
@@ -144,132 +54,181 @@ export type {
   AuthLevel,
   PapsStatus,
   SpapStatus,
+  AsapStatus,
+  PaymentStatus,
   PaymentType,
   MediaType,
   ProficiencyLevel,
-} from './types';
+  RatingValue,
+  PaginationParams,
+  PaginatedResponse,
+  MediaItem,
+  MediaUploadResponse,
+  MediaListResponse,
+} from './common/types';
 
-// User & Auth
+// =============================================================================
+// AUTH TYPES
+// =============================================================================
+
 export type {
   RegisterRequest,
   RegisterResponse,
   LoginRequest,
   LoginResponse,
-  MyselfResponse,
-} from './types';
+  UserInfo,
+} from './auth/types';
 
-// Profile
+// =============================================================================
+// PROFILE TYPES
+// =============================================================================
+
 export type {
   UserProfile,
   ProfileUpdateRequest,
   AvatarUploadResponse,
-} from './types';
-
-// Experiences
-export type {
   Experience,
   ExperienceCreateRequest,
   ExperienceUpdateRequest,
   ExperienceCreateResponse,
-} from './types';
-
-// Interests
-export type {
   Interest,
   InterestCreateRequest,
-  InterestUpdateRequest,
-} from './types';
+  InterestCreateResponse,
+} from './profile/types';
 
-// Categories
+// =============================================================================
+// CATEGORIES TYPES
+// =============================================================================
+
 export type {
   Category,
   CategoryCreateRequest,
   CategoryUpdateRequest,
+  CategoryListParams,
   CategoryCreateResponse,
   CategoryIconResponse,
-} from './types';
+} from './categories/types';
 
-// PAPS
+// =============================================================================
+// PAPS TYPES
+// =============================================================================
+
 export type {
   Paps,
   PapsDetail,
   PapsCategory,
-  PapsListResponse,
+  PapsSchedule,
   PapsListParams,
-  PapsCategoryInput,
   PapsCreateRequest,
   PapsUpdateRequest,
+  PapsListResponse,
   PapsCreateResponse,
-  PapsMedia,
   PapsMediaListResponse,
-  MediaUploadResponse,
-} from './types';
+  ScheduleCreateRequest,
+  ScheduleCreateResponse,
+} from './paps/types';
 
-// Comments
-export type {
-  Comment,
-  CommentsListResponse,
-  CommentCreateRequest,
-  CommentCreateResponse,
-  CommentThreadResponse,
-  RepliesListResponse,
-} from './types';
+// =============================================================================
+// SPAP TYPES
+// =============================================================================
 
-// SPAP (Applications)
 export type {
   Spap,
-  SpapWithPaps,
-  SpapListResponse,
-  MyApplicationsResponse,
+  SpapDetail,
+  SpapListParams,
   SpapCreateRequest,
+  SpapUpdateRequest,
+  SpapListResponse,
   SpapCreateResponse,
-  SpapStatusUpdateRequest,
-  SpapMedia,
   SpapMediaListResponse,
-} from './types';
+} from './spap/types';
 
-// Admin
+// =============================================================================
+// ASAP TYPES
+// =============================================================================
+
 export type {
-  AdminUser,
-  AdminUserCreateRequest,
-  AdminUserUpdateRequest,
-  AdminUserReplaceRequest,
-} from './types';
+  Asap,
+  AsapDetail,
+  AsapListParams,
+  AsapCreateRequest,
+  AsapUpdateRequest,
+  AsapListResponse,
+  AsapCreateResponse,
+  AsapMediaListResponse,
+} from './asap/types';
 
-// System
+// =============================================================================
+// PAYMENTS TYPES
+// =============================================================================
+
+export type {
+  Payment,
+  PaymentDetail,
+  PaymentListParams,
+  PaymentCreateRequest,
+  PaymentUpdateRequest,
+  PaymentListResponse,
+  PaymentCreateResponse,
+} from './payments/types';
+
+// =============================================================================
+// RATINGS TYPES
+// =============================================================================
+
+export type {
+  Rating,
+  UserRatings,
+  RatingCreateRequest,
+  RatingUpdateRequest,
+  RatingCreateResponse,
+} from './ratings/types';
+
+// =============================================================================
+// COMMENTS TYPES
+// =============================================================================
+
+export type {
+  Comment,
+  CommentDetail,
+  CommentListParams,
+  CommentCreateRequest,
+  CommentUpdateRequest,
+  CommentListResponse,
+  CommentCreateResponse,
+} from './comments/types';
+
+// =============================================================================
+// CHAT TYPES
+// =============================================================================
+
+export type {
+  ChatThread,
+  ChatThreadDetail,
+  ChatMessage,
+  ChatParticipant,
+  ChatListParams,
+  ChatCreateRequest,
+  MessageListParams,
+  MessageCreateRequest,
+  MarkReadRequest,
+  ChatListResponse,
+  ChatCreateResponse,
+  MessageListResponse,
+  MessageCreateResponse,
+} from './chat/types';
+
+// =============================================================================
+// SYSTEM TYPES
+// =============================================================================
+
 export type {
   UptimeResponse,
   SystemInfoResponse,
   StatsResponse,
-  GitInfo,
-} from './types';
-
-// API Error
-export type {
-  ApiErrorResponse,
-  ServiceRequest,
-  FileUploadConfig,
-} from './types';
-
-// =============================================================================
-// ENDPOINT TYPE EXPORTS
-// =============================================================================
-
-export type { AuthEndpoint, AuthEndpointTypes } from './auth';
-export type { ProfileEndpoint, ProfileEndpointTypes } from './profile';
-export type { CategoryEndpoint, CategoryEndpointTypes } from './categories';
-export type { PapsEndpoint, PapsEndpointTypes } from './paps';
-export type { CommentEndpoint, CommentEndpointTypes } from './comments';
-export type { SpapEndpoint, SpapEndpointTypes } from './spap';
-export type { SystemEndpoint, SystemEndpointTypes } from './system';
-
-// =============================================================================
-// CONSTANTS EXPORTS
-// =============================================================================
-
-export { PAPS_CONSTRAINTS, PAPS_DEFAULTS } from './paps';
-export { COMMENT_CONSTRAINTS } from './comments';
-export { SPAP_CONSTRAINTS, SPAP_DEFAULTS } from './spap';
-export { AUTH_DEFAULTS } from './auth';
-export { PROFILE_DEFAULTS } from './profile';
-export { CATEGORY_DEFAULTS } from './categories';
+  AdminUser,
+  AdminUserCreateRequest,
+  AdminUserUpdateRequest,
+  AdminUserReplaceRequest,
+  AdminUserCreateResponse,
+} from './system/types';
