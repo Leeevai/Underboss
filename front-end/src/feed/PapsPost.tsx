@@ -33,6 +33,7 @@ interface Pap {
   owner_id: string
   owner_name: string | null
   owner_username: string 
+  owner_username: string 
 
   payment_amount: number | null
   payment_currency: string
@@ -46,18 +47,17 @@ interface Pap {
   title: string
 
   updated_at: string | null
-  // Add other fields if returned by API
+  media_urls?: { media_url: string }[] | null
 }
 
 interface PapsPostProps {
   pap: Pap
 }
 
+
 export default function PapsPost({ pap }: PapsPostProps) {
   // Use first image or a placeholder
-  const imageUrl = pap.media_urls && pap.media_urls.length > 0
-    ? pap.media_urls[0].media_url
-    : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjRjBGMEYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5OTk5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4='
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -100,7 +100,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
           <View style={styles.cardBody}>
             <Text style={styles.cardTitle}>{pap.title}</Text>
             <Text style={styles.cardDescription} numberOfLines={2}>
-              {pap.subtitle||pap.description}
+              {pap.subtitle || pap.description}
             </Text>
 
             <View style={styles.cardMeta}>
@@ -125,7 +125,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
               style={styles.applyButton}
               onPress={() => setModalVisible(true)}
             >
-              <Text style={styles.applyButtonText}>Apply</Text>
+              <Text style={styles.applyButtonText}>More info</Text>
             </TouchableOpacity>
           </View>
 
@@ -156,20 +156,20 @@ export default function PapsPost({ pap }: PapsPostProps) {
                         <Text style={styles.categoryTextSmall}>Moving</Text>
                       </View>
                     </View>
-            
+
                     <View style={styles.postedTimeRow}>
-                       <Text style={styles.cardDescription} numberOfLines={2}>{pap.subtitle}</Text>
-                      <Text style={styles.postedTimeText}>🕒 Posted the {pap.publish_at||'Unkown'}</Text>
-                      
+                      <Text style={styles.cardDescription} numberOfLines={2}>{pap.subtitle}</Text>
+                      <Text style={styles.postedTimeText}>🕒 Posted the {pap.publish_at || 'Unkown'}</Text>
+
                     </View>
-                  
+
 
                     <View style={styles.infoBoxesRow}>
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>💰</Text>
                         <View>
                           <Text style={styles.infoBoxLabel}>Payment</Text>
-                          <Text style={styles.infoBoxValue}>€{pap.payment_amount || ''}</Text>
+                          <Text style={styles.infoBoxValue}>{pap.payment_amount} {pap.payment_currency} {pap.payment_type}</Text>
                         </View>
                       </View>
                       <View style={styles.infoBox}>
@@ -182,7 +182,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>📍</Text>
                         <View>
-                          <Text style={styles.infoBoxLabel}>{pap.location_address}</Text>
+                          <Text style={styles.infoBoxLabel}>Localisation</Text>
                           <Text style={styles.infoBoxValue} numberOfLines={2}>{pap.location_address}</Text>
                         </View>
                       </View>
@@ -201,7 +201,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
                             <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
                           ) : (
                             <Text style={styles.avatarInitial}>
-                              {pap.owner_username ? pap.owner_username.charAt(0).toUpperCase() : '?'}
+                              text
                             </Text>
                           )}
                         </View>
