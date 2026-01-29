@@ -68,7 +68,18 @@ module.exports = {
     symlinks: false,
   },
   module: {
-    rules: [babelLoaderConfiguration, imageLoaderConfiguration],
+    rules: [
+      // Fix for @react-navigation ESM modules in webpack 5
+      {
+        test: /\.m?js$/,
+        include: /node_modules\/@react-navigation/,
+        resolve: {
+          fullySpecified: false,
+        },
+      },
+      babelLoaderConfiguration, 
+      imageLoaderConfiguration,
+    ],
   },
   plugins: [
     new HtmlWebpackPlugin({

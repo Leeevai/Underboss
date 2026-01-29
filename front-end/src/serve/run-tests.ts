@@ -564,89 +564,16 @@ async function runTests() {
   console.log(`${colors.cyan}║${colors.reset}   Backend: ${BASE_URL}                  ${colors.cyan}║${colors.reset}`);
   console.log(`${colors.cyan}╚════════════════════════════════════════════════╝${colors.reset}`);
 
-//   let passed = 0;
-//   let failed = 0;
+  let passed = 0;
+  let failed = 0;
   
-//   const track = (result: boolean) => result ? passed++ : failed++;
+  const track = (result: boolean) => result ? passed++ : failed++;
 
-//   // System (no auth)
-//   section('SYSTEM');
-//   track(await testSystemUptime());
-
-//   // Auth
-//   section('AUTH');
-//   track(await testRegister());
-//   track(await testLogin());
-  
-//   if (!authToken) {
-//     console.log(`\n${colors.red}Cannot continue without auth token!${colors.reset}`);
-//     return;
-//   }
-  
-  track(await testWhoAmI());
-  track(await testMyself());
-
-  // Profile
-  section('PROFILE');
-  track(await testProfileGet());
-  track(await testProfileUpdate());
-  track(await testProfileByUsername());
-
-  // Experiences
-  section('EXPERIENCES');
-  track(await testExperiencesList());
-  track(await testExperiencesCreate());
-  track(await testExperiencesDelete());
-
-  // Interests
-  section('INTERESTS');
-  track(await testInterestsList());
-
-  // Categories
-  section('CATEGORIES');
-  await testCategoriesList();
-  passed++;
-  track(await testCategoriesGet());
-
-//   // PAPS
-//   section('PAPS');
-//   await testPapsList();
-//   passed++;
-//   track(await testPapsCreate());
-//   track(await testPapsGet());
-//   track(await testPapsUpdate());
-
-//   // Comments
-//   section('COMMENTS');
-//   track(await testCommentsCreate());
-//   track(await testCommentsList());
-//   track(await testCommentsDelete());
-
-//   // SPAP
-//   section('SPAP (Applications)');
-//   track(await testSpapMy());
-
-//   // Cleanup
-//   section('CLEANUP');
-//   track(await testPapsDelete());
-
-//   // Summary
-//   console.log(`\n${colors.cyan}════════════════════════════════════════════${colors.reset}`);
-//   console.log(`${colors.green}Passed: ${passed}${colors.reset} | ${colors.red}Failed: ${failed}${colors.reset}`);
-//   console.log(`${colors.cyan}════════════════════════════════════════════${colors.reset}\n`);
-// }
-
-
-
-async function runTests() {
-  // ... setup code ...
-  
-  // Comment out sections you don't need:
-  // section('AUTH');
-  // track(await testLogin());
+  // Auth
   await testRegister();
   await testLogin();
-  // Run only what you need:
+  
+  // PAPS
   section('PAPS');
   await testPapsList();
   passed++;
