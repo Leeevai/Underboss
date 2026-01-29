@@ -201,9 +201,14 @@ def register_routes(app):
         media_list = list(db.get_asap_media(asap_id=asap_id))
         result = []
         for media in media_list:
+            media_url = media_handler.get_media_url(
+                MediaType.ASAP,
+                media['media_id'],
+                media['file_extension']
+            )
             result.append({
                 "media_id": media['media_id'],
-                "media_url": f"/asap/media/{media['media_id']}",
+                "media_url": media_url,
                 "media_type": media['media_type'],
                 "file_size_bytes": media['file_size_bytes'],
                 "mime_type": media['mime_type'],
@@ -285,40 +290,8 @@ def register_routes(app):
 
         return fsa.jsonify({"uploaded_media": uploaded_media, "count": len(uploaded_media)}), 201
 
-    # GET /asap/media/<media_id> - serve media file
-    @app.get("/asap/media/<media_id>", authz="AUTH")
-    def get_asap_media_file(media_id: str, auth: model.CurrentAuth):
-        """Serve an ASAP media file."""
-        from flask import send_file
-
-        try:
-            uuid.UUID(media_id)
-        except ValueError:
-            return {"error": "Invalid media ID format"}, 400
-
-        media = db.get_asap_media_by_id(media_id=media_id)
-        if not media:
-            return {"error": "Media not found"}, 404
-
-        # Check authorization
-        asap = db.get_asap_by_id(asap_id=media['asap_id'])
-        if not asap:
-            return {"error": "Assignment not found"}, 404
-
-        is_worker = str(asap['accepted_user_id']) == auth.aid
-        is_owner = str(asap['owner_id']) == auth.aid
-        if not auth.is_admin and not is_worker and not is_owner:
-            return {"error": "Not authorized"}, 403
-
-        # Use MediaHandler to get file path safely
-        db_media_id = media['media_id']
-        ext = media['file_extension']
-        
-        filepath = media_handler.get_file_path(MediaType.ASAP, db_media_id, ext)
-        if not filepath:
-            return {"error": "Media file not found on disk"}, 404
-
-        return send_file(filepath, mimetype=media['mime_type'] or media_handler.get_mime_type(ext))
+    # Note: ASAP media files are now served statically via Flask at /media/asap/<media_id>.<ext>
+    # No separate endpoint needed - Flask's static folder serves these directly
 
     # DELETE /asap/media/<media_id> - delete media file (owner only)
     @app.delete("/asap/media/<media_id>", authz="AUTH")

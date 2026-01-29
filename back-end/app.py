@@ -71,7 +71,7 @@ class CustomJSONProvider(DefaultJSONProvider):
             return o.total_seconds()
         return super().default(o)
 
-app = fsa.Flask(os.environ["APP_NAME"], static_folder=None)
+app = fsa.Flask(os.environ["APP_NAME"], static_folder="media", static_url_path="/media")
 app.json_provider_class = CustomJSONProvider
 app.json = CustomJSONProvider(app)
 app.config.from_envvar("APP_CONFIG")

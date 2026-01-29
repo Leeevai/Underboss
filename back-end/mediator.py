@@ -163,15 +163,15 @@ class MediaHandler:
         return self._dirs.get(media_type, self._base_dir)
     
     def get_media_url(self, media_type: MediaType, media_id: str, extension: str) -> str:
-        """Generate the URL for accessing a media file."""
+        """Generate the URL for accessing a media file via static serving."""
         if media_type == MediaType.AVATAR:
             return f"/media/user/profile/{media_id}.{extension}"
         elif media_type == MediaType.PAPS:
-            return f"/paps/media/{media_id}"
+            return f"/media/post/{media_id}.{extension}"
         elif media_type == MediaType.SPAP:
-            return f"/spap/media/{media_id}"
+            return f"/media/spap/{media_id}.{extension}"
         elif media_type == MediaType.ASAP:
-            return f"/asap/media/{media_id}"
+            return f"/media/asap/{media_id}.{extension}"
         elif media_type == MediaType.CATEGORY:
             return f"/media/category/{media_id}.{extension}"
         return f"/media/{media_id}.{extension}"

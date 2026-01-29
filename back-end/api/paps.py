@@ -575,12 +575,17 @@ def register_routes(app):
         # Get all media for this paps
         media_list = list(db.get_paps_media(paps_id=paps_id))
         
-        # Build response with media URLs (only media_id exposed, not filenames)
+        # Build response with static media URLs
         result = []
         for media in media_list:
+            media_url = media_handler.get_media_url(
+                MediaType.PAPS, 
+                media['media_id'], 
+                media['file_extension']
+            )
             result.append({
                 "media_id": media['media_id'],
-                "media_url": f"/paps/media/{media['media_id']}",
+                "media_url": media_url,
                 "media_type": media['media_type'],
                 "file_size_bytes": media['file_size_bytes'],
                 "mime_type": media['mime_type'],
@@ -672,57 +677,8 @@ def register_routes(app):
             "count": len(uploaded_media)
         }), 201
 
-    # GET /paps/media/<media_id> - serve a media file by ID
-    @app.get("/paps/media/<media_id>", authz="AUTH")
-    def get_paps_media_file(media_id: str):
-        """Serve a PAPS media file by its media_id.
-        No filename is exposed - client receives file content directly."""
-        from flask import send_file
-
-        try:
-            uuid.UUID(media_id)
-        except ValueError:
-            return {"error": "Invalid media ID format"}, 400
-
-        # Get media metadata
-        media = db.get_paps_media_by_id(media_id=media_id)
-        if not media:
-            return {"error": "Media not found"}, 404
-
-        # Check if user has access to the paps this media belongs to
-        try:
-            user = app.get_user(required=False)
-            if user:
-                user_data = db.get_user_data(login=user)
-                is_admin = user_data.get('is_admin', False) if user_data else False
-                user_id = user_data.get('aid') if user_data else None
-            else:
-                is_admin = False
-                user_id = None
-        except Exception:
-            is_admin = False
-            user_id = None
-
-        # Check access to the paps
-        if is_admin:
-            paps = db.get_paps_by_id_admin(id=media['paps_id'])
-        elif user_id:
-            paps = db.get_paps_by_id_for_user(id=media['paps_id'], user_id=user_id)
-        else:
-            paps = db.get_paps_by_id_public(id=media['paps_id'])
-
-        if not paps:
-            return {"error": "Media not accessible"}, 404
-
-        # Use MediaHandler to get file path safely
-        db_media_id = media['media_id']
-        ext = media['file_extension']
-        
-        filepath = media_handler.get_file_path(MediaType.PAPS, db_media_id, ext)
-        if not filepath:
-            return {"error": "Media file not found on disk"}, 404
-
-        return send_file(filepath, mimetype=media['mime_type'] or media_handler.get_mime_type(ext))
+    # Note: PAPS media files are now served statically via Flask at /media/post/<media_id>.<ext>
+    # No separate endpoint needed - Flask's static folder serves these directly
 
     # DELETE /paps/media/<media_id> - delete a media file
     @app.delete("/paps/media/<media_id>", authz="AUTH")

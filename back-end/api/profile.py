@@ -184,11 +184,8 @@ def register_routes(app):
 
         return "", 204
 
-    # GET /profile/avatar - serve current user's avatar image
-    @app.get("/profile/avatar", authz="AUTH")
-    def get_my_avatar(auth: model.CurrentAuth):
-        """Serve current user's profile avatar image."""
-        return _serve_avatar_for_user_id(auth.aid)
+    # Note: Avatar images are now served statically via Flask at /media/user/profile/<user_id>.<ext>
+    # No separate endpoint needed - Flask's static folder serves these directly
 
     # =========================================================================
     # CURRENT USER EXPERIENCES - /profile/experiences/*
@@ -440,14 +437,8 @@ def register_routes(app):
         )
         return "", 204
 
-    # GET /user/<username>/profile/avatar - serve another user's avatar image
-    @app.get("/user/<username>/profile/avatar", authz="OPEN", authn="none")
-    def get_user_avatar(username: str):
-        """Serve another user's profile avatar image by username."""
-        user = db.get_user_by_username(username=username)
-        if not user:
-            return {"error": f"User not found: {username}"}, 404
-        return _serve_avatar_for_user_id(user["id"])
+    # Note: User avatars are served statically via Flask at /media/user/profile/<user_id>.<ext>
+    # No separate endpoint needed - Flask's static folder serves these directly
 
     # GET /user/<username>/profile/experiences - get a user's experiences (public)
     @app.get("/user/<username>/profile/experiences", authz="OPEN", authn="none")
@@ -491,31 +482,4 @@ def register_routes(app):
             except ValueError:
                 fsa.checkVal(False, "Invalid date_of_birth format", 400)
 
-    def _serve_avatar_for_user_id(user_id: str):
-        """Serve avatar image for a given user id without exposing filename."""
-        from flask import send_file
-        from pathlib import Path
 
-        profile = db.get_user_profile(user_id=user_id)
-        if not profile:
-            return {"error": "Profile not found"}, 404
-
-        avatar_url = profile.get("avatar_url")
-        if avatar_url:
-            filename = avatar_url.split("/")[-1]
-            if "." in filename:
-                ext = filename.rsplit(".", 1)[1].lower()
-                filepath = media_handler.get_file_path(MediaType.AVATAR, user_id, ext)
-                if filepath:
-                    mimetype = media_handler.get_mime_type(ext)
-                    return send_file(filepath, mimetype=mimetype)
-        
-        # Fallback to default avatar
-        config = app.config.get("MEDIA_CONFIG", {})
-        default_avatar_dir = config.get("avatar_directory", "media/user/profile")
-        default_path = Path(default_avatar_dir) / "avatar.png"
-        
-        if not default_path.exists():
-            return {"error": "Avatar not found"}, 404
-
-        return send_file(default_path, mimetype="image/png")

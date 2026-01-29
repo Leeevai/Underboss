@@ -114,26 +114,6 @@ def register_routes(app):
         }
         return fsa.jsonify(result), 200
 
-    # Serve static media files using Flask's native routing
-    from flask import send_from_directory
-    import os
-    
-    @app.route("/media/<folder>/<filename>", methods=["GET"], authz="OPEN", authn="none")
-    def serve_media_file(folder: str, filename: str):
-        """Serve static media files (profile avatars, category icons, etc.)."""
-        # Security: prevent directory traversal
-        if ".." in folder or ".." in filename:
-            return {"error": "Invalid path"}, 400
-        
-        media_dir = os.path.join(os.getcwd(), "media", folder)
-        return send_from_directory(media_dir, filename)
-    
-    @app.route("/media/<folder>/<subfolder>/<filename>", methods=["GET"], authz="OPEN", authn="none")
-    def serve_media_file_nested(folder: str, subfolder: str, filename: str):
-        """Serve nested static media files (e.g., user/profile/avatar.jpg)."""
-        # Security: prevent directory traversal
-        if ".." in folder or ".." in subfolder or ".." in filename:
-            return {"error": "Invalid path"}, 400
-        
-        media_dir = os.path.join(os.getcwd(), "media", folder, subfolder)
-        return send_from_directory(media_dir, filename)
+    # Note: All media files are now served statically via Flask's built-in static file serving
+    # Configuration in app.py: static_folder="media", static_url_path="/media"
+    # This handles all paths like /media/post/<file>, /media/user/profile/<file>, etc.

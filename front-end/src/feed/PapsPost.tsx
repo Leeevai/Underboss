@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
+import {serv} from '../serve';
 
 
 // Get screen width for full-width images
@@ -31,7 +32,7 @@ interface Pap {
   owner_email: string | null
   owner_id: string
   owner_name: string | null
-  owner_username: string | null
+  owner_username: string 
 
   payment_amount: number | null
   payment_currency: string
@@ -58,8 +59,36 @@ export default function PapsPost({ pap }: PapsPostProps) {
     ? pap.media_urls[0].media_url
     : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjRjBGMEYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM5OTk5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBJbWFnZTwvdGV4dD48L3N2Zz4='
   const [modalVisible, setModalVisible] = useState(false);
+
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  useEffect(() => {
+    const fetchAvatar = async () => {
+      if (!pap.owner_username) return;
+  
+      try {
+        // 1. Fetch the binary data (Blob)
+        const response = await serv('avatar.getByUsername', { "username": pap.owner_username });
+  
+        // 2. Convert Blob to Base64 string
+        const reader = new FileReader();
+        reader.readAsDataURL(response); 
+        
+        reader.onloadend = () => {
+          const base64data = reader.result as string;
+          setAvatarUri(base64data); // This will be in the format "data:image/png;base64,..."
+        };
+  
+      } catch (error) {
+        console.error("Error fetching avatar:", error);
+        setAvatarUri(null); // Fallback to initials on error
+      }
+    };
+  
+    fetchAvatar();
+  }, [pap.owner_username]);
+  
   return (
-    <View style={{ flexDirection: 'column' }}>
+    <View id="global view for post" style={{ flexDirection: 'column' }}>
       <View style={{ flex: 1, backgroundColor: '#792c2c13' }}>
         <View style={styles.container}>
           <View style={styles.cardHeader}>
@@ -169,7 +198,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <View style={styles.postedByCard}>
                         <View style={styles.avatarCircle}>
                           {pap.owner_avatar ? (
-                            <Image source={{ uri: pap.owner_avatar }} style={styles.avatarImage} />
+                            <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
                           ) : (
                             <Text style={styles.avatarInitial}>
                               {pap.owner_username ? pap.owner_username.charAt(0).toUpperCase() : '?'}

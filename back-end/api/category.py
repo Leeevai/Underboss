@@ -205,47 +205,8 @@ def register_routes(app):
         )
         return {"icon_url": icon_url}, 201
 
-    # GET /categories/<category_id>/icon - serve category icon
-    @app.get("/categories/<category_id>/icon", authz="AUTH")
-    def get_category_icon(category_id: str):
-        """Serve category icon image."""
-        from flask import send_file
-        from werkzeug.utils import secure_filename
-
-        try:
-            uuid.UUID(category_id)
-        except ValueError:
-            return {"error": "Invalid category ID format"}, 400
-
-        category = db.get_category_by_id(category_id=category_id)
-        if not category:
-            return {"error": "Category not found"}, 404
-
-        icon_url = category.get("icon_url")
-        if icon_url:
-            filename = secure_filename(icon_url.split("/")[-1])
-            filepath = CATEGORY_IMG_DIR / filename
-        else:
-            # Return default icon (try default.svg first, then default.png)
-            filepath = CATEGORY_IMG_DIR / "default.svg"
-            if not filepath.exists():
-                filepath = CATEGORY_IMG_DIR / "default.png"
-
-        if not filepath.exists():
-            return {"error": "Icon not found"}, 404
-
-        ext = filepath.suffix[1:].lower()
-        mimetype_map = {
-            "jpg": "image/jpeg",
-            "jpeg": "image/jpeg",
-            "png": "image/png",
-            "gif": "image/gif",
-            "webp": "image/webp",
-            "svg": "image/svg+xml",
-        }
-        mimetype = mimetype_map.get(ext, "application/octet-stream")
-
-        return send_file(filepath, mimetype=mimetype)
+    # Note: Category icons are now served statically via Flask at /media/category/<category_id>.<ext>
+    # No separate endpoint needed - Flask's static folder serves these directly
 
     # DELETE /categories/<category_id>/icon - delete category icon (admin only)
     @app.delete("/categories/<category_id>/icon", authz="ADMIN")
