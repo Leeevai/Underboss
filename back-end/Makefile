@@ -435,7 +435,8 @@ LOC_URL = http://localhost:$(PORT)
 PYTEST  = pytest --log-level=debug --capture=tee-sys -v
 PYTOPT  =
 
-APP_AUTH	= $(shell grep '^[a-z]' test_users.in | cut -d',' -f1,2 | tr ',\012' ':,' | sed -e 's/,$$//')
+# extract user:pass,... for flask-tester
+APP_AUTH	= $(shell grep '^[a-zA-Z]' test_users.in | cut -d',' -f1,2 | tr ',\012' ':,' | sed -e 's/,$$//')
 
 .PHONY: app_auth
 app_auth:
