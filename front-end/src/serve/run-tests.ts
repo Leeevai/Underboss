@@ -1,22 +1,25 @@
-#!/usr/bin/env npx ts-node
+#!/usr/bin/env npx tsx
 /**
  * run-tests.ts - Executable test runner for serv() endpoints
  * 
- * Run with: npx ts-node src/serve/run-tests.ts
+ * Run with: npx tsx src/serve/run-tests.ts
+ * 
+ * This tests ALL endpoints against a running backend at localhost:5000
  */
 
-// Polyfill for Node.js environment
 import axios from 'axios';
 
-// Backend URL
+// =============================================================================
+// CONFIGURATION
+// =============================================================================
+
 const BASE_URL = 'http://localhost:5000';
 
-// Simple in-memory token storage for testing
 let authToken = '';
 let testUserId = '';
 let testUsername = '';
 
-// Test credentials
+// Test credentials (unique per run)
 const TEST_USER = {
   username: `testuser_${Date.now()}`,
   email: `test_${Date.now()}@example.com`,
@@ -33,9 +36,9 @@ const colors = {
   dim: '\x1b[2m',
 };
 
-function log(msg: string) {
-  console.log(msg);
-}
+// =============================================================================
+// LOGGING HELPERS
+// =============================================================================
 
 function success(test: string, detail?: string) {
   console.log(`${colors.green}✓${colors.reset} ${test}${detail ? colors.dim + ' - ' + detail + colors.reset : ''}`);
@@ -46,11 +49,18 @@ function fail(test: string, error: any) {
   console.log(`  ${colors.red}Error: ${error?.response?.data?.error || error?.message || error}${colors.reset}`);
 }
 
+function skip(test: string, reason: string) {
+  console.log(`${colors.yellow}⊘${colors.reset} ${test} - ${colors.dim}${reason}${colors.reset}`);
+}
+
 function section(name: string) {
   console.log(`\n${colors.cyan}━━━ ${name} ━━━${colors.reset}`);
 }
 
-// Helper to make API calls
+// =============================================================================
+// API HELPER
+// =============================================================================
+
 async function api(method: string, path: string, data?: any, auth = true) {
   const config: any = {
     method,
@@ -70,7 +80,7 @@ async function api(method: string, path: string, data?: any, auth = true) {
 }
 
 // =============================================================================
-// TEST FUNCTIONS
+// AUTH TESTS
 // =============================================================================
 
 async function testSystemUptime() {
@@ -91,7 +101,6 @@ async function testRegister() {
     success('register', `User ID: ${testUserId}`);
     return true;
   } catch (e: any) {
-    // User might already exist
     if (e?.response?.status === 409) {
       success('register', 'User already exists (OK)');
       return true;
@@ -108,9 +117,7 @@ async function testLogin() {
       password: TEST_USER.password,
     }, false);
     authToken = res.data.token;
-    testUserId = res.data.user_id;
-    testUsername = res.data.username;
-    success('login', `Token received, User: ${testUsername}`);
+    success('login', `Token received`);
     return true;
   } catch (e) {
     fail('login', e);
@@ -120,8 +127,9 @@ async function testLogin() {
 
 async function testWhoAmI() {
   try {
-    const res = await api('GET', '/whoami');
-    success('whoami', `Username: ${res.data.username}`);
+    const res = await api('GET', '/who-am-i');
+    testUsername = res.data.user || res.data.username;
+    success('whoami', `Username: ${testUsername}`);
     return true;
   } catch (e) {
     fail('whoami', e);
@@ -132,6 +140,8 @@ async function testWhoAmI() {
 async function testMyself() {
   try {
     const res = await api('GET', '/myself');
+    testUserId = res.data.aid;
+    testUsername = res.data.login;
     success('myself', `Email: ${res.data.email}`);
     return true;
   } catch (e) {
@@ -139,6 +149,10 @@ async function testMyself() {
     return false;
   }
 }
+
+// =============================================================================
+// PROFILE TESTS
+// =============================================================================
 
 async function testProfileGet() {
   try {
@@ -157,7 +171,7 @@ async function testProfileGet() {
 
 async function testProfileUpdate() {
   try {
-    const res = await api('PUT', '/profile', {
+    await api('PUT', '/profile', {
       first_name: 'Test',
       last_name: 'User',
       bio: 'This is a test profile',
@@ -170,32 +184,30 @@ async function testProfileUpdate() {
   }
 }
 
-async function testAvatarGetByUsername() {
+async function testProfileByUsername() {
+  if (!testUsername) {
+    skip('profile.getByUsername', 'No username');
+    return false;
+  }
   try {
-    const res = await api('GET', `/user/${testUsername}/profile/avatar`, null, true);
-    success('avatar.getByUsername', `Avatar fetched`);
+    const res = await api('GET', `/user/${testUsername}/profile`, null, false);
+    success('profile.getByUsername', `Got profile for ${testUsername}`);
     return true;
   } catch (e: any) {
     if (e?.response?.status === 404) {
-      success('avatar.getByUsername', 'No avatar yet (OK)');
+      success('profile.getByUsername', 'Not found (OK)');
       return true;
     }
-    fail('avatar.getByUsername', e);
+    fail('profile.getByUsername', e);
     return false;
   }
 }
 
-async function testCategoriesList() {
-  try {
-    const res = await api('GET', '/categories');
-    const count = Array.isArray(res.data) ? res.data.length : 0;
-    success('categories.list', `Found ${count} categories`);
-    return res.data;
-  } catch (e) {
-    fail('categories.list', e);
-    return [];
-  }
-}
+// =============================================================================
+// EXPERIENCES TESTS
+// =============================================================================
+
+let createdExperienceId: string | null = null;
 
 async function testExperiencesList() {
   try {
@@ -209,6 +221,42 @@ async function testExperiencesList() {
   }
 }
 
+async function testExperiencesCreate() {
+  try {
+    const res = await api('POST', '/profile/experiences', {
+      title: 'Software Engineer',
+      company_name: 'Test Corp',
+      start_date: '2020-01-01',
+      description: 'Test experience',
+    });
+    createdExperienceId = res.data.experience_id;
+    success('experiences.create', `Created: ${createdExperienceId}`);
+    return true;
+  } catch (e) {
+    fail('experiences.create', e);
+    return false;
+  }
+}
+
+async function testExperiencesDelete() {
+  if (!createdExperienceId) {
+    skip('experiences.delete', 'No experience created');
+    return false;
+  }
+  try {
+    await api('DELETE', `/profile/experiences/${createdExperienceId}`);
+    success('experiences.delete', `Deleted`);
+    return true;
+  } catch (e) {
+    fail('experiences.delete', e);
+    return false;
+  }
+}
+
+// =============================================================================
+// INTERESTS TESTS
+// =============================================================================
+
 async function testInterestsList() {
   try {
     const res = await api('GET', '/profile/interests');
@@ -221,11 +269,54 @@ async function testInterestsList() {
   }
 }
 
+// =============================================================================
+// CATEGORIES TESTS
+// =============================================================================
+
+let firstCategoryId: string | null = null;
+
+async function testCategoriesList() {
+  try {
+    const res = await api('GET', '/categories', null, true);
+    const count = Array.isArray(res.data) ? res.data.length : 0;
+    if (count > 0) {
+      firstCategoryId = res.data[0].category_id || res.data[0].id;
+    }
+    success('categories.list', `Found ${count} categories`);
+    return res.data;
+  } catch (e) {
+    fail('categories.list', e);
+    return [];
+  }
+}
+
+async function testCategoriesGet() {
+  if (!firstCategoryId) {
+    skip('categories.get', 'No categories available');
+    return false;
+  }
+  try {
+    const res = await api('GET', `/categories/${firstCategoryId}`, null, true);
+    success('categories.get', `Got: ${res.data.name}`);
+    return true;
+  } catch (e) {
+    fail('categories.get', e);
+    return false;
+  }
+}
+
+// =============================================================================
+// PAPS TESTS
+// =============================================================================
+
+let createdPapsId: string | null = null;
+
 async function testPapsList() {
   try {
-    const res = await api('GET', '/paps');
-    const count = res.data?.paps?.length || 0;
-    const total = res.data?.total_count || 0;
+    const res = await api('GET', '/paps', null, true);
+    const paps = res.data?.paps || res.data;
+    const count = Array.isArray(paps) ? paps.length : 0;
+    const total = res.data?.total || count;
     success('paps.list', `Found ${count}/${total} PAPS`);
     return res.data;
   } catch (e) {
@@ -234,15 +325,13 @@ async function testPapsList() {
   }
 }
 
-let createdPapsId: string | null = null;
-
 async function testPapsCreate() {
   try {
     const res = await api('POST', '/paps', {
       title: 'Test PAPS ' + Date.now(),
-      description: 'This is a test job posting created by automated tests',
+      description: 'This is a test job posting created by automated tests. It has enough characters.',
       payment_amount: 100,
-      payment_type: 'fixed',
+      payment_currency: 'USD',
       status: 'draft',
     });
     createdPapsId = res.data.paps_id;
@@ -256,11 +345,11 @@ async function testPapsCreate() {
 
 async function testPapsGet() {
   if (!createdPapsId) {
-    log(`${colors.yellow}⊘${colors.reset} paps.get - Skipped (no PAPS created)`);
+    skip('paps.get', 'No PAPS created');
     return false;
   }
   try {
-    const res = await api('GET', `/paps/${createdPapsId}`);
+    const res = await api('GET', `/paps/${createdPapsId}`, null, true);
     success('paps.get', `Title: ${res.data.title}`);
     return true;
   } catch (e) {
@@ -271,15 +360,15 @@ async function testPapsGet() {
 
 async function testPapsUpdate() {
   if (!createdPapsId) {
-    log(`${colors.yellow}⊘${colors.reset} paps.update - Skipped (no PAPS created)`);
+    skip('paps.update', 'No PAPS created');
     return false;
   }
   try {
-    const res = await api('PUT', `/paps/${createdPapsId}`, {
+    await api('PUT', `/paps/${createdPapsId}`, {
       title: 'Updated Test PAPS',
-      description: 'Updated description for testing',
+      description: 'Updated description for testing. It has enough characters for validation.',
     });
-    success('paps.update', `Updated to: ${res.data.title}`);
+    success('paps.update', `Updated`);
     return true;
   } catch (e) {
     fail('paps.update', e);
@@ -287,72 +376,9 @@ async function testPapsUpdate() {
   }
 }
 
-let createdCommentId: string | null = null;
-
-async function testCommentsCreate() {
-  if (!createdPapsId) {
-    log(`${colors.yellow}⊘${colors.reset} comments.create - Skipped (no PAPS created)`);
-    return false;
-  }
-  try {
-    const res = await api('POST', `/paps/${createdPapsId}/comments`, {
-      content: 'This is a test comment!',
-    });
-    createdCommentId = res.data.comment_id;
-    success('comments.create', `Created comment: ${createdCommentId}`);
-    return true;
-  } catch (e) {
-    fail('comments.create', e);
-    return false;
-  }
-}
-
-async function testCommentsList() {
-  if (!createdPapsId) {
-    log(`${colors.yellow}⊘${colors.reset} comments.list - Skipped (no PAPS created)`);
-    return false;
-  }
-  try {
-    const res = await api('GET', `/paps/${createdPapsId}/comments`);
-    const count = res.data?.count || 0;
-    success('comments.list', `Found ${count} comments`);
-    return true;
-  } catch (e) {
-    fail('comments.list', e);
-    return false;
-  }
-}
-
-async function testCommentsDelete() {
-  if (!createdCommentId) {
-    log(`${colors.yellow}⊘${colors.reset} comments.delete - Skipped (no comment created)`);
-    return false;
-  }
-  try {
-    await api('DELETE', `/comments/${createdCommentId}`);
-    success('comments.delete', `Deleted comment`);
-    return true;
-  } catch (e) {
-    fail('comments.delete', e);
-    return false;
-  }
-}
-
-async function testSpapMy() {
-  try {
-    const res = await api('GET', '/spap/my');
-    const count = res.data?.count || 0;
-    success('spap.my', `Found ${count} applications`);
-    return true;
-  } catch (e) {
-    fail('spap.my', e);
-    return false;
-  }
-}
-
 async function testPapsDelete() {
   if (!createdPapsId) {
-    log(`${colors.yellow}⊘${colors.reset} paps.delete - Skipped (no PAPS created)`);
+    skip('paps.delete', 'No PAPS created');
     return false;
   }
   try {
@@ -366,14 +392,177 @@ async function testPapsDelete() {
 }
 
 // =============================================================================
+// COMMENTS TESTS
+// =============================================================================
+
+let testPapsIdForComments: string | null = null;
+let createdCommentId: string | null = null;
+
+async function setupPapsForComments() {
+  try {
+    const res = await api('POST', '/paps', {
+      title: 'PAPS for Comment Testing ' + Date.now(),
+      description: 'This PAPS is created to test comments functionality. Enough characters here.',
+      payment_amount: 50,
+      payment_currency: 'USD',
+      status: 'draft',  // Use draft to avoid start_datetime requirement
+    });
+    testPapsIdForComments = res.data.paps_id;
+    success('comments.setup', `Created PAPS for comments: ${testPapsIdForComments}`);
+    return true;
+  } catch (e) {
+    fail('comments.setup', e);
+    return false;
+  }
+}
+
+async function testCommentsCreate() {
+  if (!testPapsIdForComments) {
+    skip('comments.create', 'No PAPS for comments');
+    return false;
+  }
+  try {
+    const res = await api('POST', `/paps/${testPapsIdForComments}/comments`, {
+      content: 'This is a test comment!',
+    });
+    createdCommentId = res.data.comment_id;
+    success('comments.create', `Created comment: ${createdCommentId}`);
+    return true;
+  } catch (e) {
+    fail('comments.create', e);
+    return false;
+  }
+}
+
+async function testCommentsList() {
+  if (!testPapsIdForComments) {
+    skip('comments.list', 'No PAPS for comments');
+    return false;
+  }
+  try {
+    const res = await api('GET', `/paps/${testPapsIdForComments}/comments`, null, true);
+    const count = res.data?.comments?.length || res.data?.length || 0;
+    success('comments.list', `Found ${count} comments`);
+    return true;
+  } catch (e) {
+    fail('comments.list', e);
+    return false;
+  }
+}
+
+async function testCommentsDelete() {
+  if (!createdCommentId) {
+    skip('comments.delete', 'No comment created');
+    return false;
+  }
+  try {
+    await api('DELETE', `/comments/${createdCommentId}`);
+    success('comments.delete', `Deleted comment`);
+    return true;
+  } catch (e) {
+    fail('comments.delete', e);
+    return false;
+  }
+}
+
+async function cleanupPapsForComments() {
+  if (testPapsIdForComments) {
+    try {
+      await api('DELETE', `/paps/${testPapsIdForComments}`);
+    } catch {}
+  }
+}
+
+// =============================================================================
+// SPAP TESTS
+// =============================================================================
+
+async function testSpapList() {
+  try {
+    const res = await api('GET', '/spaps');
+    const count = res.data?.spaps?.length || 0;
+    success('spap.list', `Found ${count} applications`);
+    return true;
+  } catch (e: any) {
+    // May return empty or 404 if no applications
+    if (e?.response?.status === 404) {
+      success('spap.list', 'No applications (OK)');
+      return true;
+    }
+    fail('spap.list', e);
+    return false;
+  }
+}
+
+// =============================================================================
+// ASAP TESTS
+// =============================================================================
+
+async function testAsapList() {
+  try {
+    const res = await api('GET', '/asaps');
+    const count = res.data?.asaps?.length || 0;
+    success('asap.list', `Found ${count} assignments`);
+    return true;
+  } catch (e: any) {
+    if (e?.response?.status === 404) {
+      success('asap.list', 'No assignments (OK)');
+      return true;
+    }
+    fail('asap.list', e);
+    return false;
+  }
+}
+
+// =============================================================================
+// PAYMENTS TESTS
+// =============================================================================
+
+async function testPaymentsMy() {
+  try {
+    const res = await api('GET', '/user/payments');
+    const count = res.data?.payments?.length || 0;
+    success('payments.my', `Found ${count} payments`);
+    return true;
+  } catch (e: any) {
+    if (e?.response?.status === 404) {
+      success('payments.my', 'No payments (OK)');
+      return true;
+    }
+    fail('payments.my', e);
+    return false;
+  }
+}
+
+// =============================================================================
+// CHAT TESTS
+// =============================================================================
+
+async function testChatList() {
+  try {
+    const res = await api('GET', '/chats');
+    const count = res.data?.threads?.length || 0;
+    success('chat.list', `Found ${count} threads`);
+    return true;
+  } catch (e: any) {
+    if (e?.response?.status === 404) {
+      success('chat.list', 'No chats (OK)');
+      return true;
+    }
+    fail('chat.list', e);
+    return false;
+  }
+}
+
+// =============================================================================
 // MAIN TEST RUNNER
 // =============================================================================
 
 async function runTests() {
-  console.log(`\n${colors.cyan}╔════════════════════════════════════════════╗${colors.reset}`);
-  console.log(`${colors.cyan}║${colors.reset}   serv() API Endpoint Tests                ${colors.cyan}║${colors.reset}`);
-  console.log(`${colors.cyan}║${colors.reset}   Backend: ${BASE_URL}              ${colors.cyan}║${colors.reset}`);
-  console.log(`${colors.cyan}╚════════════════════════════════════════════╝${colors.reset}`);
+  console.log(`\n${colors.cyan}╔════════════════════════════════════════════════╗${colors.reset}`);
+  console.log(`${colors.cyan}║${colors.reset}   Underboss API Endpoint Tests                 ${colors.cyan}║${colors.reset}`);
+  console.log(`${colors.cyan}║${colors.reset}   Backend: ${BASE_URL}                  ${colors.cyan}║${colors.reset}`);
+  console.log(`${colors.cyan}╚════════════════════════════════════════════════╝${colors.reset}`);
 
   let passed = 0;
   let failed = 0;
@@ -394,27 +583,30 @@ async function runTests() {
     return;
   }
   
-  track(await testWhoAmI()); // May not exist in all backends
+  track(await testWhoAmI());
   track(await testMyself());
 
   // Profile
   section('PROFILE');
   track(await testProfileGet());
   track(await testProfileUpdate());
-  track(await testAvatarGetByUsername());
-
-  // Categories
-  section('CATEGORIES');
-  await testCategoriesList();
-  passed++; // Count as pass if no exception
+  track(await testProfileByUsername());
 
   // Experiences
   section('EXPERIENCES');
   track(await testExperiencesList());
+  track(await testExperiencesCreate());
+  track(await testExperiencesDelete());
 
   // Interests
   section('INTERESTS');
   track(await testInterestsList());
+
+  // Categories
+  section('CATEGORIES');
+  await testCategoriesList();
+  passed++;
+  track(await testCategoriesGet());
 
   // PAPS
   section('PAPS');
@@ -426,22 +618,36 @@ async function runTests() {
 
   // Comments
   section('COMMENTS');
+  await setupPapsForComments();
   track(await testCommentsCreate());
   track(await testCommentsList());
   track(await testCommentsDelete());
+  await cleanupPapsForComments();
 
   // SPAP
   section('SPAP (Applications)');
-  track(await testSpapMy());
+  track(await testSpapList());
+
+  // ASAP
+  section('ASAP (Assignments)');
+  track(await testAsapList());
+
+  // Payments
+  section('PAYMENTS');
+  track(await testPaymentsMy());
+
+  // Chat
+  section('CHAT');
+  track(await testChatList());
 
   // Cleanup
   section('CLEANUP');
   track(await testPapsDelete());
 
   // Summary
-  console.log(`\n${colors.cyan}════════════════════════════════════════════${colors.reset}`);
+  console.log(`\n${colors.cyan}════════════════════════════════════════════════${colors.reset}`);
   console.log(`${colors.green}Passed: ${passed}${colors.reset} | ${colors.red}Failed: ${failed}${colors.reset}`);
-  console.log(`${colors.cyan}════════════════════════════════════════════${colors.reset}\n`);
+  console.log(`${colors.cyan}════════════════════════════════════════════════${colors.reset}\n`);
 }
 
 // Run!
