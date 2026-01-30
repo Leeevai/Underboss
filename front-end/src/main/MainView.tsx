@@ -7,6 +7,7 @@ import PapsFeed from '../feed/PapsFeed';
 import NotificationPage from '../pages/NotificationPage';
 import ProfilePage from '../pages/ProfilePage';
 import SettingsPage from '../pages/SettingsPage';
+import ModifyProfil from '../pages/ModifyProfil.tsx';
 
 
 import { serv, getCurrentUser } from '../serve';
@@ -131,7 +132,9 @@ export default function MainView({ logoutUser }: MainViewProps) {
           <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="Notification" component={NotificationPage} />
           <Stack.Screen name="Profile" component={ProfilePage} />
+          <Stack.Screen name="ModifyProfil" component={ModifyProfil} />
           <Stack.Screen name="Settings">
+          
             {() => <SettingsPage logoutUser={logoutUser} />}
           </Stack.Screen>
         </Stack.Navigator>
