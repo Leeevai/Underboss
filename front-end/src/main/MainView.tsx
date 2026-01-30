@@ -9,11 +9,13 @@ import PapsFeed from '../feed/PapsFeed';
 import NotificationPage from '../pages/NotificationPage';
 import ProfilePage from '../pages/ProfilePage';
 import SettingsPage from '../pages/SettingsPage';
-import Spap from '../spap/SpapFeed';
 import ModifyProfil from '../pages/ModifyProfil.tsx';
 import Post from '../posting/posting_page'
 import Calendar from '../calendar/Calendar'
 
+
+// import MessagePage from '../pages/messagePage';
+// import ChatDetailPage from '../pages/ChatDetailScreen';
 
 import { serv, getCurrentUser } from '../serve';
 import SpapFeed from '../spap/SpapFeed';
@@ -95,7 +97,7 @@ function MainTabs() {
       <Tab.Screen
         name="Spap"
         component={SpapFeed}
-        options={{ title: 'Spap' }}
+        options={{ title: 'SpapFeed' }}
       />
       <Tab.Screen
         name="Post"
@@ -146,7 +148,11 @@ export default function MainView({ logoutUser }: MainViewProps) {
           <Stack.Screen name="Settings">
           
             {() => <SettingsPage logoutUser={logoutUser} />}
+            
+
           </Stack.Screen>
+          {/* <Stack.Screen name="Messages" component={MessagePage} />
+          <Stack.Screen name="ChatDetail" component={ChatDetailPage} /> */} 
         </Stack.Navigator>
       </NavigationContainer>
     </View>
