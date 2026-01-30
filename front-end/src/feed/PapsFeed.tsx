@@ -14,6 +14,8 @@ export default function PapsFeed() {
     try {
       const response = await serv('paps.list')
       // serv returns { paps: [], total_count: number }
+      console.log('Fetched paps response:', response)
+      console.log('First pap:', response.paps?.[0])
       setPaps(response.paps)
       setError('')
     } catch (err) {
@@ -60,7 +62,7 @@ export default function PapsFeed() {
       </View>
       <FlatList
         data={paps}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item, index) => item?.id?.toString() || `pap-${index}`}
         renderItem={({ item }) => <PapsPost pap={item} />}
         horizontal={true}
         refreshControl={

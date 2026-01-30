@@ -16,6 +16,10 @@ interface PapsPostProps {
 export default function PapsPost({ pap }: PapsPostProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [papsDetail, setPapsDetail] = useState<any>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [hasApplied, setHasApplied] = useState(false);
   
   useEffect(() => {
     const fetchAvatar = async () => {
@@ -40,6 +44,57 @@ export default function PapsPost({ pap }: PapsPostProps) {
   
     fetchAvatar();
   }, [pap.owner_username]);
+
+  // Fetch full PAPS details when modal opens
+  useEffect(() => {
+    const fetchPapsDetails = async () => {
+      if (!modalVisible || papsDetail) return;
+      
+      if (!pap.id) {
+        console.error("No id available:", pap);
+        return;
+      }
+      
+      setLoadingDetail(true);
+      try {
+        console.log("Fetching PAPS details for ID:", pap.id);
+        const details = await serv('paps.get', { paps_id: pap.id });
+        setPapsDetail(details);
+      } catch (error: any) {
+        console.error("Error fetching PAPS details:", error);
+      } finally {
+        setLoadingDetail(false);
+      }
+    };
+    
+    fetchPapsDetails();
+  }, [modalVisible, pap.id]);
+
+  // Handle apply for job
+  const handleApply = async () => {
+    setApplying(true);
+    try {
+      await serv('spap.apply', { 
+        paps_id: pap.id,
+        message: 'I am interested in this job opportunity.'
+      });
+      setHasApplied(true);
+      Alert.alert(
+        'Success',
+        'Your application has been submitted successfully!',
+        [{ text: 'OK', onPress: () => setModalVisible(false) }]
+      );
+    } catch (error: any) {
+      console.error('Error applying to job:', error);
+      Alert.alert(
+        'Error',
+        error.getUserMessage ? error.getUserMessage() : 'Failed to submit application. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setApplying(false);
+    }
+  };
   
   return (
     <View id="global view for post" style={{ flexDirection: 'column' }}>
@@ -77,21 +132,34 @@ export default function PapsPost({ pap }: PapsPostProps) {
             <Text style={styles.footerUser}>User @{pap.owner_username}</Text>
             <TouchableOpacity
               style={styles.applyButton}
-              onPress={() => setModalVisible(true)}
+              onPress={() => {
+                console.log('Opening modal for pap:', pap.id);
+                setModalVisible(true);
+              }}
             >
               <Text style={styles.applyButtonText}>More info</Text>
             </TouchableOpacity>
           </View>
+        </View>
+      </View>
+      <View style={{ flex: 2 }}></View>
 
-          {/* Modal for more info */}
-          <Modal
-            animationType="slide"
-            transparent={true}
-            visible={modalVisible}
-            onRequestClose={() => setModalVisible(false)}
+      {/* Modal for more info - moved outside the card container */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+        presentationStyle="overFullScreen"
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setModalVisible(false)}
+        >
+          <Pressable 
+            style={styles.modalContent}
+            onPress={(e) => e.stopPropagation()}
           >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
                 <SafeAreaView edges={['bottom', 'left', 'right']}>
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalHeaderTitle}>Job details</Text>
@@ -106,15 +174,19 @@ export default function PapsPost({ pap }: PapsPostProps) {
                   <ScrollView contentContainerStyle={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
                     <View style={styles.modalTitleRow}>
                       <Text style={styles.modalJobTitle}>{pap.title}</Text>
-                      <View style={styles.categoryTagSmall}>
-                        <Text style={styles.categoryTextSmall}>Moving</Text>
-                      </View>
+                      {pap.categories && pap.categories.length > 0 && (
+                        <View style={styles.categoryTagSmall}>
+                          <Text style={styles.categoryTextSmall}>
+                            {typeof pap.categories[0] === 'string' 
+                              ? pap.categories[0] 
+                              : pap.categories[0]?.category_name || pap.categories[0]?.name || 'Category'}
+                          </Text>
+                        </View>
+                      )}
                     </View>
 
                     <View style={styles.postedTimeRow}>
-                      <Text style={styles.cardDescription} numberOfLines={2}>{pap.description}</Text>
-                      <Text style={styles.postedTimeText}>🕒 Posted {pap.published_at || 'Unknown'}</Text>
-
+                      <Text style={styles.postedTimeText}>🕒 Posted {pap.published_at ? new Date(pap.published_at).toLocaleDateString() : 'Unknown'}</Text>
                     </View>
 
 
@@ -123,21 +195,21 @@ export default function PapsPost({ pap }: PapsPostProps) {
                         <Text style={styles.infoBoxIcon}>💰</Text>
                         <View>
                           <Text style={styles.infoBoxLabel}>Payment</Text>
-                          <Text style={styles.infoBoxValue}>{pap.payment_amount} {pap.payment_currency}</Text>
+                          <Text style={styles.infoBoxValue}>{pap.payment_amount || 'TBD'} {pap.payment_currency}</Text>
                         </View>
                       </View>
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>🕒</Text>
                         <View>
                           <Text style={styles.infoBoxLabel}>Starting day</Text>
-                          <Text style={styles.infoBoxValue}>To be decided with the boss</Text>
+                          <Text style={styles.infoBoxValue}>To be decided</Text>
                         </View>
                       </View>
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>📍</Text>
                         <View>
-                          <Text style={styles.infoBoxLabel}>Localisation</Text>
-                          <Text style={styles.infoBoxValue} numberOfLines={2}>{pap.location_address}</Text>
+                          <Text style={styles.infoBoxLabel}>Location</Text>
+                          <Text style={styles.infoBoxValue} numberOfLines={2}>{pap.location_address || 'Remote'}</Text>
                         </View>
                       </View>
                     </View>
@@ -146,6 +218,34 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <Text style={styles.sectionTitle}>Description</Text>
                       <Text style={styles.sectionText}>{pap.description}</Text>
                     </View>
+
+                    {loadingDetail ? (
+                      <View style={styles.modalSection}>
+                        <Text style={styles.sectionText}>Loading additional details...</Text>
+                      </View>
+                    ) : papsDetail ? (
+                      <>
+                        {papsDetail.schedule && papsDetail.schedule.length > 0 && (
+                          <View style={styles.modalSection}>
+                            <Text style={styles.sectionTitle}>Schedule</Text>
+                            {papsDetail.schedule.map((sched: any, idx: number) => (
+                              <View key={idx} style={styles.scheduleItem}>
+                                <Text style={styles.sectionText}>
+                                  {new Date(sched.start_time).toLocaleString()} - {new Date(sched.end_time).toLocaleString()}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                        
+                        {papsDetail.media && papsDetail.media.length > 0 && (
+                          <View style={styles.modalSection}>
+                            <Text style={styles.sectionTitle}>Media ({papsDetail.media.length})</Text>
+                            <Text style={styles.sectionText}>This job has {papsDetail.media.length} attached media file(s)</Text>
+                          </View>
+                        )}
+                      </>
+                    ) : null}
 
                     <View style={styles.modalSection}>
                       <Text style={styles.sectionTitle}>Posted by</Text>
@@ -174,7 +274,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       <View style={styles.infoList}>
                         <View style={styles.infoListItem}>
                           <Text style={styles.infoListLabel}>Job ID</Text>
-                          <Text style={styles.infoListValue}>{pap.paps_id}</Text>
+                          <Text style={styles.infoListValue}>{pap.id}</Text>
                         </View>
                         <View style={styles.infoListItem}>
                           <Text style={styles.infoListLabel}>Status</Text>
@@ -182,10 +282,18 @@ export default function PapsPost({ pap }: PapsPostProps) {
                             <Text style={styles.statusBadgeText}>{pap.status}</Text>
                           </View>
                         </View>
-                        <View style={styles.infoListItem}>
-                          <Text style={styles.infoListLabel}>Numbers of workers</Text>
-                          <Text style={styles.infoListValue}>To be determined</Text>
-                        </View>
+                        {papsDetail && (
+                          <>
+                            <View style={styles.infoListItem}>
+                              <Text style={styles.infoListLabel}>Applications</Text>
+                              <Text style={styles.infoListValue}>{papsDetail.application_count || 0}</Text>
+                            </View>
+                            <View style={styles.infoListItem}>
+                              <Text style={styles.infoListLabel}>Assignments</Text>
+                              <Text style={styles.infoListValue}>{papsDetail.assignment_count || 0}</Text>
+                            </View>
+                          </>
+                        )}
                       </View>
                     </View>
                   </ScrollView>
@@ -197,17 +305,20 @@ export default function PapsPost({ pap }: PapsPostProps) {
                     >
                       <Text style={styles.closeActionBtnText}>Close</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.applyActionBtn}>
-                      <Text style={styles.applyActionBtnText}>Apply for this job</Text>
+                    <TouchableOpacity 
+                      style={[styles.applyActionBtn, (applying || hasApplied) && styles.applyActionBtnDisabled]}
+                      onPress={handleApply}
+                      disabled={applying || hasApplied}
+                    >
+                      <Text style={styles.applyActionBtnText}>
+                        {hasApplied ? '✓ Applied' : applying ? 'Applying...' : 'Apply for this job'}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </SafeAreaView>
-              </View>
-            </View>
+              </Pressable>
+            </Pressable>
           </Modal>
-        </View>
-      </View>
-      <View style={{ flex: 2 }}></View>
     </View>
   )
 }
@@ -318,7 +429,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 20,
     elevation: 10,
-    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -528,9 +638,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
   },
+  applyActionBtnDisabled: {
+    backgroundColor: '#A0AEC0',
+  },
   applyActionBtnText: {
     fontSize: 15,
     fontWeight: '700',
     color: '#fff',
+  },
+  scheduleItem: {
+    backgroundColor: '#F7FAFC',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
   },
 })
