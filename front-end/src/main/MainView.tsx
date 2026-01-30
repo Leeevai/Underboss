@@ -75,6 +75,14 @@ const Message = () => (
   <View style={styles.center}><Text>Message uploading...</Text></View>
 )
 
+const Spap = () => (
+  <View style={styles.center}><Text>Spap something...</Text></View>
+  
+)
+const Calendar = () => (
+  <View style={styles.center}><Text>Spap something...</Text></View>
+  
+)
 function MainTabs() {
   return (
     <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { height: 150 } }}>
@@ -82,6 +90,11 @@ function MainTabs() {
         name="Home"
         component={PapsFeed}
         options={{ title: 'Home' }}
+      />
+      <Tab.Screen
+        name="Spap"
+        component={Spap}
+        options={{ title: 'Spap' }}
       />
       <Tab.Screen
         name="Post"
@@ -92,6 +105,11 @@ function MainTabs() {
         name="Message"
         component={Message}
         options={{ title: 'Message' }}
+      />
+      <Tab.Screen
+        name="Calendar"
+        component={Calendar}
+        options={{ title: 'Calendar' }}
       />
     </Tab.Navigator>
   );
