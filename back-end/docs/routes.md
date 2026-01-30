@@ -119,7 +119,7 @@ Authorization: Basic base64(login:password)
 ## System Routes
 
 ### GET /uptime
-**Description**: Health check endpoint (testing only)  
+**Description**: Health check endpoint (testing only, when APP_TESTING=True)  
 **Authorization**: OPEN  
 **Authentication**: None
 
@@ -173,8 +173,7 @@ Authorization: Basic base64(login:password)
     "postgres": "postgres-version",
     "underboss": "commit-id",
     "FlaskSimpleAuth": "version",
-    "flask": "version",
-    "...": "other-package-versions"
+    "flask": "version"
   }
 }
 ```
@@ -206,9 +205,7 @@ Authorization: Basic base64(login:password)
 
 **Success Response (200)**:
 ```json
-{
-  "user": "username-or-email-or-phone"
-}
+"username-or-email-or-phone"
 ```
 
 ---
@@ -255,11 +252,6 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 
 **Error Responses**:
 - **404 Not Found**: File does not exist
-
-**Security**:
-- Flask automatically handles path traversal protection
-- Media URLs are returned by API endpoints after authorization checks
-- Files are stored with UUID-based names to prevent enumeration
 
 ---
 
@@ -475,7 +467,7 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 **Validation Rules**:
 - `location_lat`: -90 to 90 (decimal degrees)
 - `location_lng`: -180 to 180 (decimal degrees)
-- `date_of_birth`: ISO 8601 date format (YYYY-MM-DD), cannot be in future
+- `date_of_birth`: ISO 8601 date format (YYYY-MM-DD)
 
 **Success Response (204)**: No content
 
@@ -561,12 +553,12 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
   {
     "experience_id": "uuid",
     "user_id": "uuid",
-    "job_title": "string",
-    "company_name": "string",
-    "location": "string|null",
-    "start_date": "YYYY-MM-DD",
-    "end_date": "YYYY-MM-DD|null",
+    "title": "string",
+    "company": "string|null",
     "description": "string|null",
+    "start_date": "iso8601-timestamp",
+    "end_date": "iso8601-timestamp|null",
+    "is_current": "boolean",
     "created_at": "iso8601-timestamp",
     "updated_at": "iso8601-timestamp"
   }
@@ -583,18 +575,20 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 **Request Body**:
 ```json
 {
-  "job_title": "string (required)",
-  "company_name": "string (required)",
-  "location": "string (optional)",
-  "start_date": "YYYY-MM-DD (required)",
-  "end_date": "YYYY-MM-DD (optional, must be after start_date)",
-  "description": "string (optional)"
+  "title": "string (required, 2+ chars)",
+  "company": "string (optional)",
+  "description": "string (optional)",
+  "start_date": "iso8601-timestamp (required)",
+  "end_date": "iso8601-timestamp (optional, must be after start_date)",
+  "is_current": "boolean (optional, default: false)"
 }
 ```
 
 **Validation Rules**:
-- `start_date`: ISO 8601 date, cannot be in future
+- `title`: At least 2 characters
+- `start_date`: ISO 8601 format
 - `end_date`: Must be after start_date if provided
+- Cannot have end_date if is_current is true
 
 **Success Response (201)**:
 ```json
@@ -608,34 +602,45 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 
 ---
 
-### PUT /profile/experiences/{experience_id}
+### PATCH /profile/experiences/{exp_id}
 **Description**: Update specific work experience  
 **Authorization**: AUTH
 
 **Path Parameters**:
-- `experience_id`: string (UUID)
+- `exp_id`: string (UUID)
 
-**Request Body**: Same as POST /profile/experiences
+**Request Body** (all optional):
+```json
+{
+  "title": "string",
+  "company": "string",
+  "description": "string",
+  "start_date": "iso8601-timestamp",
+  "end_date": "iso8601-timestamp",
+  "is_current": "boolean"
+}
+```
 
 **Success Response (204)**: No content
 
 **Error Responses**:
-- **400 Bad Request**: Invalid date validation
+- **400 Bad Request**: Invalid date validation or experience ID format
 - **403 Forbidden**: Not your experience
 - **404 Not Found**: Experience not found
 
 ---
 
-### DELETE /profile/experiences/{experience_id}
+### DELETE /profile/experiences/{exp_id}
 **Description**: Delete specific work experience  
 **Authorization**: AUTH
 
 **Path Parameters**:
-- `experience_id`: string (UUID)
+- `exp_id`: string (UUID)
 
 **Success Response (204)**: No content
 
 **Error Responses**:
+- **400 Bad Request**: Invalid experience ID format
 - **403 Forbidden**: Not your experience
 - **404 Not Found**: Experience not found
 
@@ -649,11 +654,10 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 ```json
 [
   {
-    "interest_id": "uuid",
-    "user_id": "uuid",
     "category_id": "uuid",
     "category_name": "string",
     "category_slug": "string",
+    "proficiency_level": 1-5,
     "created_at": "iso8601-timestamp"
   }
 ]
@@ -669,35 +673,70 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 **Request Body**:
 ```json
 {
-  "category_id": "uuid (required)"
+  "category_id": "uuid (required)",
+  "proficiency_level": "integer (optional, 1-5, default: 1)"
 }
 ```
 
-**Success Response (201)**:
-```json
-{
-  "interest_id": "uuid"
-}
-```
+**Success Response (201)**: No content (empty body)
 
 **Error Responses**:
-- **400 Bad Request**: Category not found
+- **400 Bad Request**: Invalid category_id format or proficiency level
+- **404 Not Found**: Category not found
 - **409 Conflict**: Interest already exists
 
 ---
 
-### DELETE /profile/interests/{interest_id}
-**Description**: Remove category interest  
+### PATCH /profile/interests/{category_id}
+**Description**: Update interest proficiency level  
 **Authorization**: AUTH
 
 **Path Parameters**:
-- `interest_id`: string (UUID)
+- `category_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "proficiency_level": "integer (required, 1-5)"
+}
+```
 
 **Success Response (204)**: No content
 
 **Error Responses**:
-- **403 Forbidden**: Not your interest
+- **400 Bad Request**: Invalid category_id format or proficiency level
+
+---
+
+### DELETE /profile/interests/{category_id}
+**Description**: Remove category interest  
+**Authorization**: AUTH
+
+**Path Parameters**:
+- `category_id`: string (UUID) - The category ID to remove from interests
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid category_id format
 - **404 Not Found**: Interest not found
+
+---
+
+### GET /profile/rating
+**Description**: Get current user's rating  
+**Authorization**: AUTH
+
+**Success Response (200)**:
+```json
+{
+  "rating_average": 4.5,
+  "rating_count": 23
+}
+```
+
+**Error Responses**:
+- **404 Not Found**: Profile not found
 
 ---
 
@@ -712,9 +751,26 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 **Success Response (200)**: Same structure as GET /profile
 
 **Error Responses**:
-- **404 Not Found**: User not found
+- **404 Not Found**: User or profile not found
 
 **Note**: User avatars are served statically at `/media/user/profile/{user_id}.{ext}`. Get user profile first to obtain the avatar URL.
+
+---
+
+### PATCH /user/{username}/profile
+**Description**: Update a user's profile (must be authenticated as that user)  
+**Authorization**: AUTH
+
+**Path Parameters**:
+- `username`: string
+
+**Request Body**: Same as PATCH /profile
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **403 Forbidden**: Can only update your own profile
+- **404 Not Found**: User not found
 
 ---
 
@@ -727,6 +783,9 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 
 **Success Response (200)**: Array of experience objects
 
+**Error Responses**:
+- **404 Not Found**: User not found
+
 ---
 
 ### GET /user/{username}/profile/interests
@@ -738,17 +797,16 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 
 **Success Response (200)**: Array of interest objects
 
+**Error Responses**:
+- **404 Not Found**: User not found
+
 ---
 
 ## Category Management
 
 ### GET /categories
 **Description**: Get all active categories  
-**Authorization**: OPEN
-
-**Query Parameters**:
-- `parent_id`: string (UUID, optional) - Filter by parent category
-- `active_only`: boolean (optional, default: true) - Show only active categories
+**Authorization**: AUTH
 
 **Success Response (200)**:
 ```json
@@ -761,12 +819,26 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
     "icon_url": "string|null",
     "parent_id": "uuid|null",
     "is_active": true|false,
-    "display_order": 0,
     "created_at": "iso8601-timestamp",
     "updated_at": "iso8601-timestamp"
   }
 ]
 ```
+
+---
+
+### GET /categories/{category_id}
+**Description**: Get specific category details  
+**Authorization**: AUTH
+
+**Path Parameters**:
+- `category_id`: string (UUID)
+
+**Success Response (200)**: Category object
+
+**Error Responses**:
+- **400 Bad Request**: Invalid category ID format
+- **404 Not Found**: Category not found
 
 ---
 
@@ -778,20 +850,17 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 **Request Body**:
 ```json
 {
-  "name": "string (required, 1-100 chars)",
-  "slug": "string (optional, auto-generated from name)",
-  "description": "string (optional, max 500 chars)",
-  "icon_url": "string (optional)",
+  "name": "string (required, 2+ chars)",
+  "slug": "string (required, lowercase letters, numbers, hyphens)",
+  "description": "string (optional)",
   "parent_id": "uuid (optional)",
-  "is_active": "boolean (optional, default: true)",
-  "display_order": "integer (optional, default: 0)"
+  "icon_url": "string (optional)"
 }
 ```
 
 **Validation Rules**:
-- `name`: 1-100 characters
-- `slug`: Lowercase, alphanumeric + hyphens only
-- `description`: Max 500 characters
+- `name`: At least 2 characters
+- `slug`: Lowercase letters, numbers, and hyphens only
 - `parent_id`: Must exist if provided
 
 **Success Response (201)**:
@@ -803,37 +872,32 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 
 **Error Responses**:
 - **400 Bad Request**: Invalid validation
-- **409 Conflict**: Category with slug already exists
 
 ---
 
-### GET /categories/{category_id}
-**Description**: Get specific category details  
-**Authorization**: OPEN
-
-**Path Parameters**:
-- `category_id`: string (UUID)
-
-**Success Response (200)**: Category object
-
-**Error Responses**:
-- **404 Not Found**: Category not found
-
----
-
-### PUT /categories/{category_id}
+### PATCH /categories/{category_id}
 **Description**: Update category (admin only)  
 **Authorization**: ADMIN
 
 **Path Parameters**:
 - `category_id`: string (UUID)
 
-**Request Body**: Same as POST /categories
+**Request Body** (all optional):
+```json
+{
+  "name": "string",
+  "slug": "string",
+  "description": "string",
+  "parent_id": "uuid",
+  "icon_url": "string",
+  "is_active": "boolean"
+}
+```
 
 **Success Response (204)**: No content
 
 **Error Responses**:
-- **400 Bad Request**: Invalid validation
+- **400 Bad Request**: Invalid validation or category ID format
 - **404 Not Found**: Category not found
 
 ---
@@ -849,10 +913,9 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 
 **Side Effects**:
 - Deletes category icon from disk
-- Cascades to delete subcategories if no RESTRICT constraint
 
 **Error Responses**:
-- **400 Bad Request**: Category has active PAPS or children
+- **400 Bad Request**: Invalid category ID format
 - **404 Not Found**: Category not found
 
 ---
@@ -869,7 +932,7 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 
 **Validation Rules**:
 - Allowed types: PNG, JPEG, JPG, GIF, WEBP, SVG
-- Max size: 2 MB
+- Max size: 1 MB
 
 **Success Response (201)**:
 ```json
@@ -881,9 +944,29 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 **Note**: Category icons are served statically at the provided `icon_url`.
 
 **Error Responses**:
+- **400 Bad Request**: No image data provided or invalid category ID
 - **404 Not Found**: Category not found
-- **413 Payload Too Large**: File exceeds 2 MB
+- **413 Payload Too Large**: File exceeds 1 MB
 - **415 Unsupported Media Type**: Invalid file type
+
+---
+
+### DELETE /categories/{category_id}/icon
+**Description**: Delete category icon (admin only)  
+**Authorization**: ADMIN
+
+**Path Parameters**:
+- `category_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Deletes icon file from disk
+- Sets icon_url to NULL in database
+
+**Error Responses**:
+- **400 Bad Request**: Invalid category ID format
+- **404 Not Found**: Category not found
 
 ---
 
@@ -891,52 +974,57 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 
 ### GET /paps
 **Description**: Get all job postings with filters  
-**Authorization**: OPEN
+**Authorization**: AUTH
 
 **Query Parameters**:
-- `status`: string (optional) - Filter by status: "draft", "published", "closed", "expired"
-- `owner_id`: string UUID (optional) - Filter by owner
+- `status`: string (optional) - Filter by status: "draft", "published", "open", "closed", "cancelled"
 - `category_id`: string UUID (optional) - Filter by category
-- `location_lat`: float (optional) - Location latitude for radius search
-- `location_lng`: float (optional) - Location longitude for radius search
-- `radius_km`: float (optional, default: 10) - Search radius in kilometers
-- `search`: string (optional) - Text search in title and description
-- `min_payment`: float (optional) - Minimum payment amount
-- `max_payment`: float (optional) - Maximum payment amount
-- `payment_currency`: string (optional, default: "USD") - Currency filter
-- `sort_by`: string (optional) - Sort field: "created_at", "payment_amount", "distance"
-- `sort_order`: string (optional, default: "desc") - Sort order: "asc", "desc"
-- `limit`: integer (optional, default: 50) - Max results
-- `offset`: integer (optional, default: 0) - Pagination offset
+- `lat`: float (optional) - Location latitude for distance search
+- `lng`: float (optional) - Location longitude for distance search
+- `max_distance`: float (optional) - Maximum distance in km (requires lat/lng)
+- `min_price`: float (optional) - Minimum payment amount
+- `max_price`: float (optional) - Maximum payment amount
+- `payment_type`: string (optional) - Filter by payment type: "fixed", "hourly", "negotiable"
+- `owner_username`: string (optional) - Search by owner username (partial match)
+- `title_search`: string (optional) - Search in title and description (partial match)
+
+**Notes**:
+- Admins see ALL paps (no limit)
+- Non-admin users see up to 1000 paps, ranked by interest match score
 
 **Success Response (200)**:
 ```json
 {
   "paps": [
     {
-      "paps_id": "uuid",
+      "id": "uuid",
       "owner_id": "uuid",
       "owner_username": "string",
       "title": "string",
+      "subtitle": "string|null",
       "description": "string",
       "status": "published",
       "location_address": "string|null",
       "location_lat": "float|null",
       "location_lng": "float|null",
-      "payment_amount": "float|null",
+      "location_timezone": "string|null",
+      "start_datetime": "iso8601-timestamp|null",
+      "end_datetime": "iso8601-timestamp|null",
+      "estimated_duration_minutes": "integer|null",
+      "payment_amount": "float",
       "payment_currency": "USD",
+      "payment_type": "fixed",
+      "max_applicants": 10,
+      "max_assignees": 1,
+      "is_public": true,
+      "publish_at": "iso8601-timestamp|null",
+      "expires_at": "iso8601-timestamp|null",
       "created_at": "iso8601-timestamp",
       "updated_at": "iso8601-timestamp",
-      "published_at": "iso8601-timestamp|null",
-      "expires_at": "iso8601-timestamp|null",
-      "categories": ["category1", "category2"],
-      "media_count": 3,
-      "distance_km": 5.2
+      "categories": [...]
     }
   ],
-  "total": 123,
-  "limit": 50,
-  "offset": 0
+  "total_count": 123
 }
 ```
 
@@ -950,38 +1038,39 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 **Request Body**:
 ```json
 {
-  "title": "string (required, 5-200 chars)",
-  "description": "string (required, 10-5000 chars)",
-  "status": "string (optional, default: 'draft')",
-  "location_address": "string (optional, max 500 chars)",
+  "title": "string (required, 5+ chars)",
+  "description": "string (required, 20+ chars)",
+  "payment_amount": "float (required, > 0)",
+  "payment_currency": "string (optional, default: 'USD')",
+  "payment_type": "string (optional, default: 'fixed'): fixed, hourly, negotiable",
+  "max_applicants": "integer (optional, default: 10, 1-100)",
+  "max_assignees": "integer (optional, default: 1)",
+  "subtitle": "string (optional)",
+  "location_address": "string (optional)",
   "location_lat": "float (optional, -90 to 90)",
   "location_lng": "float (optional, -180 to 180)",
-  "payment_amount": "float (optional, > 0)",
-  "payment_currency": "string (optional, default: 'USD', 3 chars)",
+  "location_timezone": "string (optional)",
+  "start_datetime": "iso8601-timestamp (optional, required for published)",
+  "end_datetime": "iso8601-timestamp (optional, must be after start)",
+  "estimated_duration_minutes": "integer (optional, > 0)",
+  "is_public": "boolean (optional, default: true)",
+  "status": "string (optional, default: 'draft'): draft, published, closed, cancelled",
+  "publish_at": "iso8601-timestamp (optional)",
   "expires_at": "iso8601-timestamp (optional)",
-  "category_ids": ["uuid"] (optional, array of category UUIDs),
-  "schedule": [
-    {
-      "start_time": "iso8601-timestamp (required)",
-      "end_time": "iso8601-timestamp (required)",
-      "is_recurring": "boolean (optional, default: false)",
-      "recurrence_pattern": "string (optional): daily, weekly, monthly"
-    }
-  ]
+  "categories": ["uuid or {category_id, is_primary}"] (optional)
 }
 ```
 
 **Validation Rules**:
-- `title`: 5-200 characters
-- `description`: 10-5000 characters
-- `status`: "draft", "published", "closed", or "expired"
-- `location_lat`: -90 to 90
-- `location_lng`: -180 to 180
+- `title`: At least 5 characters
+- `description`: At least 20 characters
 - `payment_amount`: Must be positive
-- `payment_currency`: 3-letter code (USD, EUR, etc.)
-- `expires_at`: Must be in future
-- `category_ids`: Each must be valid category UUID
-- `schedule.end_time`: Must be after start_time
+- `payment_type`: "fixed", "hourly", or "negotiable"
+- `max_applicants`: 1-100
+- `max_assignees`: Must not exceed max_applicants
+- `location_lat`/`location_lng`: Both required if one is provided
+- `end_datetime`: Must be after start_datetime
+- `start_datetime`: Required for published status
 
 **Success Response (201)**:
 ```json
@@ -992,13 +1081,12 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 
 **Error Responses**:
 - **400 Bad Request**: Validation failed
-- **404 Not Found**: Category not found
 
 ---
 
 ### GET /paps/{paps_id}
 **Description**: Get specific job posting details  
-**Authorization**: OPEN
+**Authorization**: AUTH
 
 **Path Parameters**:
 - `paps_id`: string (UUID)
@@ -1006,55 +1094,39 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 **Success Response (200)**:
 ```json
 {
-  "paps_id": "uuid",
+  "id": "uuid",
   "owner_id": "uuid",
   "owner_username": "string",
-  "owner_avatar": "string|null",
   "title": "string",
+  "subtitle": "string|null",
   "description": "string",
   "status": "published",
   "location_address": "string|null",
   "location_lat": "float|null",
   "location_lng": "float|null",
-  "payment_amount": "float|null",
+  "location_timezone": "string|null",
+  "start_datetime": "iso8601-timestamp|null",
+  "end_datetime": "iso8601-timestamp|null",
+  "estimated_duration_minutes": "integer|null",
+  "payment_amount": "float",
   "payment_currency": "USD",
+  "payment_type": "fixed",
+  "max_applicants": 10,
+  "max_assignees": 1,
+  "is_public": true,
+  "publish_at": "iso8601-timestamp|null",
+  "expires_at": "iso8601-timestamp|null",
   "created_at": "iso8601-timestamp",
   "updated_at": "iso8601-timestamp",
-  "published_at": "iso8601-timestamp|null",
-  "expires_at": "iso8601-timestamp|null",
-  "categories": [
-    {
-      "category_id": "uuid",
-      "name": "string",
-      "slug": "string",
-      "is_primary": true|false
-    }
-  ],
-  "media": [
-    {
-      "media_id": "uuid",
-      "file_url": "string",
-      "file_type": "string",
-      "file_size": 123456,
-      "uploaded_at": "iso8601-timestamp"
-    }
-  ],
-  "schedule": [
-    {
-      "schedule_id": "uuid",
-      "start_time": "iso8601-timestamp",
-      "end_time": "iso8601-timestamp",
-      "is_recurring": true|false,
-      "recurrence_pattern": "weekly|null"
-    }
-  ],
-  "application_count": 5,
-  "assignment_count": 1
+  "categories": [...],
+  "comments_count": 5,
+  "applications_count": 3
 }
 ```
 
 **Error Responses**:
-- **404 Not Found**: PAPS not found
+- **400 Bad Request**: Invalid PAP ID format
+- **404 Not Found**: PAPS not found or not accessible
 
 ---
 
@@ -1065,35 +1137,57 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 **Path Parameters**:
 - `paps_id`: string (UUID)
 
-**Request Body**: Same as POST /paps
+**Request Body**: Same fields as POST /paps (all optional)
 
 **Success Response (204)**: No content
 
 **Error Responses**:
+- **400 Bad Request**: Invalid PAP ID format or validation failed
 - **403 Forbidden**: Not owner or admin
 - **404 Not Found**: PAPS not found
 
 ---
 
-### PATCH /paps/{paps_id}
-**Description**: Partially update job posting  
+### PUT /paps/{paps_id}/status
+**Description**: Update PAPS status  
 **Authorization**: AUTH (must be owner or admin)
 
 **Path Parameters**:
 - `paps_id`: string (UUID)
 
-**Request Body**: Same as POST /paps, all fields optional
+**Request Body**:
+```json
+{
+  "status": "string (required): draft, open, published, closed, cancelled"
+}
+```
 
-**Success Response (204)**: No content
+**Valid Transitions**:
+- `draft` → `published` or `open` (opens for applications)
+- `published`/`open` → `closed` (manually close, deletes remaining SPAPs)
+- `published`/`open` → `cancelled` (cancel job)
+- `closed` → `published`/`open` (reopen, if max_assignees not reached)
+- `cancelled` → Cannot be modified
+
+**Success Response (200)**:
+```json
+{
+  "status": "closed"
+}
+```
+
+**Side Effects**:
+- When closing/cancelling: All pending SPAPs are deleted, their chat threads deleted
 
 **Error Responses**:
+- **400 Bad Request**: Invalid status or transition
 - **403 Forbidden**: Not owner or admin
 - **404 Not Found**: PAPS not found
 
 ---
 
 ### DELETE /paps/{paps_id}
-**Description**: Delete job posting  
+**Description**: Soft delete job posting  
 **Authorization**: AUTH (must be owner) or ADMIN
 
 **Path Parameters**:
@@ -1103,19 +1197,90 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 
 **Side Effects**:
 - Soft delete (sets deleted_at timestamp)
-- Deletes all media files from disk
-- Cascades to delete SPAPs, ASAPs, comments, etc.
+- Deletes all media files from disk (PAPS, SPAP, ASAP media)
+- Deletes all SPAPs and ASAPs for this PAPS
+- Deletes all comments
 
 **Error Responses**:
-- **400 Bad Request**: Cannot delete PAPS with active payments (delete payments first)
+- **400 Bad Request**: Cannot delete PAPS with active assignments or invalid ID format
 - **403 Forbidden**: Not owner or admin
 - **404 Not Found**: PAPS not found
 
 ---
 
+### POST /paps/{paps_id}/categories/{category_id}
+**Description**: Add category to PAPS  
+**Authorization**: AUTH (must be owner or admin)
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+- `category_id`: string (UUID)
+
+**Success Response (201)**:
+```json
+{
+  "message": "Category added to PAP"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ID format
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS or category not found
+
+---
+
+### DELETE /paps/{paps_id}/categories/{category_id}
+**Description**: Remove category from PAPS  
+**Authorization**: AUTH (must be owner or admin)
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+- `category_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ID format
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS not found
+
+---
+
+### GET /paps/{paps_id}/media
+**Description**: Get all media for a PAPS  
+**Authorization**: AUTH
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "paps_id": "uuid",
+  "media_count": 3,
+  "media": [
+    {
+      "media_id": "uuid",
+      "media_url": "/media/post/{media_id}.{ext}",
+      "media_type": "image|video|document",
+      "file_size_bytes": 123456,
+      "mime_type": "image/jpeg",
+      "display_order": 1
+    }
+  ]
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid PAP ID format
+- **404 Not Found**: PAPS not found or not accessible
+
+---
+
 ### POST /paps/{paps_id}/media
 **Description**: Upload media file for job posting  
-**Authorization**: AUTH (must be owner)  
+**Authorization**: AUTH (must be owner or admin)  
 **Content-Type**: multipart/form-data
 
 **Path Parameters**:
@@ -1125,13 +1290,13 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 ```
 Content-Type: multipart/form-data
 
-file: [binary file data]
+media: [binary file data] (can be multiple files)
 ```
 
 **Validation Rules**:
 - Allowed types: PNG, JPEG, JPG, GIF, WEBP, MP4, MOV, PDF
 - Max size: 50 MB
-- Max 10 media files per PAPS
+- Images are compressed automatically
 
 **Success Response (201)**:
 ```json
@@ -1139,7 +1304,7 @@ file: [binary file data]
   "uploaded_media": [
     {
       "media_id": "uuid",
-      "media_url": "/media/post/{media_id}.{ext}",
+      "media_url": "/paps/media/{media_id}",
       "media_type": "image|video|document",
       "file_size_bytes": 123456,
       "display_order": 1
@@ -1149,22 +1314,22 @@ file: [binary file data]
 }
 ```
 
-**Note**: Media files are served statically at the provided `media_url`.
+**Note**: Media files are served statically at `/media/post/{media_id}.{ext}`.
 
 **Error Responses**:
-- **400 Bad Request**: Max media limit reached or no file provided
-- **403 Forbidden**: Not owner
+- **400 Bad Request**: No file provided or invalid PAP ID format
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS not found
 - **413 Payload Too Large**: File exceeds 50 MB
 - **415 Unsupported Media Type**: Invalid file type
 
 ---
 
-### DELETE /paps/{paps_id}/media/{media_id}
+### DELETE /paps/media/{media_id}
 **Description**: Delete media file from job posting  
 **Authorization**: AUTH (must be owner) or ADMIN
 
 **Path Parameters**:
-- `paps_id`: string (UUID)
 - `media_id`: string (UUID)
 
 **Success Response (204)**: No content
@@ -1173,152 +1338,112 @@ file: [binary file data]
 - Deletes file from disk
 
 **Error Responses**:
+- **400 Bad Request**: Invalid media ID format
 - **403 Forbidden**: Not owner or admin
 - **404 Not Found**: Media not found
 
 ---
 
-### GET /paps/{paps_id}/schedule
-**Description**: Get job posting schedule  
-**Authorization**: OPEN
+## Applications (SPAP)
+
+### GET /spap/my
+**Description**: Get current user's applications  
+**Authorization**: AUTH
+
+**Success Response (200)**:
+```json
+{
+  "applications": [
+    {
+      "id": "uuid",
+      "paps_id": "uuid",
+      "paps_title": "string",
+      "applicant_id": "uuid",
+      "status": "pending",
+      "message": "string|null",
+      "created_at": "iso8601-timestamp",
+      "updated_at": "iso8601-timestamp"
+    }
+  ],
+  "count": 5
+}
+```
+
+---
+
+### GET /paps/{paps_id}/applications
+**Description**: Get all applications for a PAPS (owner/admin only)  
+**Authorization**: AUTH (must be PAPS owner or admin)
 
 **Path Parameters**:
 - `paps_id`: string (UUID)
 
 **Success Response (200)**:
 ```json
-[
-  {
-    "schedule_id": "uuid",
-    "paps_id": "uuid",
-    "start_time": "iso8601-timestamp",
-    "end_time": "iso8601-timestamp",
-    "is_recurring": true|false,
-    "recurrence_pattern": "weekly|null",
-    "created_at": "iso8601-timestamp",
-    "updated_at": "iso8601-timestamp"
-  }
-]
-```
-
----
-
-### POST /paps/{paps_id}/schedule
-**Description**: Add schedule entry for job posting  
-**Authorization**: AUTH (must be owner)
-
-**Path Parameters**:
-- `paps_id`: string (UUID)
-
-**Request Body**:
-```json
 {
-  "start_time": "iso8601-timestamp (required)",
-  "end_time": "iso8601-timestamp (required)",
-  "is_recurring": "boolean (optional, default: false)",
-  "recurrence_pattern": "string (optional): daily, weekly, monthly"
-}
-```
-
-**Validation Rules**:
-- `end_time` must be after `start_time`
-
-**Success Response (201)**:
-```json
-{
-  "schedule_id": "uuid"
+  "applications": [...],
+  "count": 5
 }
 ```
 
 **Error Responses**:
-- **400 Bad Request**: end_time before start_time
-- **403 Forbidden**: Not owner
+- **400 Bad Request**: Invalid PAPS ID format
+- **403 Forbidden**: Not owner or admin
 - **404 Not Found**: PAPS not found
 
 ---
 
-### DELETE /paps/{paps_id}/schedule/{schedule_id}
-**Description**: Delete schedule entry  
-**Authorization**: AUTH (must be owner) or ADMIN
+### POST /paps/{paps_id}/apply
+**Description**: Apply to a job posting  
+**Authorization**: AUTH  
+**Content-Type**: application/json
 
 **Path Parameters**:
 - `paps_id`: string (UUID)
-- `schedule_id`: string (UUID)
-
-**Success Response (204)**: No content
-
-**Error Responses**:
-- **403 Forbidden**: Not owner or admin
-- **404 Not Found**: Schedule entry not found
-
----
-
-## Applications (SPAP)
-
-### GET /spaps
-**Description**: Get job applications with filters  
-**Authorization**: AUTH
-
-**Query Parameters**:
-- `paps_id`: string UUID (optional) - Filter by job posting
-- `applicant_id`: string UUID (optional) - Filter by applicant
-- `status`: string (optional) - Filter by status: "pending", "accepted", "rejected", "withdrawn"
-
-**Success Response (200)**:
-```json
-{
-  "spaps": [
-    {
-      "spap_id": "uuid",
-      "paps_id": "uuid",
-      "paps_title": "string",
-      "applicant_id": "uuid",
-      "applicant_username": "string",
-      "applicant_avatar": "string|null",
-      "status": "pending",
-      "message": "string|null",
-      "applied_at": "iso8601-timestamp"
-    }
-  ]
-}
-```
-
----
-
-### POST /spaps
-**Description**: Apply for a job posting  
-**Authorization**: AUTH  
-**Content-Type**: application/json
 
 **Request Body**:
 ```json
 {
-  "paps_id": "uuid (required)",
-  "message": "string (optional, application message/cover letter)"
+  "message": "string (optional, application message/cover letter)",
+  "title": "string (optional)",
+  "subtitle": "string (optional)",
+  "proposed_payment": "float (optional, >= 0)",
+  "location_address": "string (optional)",
+  "location_lat": "float (optional, -90 to 90)",
+  "location_lng": "float (optional, -180 to 180)",
+  "location_timezone": "string (optional)"
 }
 ```
 
 **Validation Rules**:
 - Cannot apply to your own PAPS
 - Cannot apply twice to same PAPS
-- PAPS must be in "published" status
+- Cannot apply if already assigned to this PAPS
+- PAPS must be in "open" or "published" status
+- Maximum assignees must not be reached
 
 **Success Response (201)**:
 ```json
 {
-  "spap_id": "uuid"
+  "spap_id": "uuid",
+  "chat_thread_id": "uuid"
 }
 ```
 
+**Side Effects**:
+- Creates a chat thread between applicant and owner
+
 **Error Responses**:
-- **400 Bad Request**: Cannot apply to own PAPS or already applied
-- **404 Not Found**: PAPS not found or not published
+- **400 Bad Request**: Invalid PAPS ID, already applied, or max assignees reached
+- **403 Forbidden**: Cannot apply to own PAPS
+- **404 Not Found**: PAPS not found
+- **409 Conflict**: Already applied or already assigned
 
 ---
 
-### GET /spaps/{spap_id}
+### GET /spap/{spap_id}
 **Description**: Get specific application details  
-**Authorization**: AUTH (must be applicant or PAPS owner or admin)
+**Authorization**: AUTH (must be applicant, PAPS owner, or admin)
 
 **Path Parameters**:
 - `spap_id`: string (UUID)
@@ -1326,64 +1451,26 @@ file: [binary file data]
 **Success Response (200)**:
 ```json
 {
-  "spap_id": "uuid",
+  "id": "uuid",
   "paps_id": "uuid",
-  "paps_title": "string",
-  "paps_description": "string",
   "applicant_id": "uuid",
-  "applicant_username": "string",
-  "applicant_avatar": "string|null",
-  "applicant_email": "string",
-  "applicant_phone": "string|null",
   "status": "pending",
   "message": "string|null",
-  "applied_at": "iso8601-timestamp",
-  "media": [
-    {
-      "media_id": "uuid",
-      "file_url": "string",
-      "file_type": "string"
-    }
-  ]
+  "created_at": "iso8601-timestamp",
+  "updated_at": "iso8601-timestamp",
+  "chat_thread_id": "uuid|null"
 }
 ```
 
 **Error Responses**:
+- **400 Bad Request**: Invalid SPAP ID format
 - **403 Forbidden**: Not authorized to view
 - **404 Not Found**: SPAP not found
 
 ---
 
-### PATCH /spaps/{spap_id}
-**Description**: Update application status or message  
-**Authorization**: AUTH (applicant to update message, PAPS owner to update status)
-
-**Path Parameters**:
-- `spap_id`: string (UUID)
-
-**Request Body**:
-```json
-{
-  "status": "string (optional): pending, accepted, rejected, withdrawn",
-  "message": "string (optional, application message)"
-}
-```
-
-**Validation Rules**:
-- Only applicant can update `message`
-- Only PAPS owner can update `status` to "accepted" or "rejected"
-- Only applicant can set status to "withdrawn"
-
-**Success Response (204)**: No content
-
-**Error Responses**:
-- **403 Forbidden**: Not authorized
-- **404 Not Found**: SPAP not found
-
----
-
-### DELETE /spaps/{spap_id}
-**Description**: Delete/withdraw application  
+### DELETE /spap/{spap_id}
+**Description**: Withdraw application (applicant only)  
 **Authorization**: AUTH (must be applicant) or ADMIN
 
 **Path Parameters**:
@@ -1392,107 +1479,24 @@ file: [binary file data]
 **Success Response (204)**: No content
 
 **Side Effects**:
-- Soft delete (sets deleted_at)
-- Deletes all SPAP media files
+- Deletes all SPAP media files from disk
+- Deletes associated chat thread
 
 **Error Responses**:
+- **400 Bad Request**: Invalid SPAP ID format or cannot withdraw accepted application
 - **403 Forbidden**: Not applicant or admin
 - **404 Not Found**: SPAP not found
 
 ---
 
-### POST /spaps/{spap_id}/media
-**Description**: Upload media for application  
-**Authorization**: AUTH (must be applicant)  
-**Content-Type**: multipart/form-data
+### PUT /spap/{spap_id}/accept
+**Description**: Accept an application (PAPS owner only)  
+**Authorization**: AUTH (must be PAPS owner or admin)
 
 **Path Parameters**:
 - `spap_id`: string (UUID)
 
-**Request**: Same format as PAPS media upload
-
-**Validation Rules**:
-- Allowed types: PNG, JPEG, JPG, GIF, WEBP, PDF
-- Max size: 10 MB
-- Max 5 media files per SPAP
-
-**Success Response (201)**:
-```json
-{
-  "uploaded_media": [
-    {
-      "media_id": "uuid",
-      "media_url": "/media/spap/{media_id}.{ext}",
-      "media_type": "image|video|document",
-      "file_size_bytes": 123456,
-      "display_order": 1
-    }
-  ],
-  "count": 1
-}
-```
-
-**Note**: Media files are served statically at the provided `media_url`.
-
-**Error Responses**:
-- **400 Bad Request**: Max media limit reached
-- **403 Forbidden**: Not applicant
-- **413 Payload Too Large**: File exceeds 10 MB
-- **415 Unsupported Media Type**: Invalid file type
-
----
-
-## Assignments (ASAP)
-
-### GET /asaps
-**Description**: Get job assignments with filters  
-**Authorization**: AUTH
-
-**Query Parameters**:
-- `paps_id`: string UUID (optional) - Filter by job posting
-- `accepted_user_id`: string UUID (optional) - Filter by accepted user
-- `status`: string (optional) - Filter by status: "active", "in_progress", "completed", "cancelled", "disputed"
-
 **Success Response (200)**:
-```json
-{
-  "asaps": [
-    {
-      "asap_id": "uuid",
-      "paps_id": "uuid",
-      "paps_title": "string",
-      "accepted_user_id": "uuid",
-      "accepted_username": "string",
-      "status": "in_progress",
-      "assigned_at": "iso8601-timestamp",
-      "started_at": "iso8601-timestamp|null",
-      "completed_at": "iso8601-timestamp|null"
-    }
-  ]
-}
-```
-
----
-
-### POST /asaps
-**Description**: Create assignment from accepted application  
-**Authorization**: AUTH (must be PAPS owner)  
-**Content-Type**: application/json
-
-**Request Body**:
-```json
-{
-  "paps_id": "uuid (required)",
-  "accepted_user_id": "uuid (required)"
-}
-```
-
-**Validation Rules**:
-- User must be PAPS owner
-- accepted_user_id must have an accepted SPAP for this PAPS
-- PAPS must be in "published" status
-
-**Success Response (201)**:
 ```json
 {
   "asap_id": "uuid"
@@ -1500,19 +1504,181 @@ file: [binary file data]
 ```
 
 **Side Effects**:
-- Creates assignment with status "active"
-- Links accepted user to PAPS
+- Creates an ASAP (assignment)
+- Transfers chat thread from SPAP to ASAP
+- Deletes the SPAP
+- If max_assignees reached: closes PAPS and deletes remaining SPAPs
+- If multiple assignees: creates group chat
 
 **Error Responses**:
-- **400 Bad Request**: User has no accepted SPAP or validation failed
-- **403 Forbidden**: Not PAPS owner
-- **404 Not Found**: PAPS or user not found
+- **400 Bad Request**: Invalid ID, not pending status, or max assignees reached
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: SPAP or PAPS not found
 
 ---
 
-### GET /asaps/{asap_id}
+### PUT /spap/{spap_id}/reject
+**Description**: Reject an application (PAPS owner only)  
+**Authorization**: AUTH (must be PAPS owner or admin)
+
+**Path Parameters**:
+- `spap_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Deletes the SPAP and all its media
+- Deletes the associated chat thread
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ID or not pending status
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: SPAP or PAPS not found
+
+---
+
+### GET /spap/{spap_id}/media
+**Description**: Get all media for an application  
+**Authorization**: AUTH (must be applicant, PAPS owner, or admin)
+
+**Path Parameters**:
+- `spap_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "spap_id": "uuid",
+  "media_count": 2,
+  "media": [
+    {
+      "media_id": "uuid",
+      "media_url": "/media/spap/{media_id}.{ext}",
+      "media_type": "image|document",
+      "file_size_bytes": 123456,
+      "mime_type": "image/jpeg",
+      "display_order": 1
+    }
+  ]
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid SPAP ID format
+- **403 Forbidden**: Not authorized
+- **404 Not Found**: SPAP not found
+
+---
+
+### POST /spap/{spap_id}/media
+**Description**: Upload media for application  
+**Authorization**: AUTH (must be applicant)  
+**Content-Type**: multipart/form-data
+
+**Path Parameters**:
+- `spap_id`: string (UUID)
+
+**Request**:
+```
+Content-Type: multipart/form-data
+
+media: [binary file data] (can be multiple files)
+```
+
+**Validation Rules**:
+- Allowed types: PNG, JPEG, JPG, GIF, WEBP, PDF
+- Max size: 10 MB
+- Application must be in pending status
+
+**Success Response (201)**:
+```json
+{
+  "uploaded_media": [...],
+  "count": 1
+}
+```
+
+**Note**: Media files are served statically at `/media/spap/{media_id}.{ext}`.
+
+**Error Responses**:
+- **400 Bad Request**: No file, invalid ID, or non-pending application
+- **403 Forbidden**: Not applicant
+- **404 Not Found**: SPAP not found
+- **413 Payload Too Large**: File exceeds 10 MB
+- **415 Unsupported Media Type**: Invalid file type
+
+---
+
+### DELETE /spap/media/{media_id}
+**Description**: Delete SPAP media file  
+**Authorization**: AUTH (must be applicant) or ADMIN
+
+**Path Parameters**:
+- `media_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ID format or non-pending application
+- **403 Forbidden**: Not applicant or admin
+- **404 Not Found**: Media or SPAP not found
+
+---
+
+## Assignments (ASAP)
+
+### GET /asap
+**Description**: Get current user's assignments (as worker or owner)  
+**Authorization**: AUTH
+
+**Success Response (200)**:
+```json
+{
+  "as_worker": [
+    {
+      "asap_id": "uuid",
+      "paps_id": "uuid",
+      "paps_title": "string",
+      "accepted_user_id": "uuid",
+      "owner_id": "uuid",
+      "status": "in_progress",
+      "created_at": "iso8601-timestamp",
+      "started_at": "iso8601-timestamp|null",
+      "completed_at": "iso8601-timestamp|null"
+    }
+  ],
+  "as_owner": [...],
+  "total_as_worker": 3,
+  "total_as_owner": 5
+}
+```
+
+---
+
+### GET /paps/{paps_id}/assignments
+**Description**: Get all assignments for a PAPS  
+**Authorization**: AUTH (must be PAPS owner or admin)
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "assignments": [...],
+  "count": 2
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid PAPS ID format
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS not found
+
+---
+
+### GET /asap/{asap_id}
 **Description**: Get specific assignment details  
-**Authorization**: AUTH (must be involved user or admin)
+**Authorization**: AUTH (must be worker, owner, or admin)
 
 **Path Parameters**:
 - `asap_id`: string (UUID)
@@ -1523,37 +1689,27 @@ file: [binary file data]
   "asap_id": "uuid",
   "paps_id": "uuid",
   "paps_title": "string",
-  "paps_description": "string",
-  "paps_location": "string|null",
-  "paps_payment_amount": "float|null",
-  "paps_payment_currency": "USD",
   "accepted_user_id": "uuid",
   "accepted_username": "string",
-  "accepted_user_email": "string",
-  "accepted_user_phone": "string|null",
+  "owner_id": "uuid",
+  "owner_username": "string",
   "status": "in_progress",
-  "assigned_at": "iso8601-timestamp",
+  "created_at": "iso8601-timestamp",
   "started_at": "iso8601-timestamp|null",
-  "completed_at": "iso8601-timestamp|null",
-  "media": [
-    {
-      "media_id": "uuid",
-      "file_url": "string",
-      "file_type": "string"
-    }
-  ]
+  "completed_at": "iso8601-timestamp|null"
 }
 ```
 
 **Error Responses**:
+- **400 Bad Request**: Invalid ASAP ID format
 - **403 Forbidden**: Not involved in assignment
-- **404 Not Found**: ASAP not found
+- **404 Not Found**: Assignment not found
 
 ---
 
-### PATCH /asaps/{asap_id}
+### PUT /asap/{asap_id}/status
 **Description**: Update assignment status  
-**Authorization**: AUTH (must be owner or accepted user)
+**Authorization**: AUTH (must be owner or worker, depending on status)
 
 **Path Parameters**:
 - `asap_id`: string (UUID)
@@ -1565,29 +1721,30 @@ file: [binary file data]
 }
 ```
 
-**Validation Rules**:
-- Owner can set: "active", "in_progress", "completed", "cancelled", "disputed"
-- Accepted user can set: "in_progress", "completed"
-- Cannot change status of already completed assignment
+**Permission Rules**:
+- `in_progress`: Worker or owner can start
+- `completed`: Only owner can mark as completed (triggers payment)
+- `cancelled`: Only owner or admin can cancel
+- `disputed`: Either party can dispute
+- `active`: Only admin can revert to active
 
 **Success Response (204)**: No content
 
 **Side Effects**:
 - If status set to "completed" and PAPS has payment_amount:
   - Automatically creates payment record
-  - Payment links to PAPS (paps_id)
   - Payer: PAPS owner
-  - Payee: Accepted user
+  - Payee: Worker
   - Amount/Currency: From PAPS
 
 **Error Responses**:
-- **400 Bad Request**: Invalid status transition
-- **403 Forbidden**: Not authorized
-- **404 Not Found**: ASAP not found
+- **400 Bad Request**: Invalid status
+- **403 Forbidden**: Not authorized for this status change
+- **404 Not Found**: Assignment not found
 
 ---
 
-### DELETE /asaps/{asap_id}
+### DELETE /asap/{asap_id}
 **Description**: Delete assignment  
 **Authorization**: AUTH (must be owner) or ADMIN
 
@@ -1597,58 +1754,167 @@ file: [binary file data]
 **Success Response (204)**: No content
 
 **Side Effects**:
-- Soft delete (sets deleted_at)
-- Deletes all ASAP media files
-- Can be deleted after payments are removed (PAYMENT→PAPS RESTRICT allows ASAP deletion)
+- Deletes all ASAP media files from disk
+- Cascades to delete chat threads
 
 **Error Responses**:
+- **400 Bad Request**: Invalid ID format or cannot delete completed assignments
 - **403 Forbidden**: Not owner or admin
-- **404 Not Found**: ASAP not found
+- **404 Not Found**: Assignment not found
 
 ---
 
-### POST /asaps/{asap_id}/media
-**Description**: Upload media for assignment (proof of work)  
-**Authorization**: AUTH (must be accepted user or owner)  
-**Content-Type**: multipart/form-data
+### GET /asap/{asap_id}/media
+**Description**: Get all media for an assignment  
+**Authorization**: AUTH (must be worker, owner, or admin)
 
 **Path Parameters**:
 - `asap_id`: string (UUID)
 
-**Request**: Same format as PAPS media upload
-
-**Validation Rules**:
-- Allowed types: PNG, JPEG, JPG, GIF, WEBP, MP4, MOV, PDF
-- Max size: 50 MB
-- Max 20 media files per ASAP
-
-**Success Response (201)**:
+**Success Response (200)**:
 ```json
 {
-  "uploaded_media": [
+  "asap_id": "uuid",
+  "media_count": 3,
+  "media": [
     {
       "media_id": "uuid",
       "media_url": "/media/asap/{media_id}.{ext}",
       "media_type": "image|video|document",
       "file_size_bytes": 123456,
+      "mime_type": "image/jpeg",
       "display_order": 1
     }
-  ],
+  ]
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ASAP ID format
+- **403 Forbidden**: Not authorized
+- **404 Not Found**: Assignment not found
+
+---
+
+### POST /asap/{asap_id}/media
+**Description**: Upload media for assignment (proof of work)  
+**Authorization**: AUTH (must be PAPS owner only)  
+**Content-Type**: multipart/form-data
+
+**Path Parameters**:
+- `asap_id`: string (UUID)
+
+**Request**:
+```
+Content-Type: multipart/form-data
+
+media: [binary file data] (can be multiple files)
+```
+
+**Validation Rules**:
+- Allowed types: PNG, JPEG, JPG, GIF, WEBP, MP4, MOV, PDF
+- Max size: 50 MB
+
+**Success Response (201)**:
+```json
+{
+  "uploaded_media": [...],
   "count": 1
 }
 ```
 
-**Note**: Media files are served statically at the provided `media_url`.
+**Note**: Media files are served statically at `/media/asap/{media_id}.{ext}`.
 
 **Error Responses**:
-- **400 Bad Request**: Max media limit reached
-- **403 Forbidden**: Not involved in assignment
+- **400 Bad Request**: No file or invalid ASAP ID format
+- **403 Forbidden**: Only PAPS owner can upload media
+- **404 Not Found**: Assignment not found
 - **413 Payload Too Large**: File exceeds 50 MB
 - **415 Unsupported Media Type**: Invalid file type
 
 ---
 
+### DELETE /asap/media/{media_id}
+**Description**: Delete ASAP media file  
+**Authorization**: AUTH (must be PAPS owner) or ADMIN
+
+**Path Parameters**:
+- `media_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid media ID format
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: Media or assignment not found
+
+---
+
 ## Payment Management
+
+### GET /payments
+**Description**: Get current user's payments (as payer or payee)  
+**Authorization**: AUTH
+
+**Success Response (200)**:
+```json
+{
+  "payments": [
+    {
+      "payment_id": "uuid",
+      "paps_id": "uuid",
+      "payer_id": "uuid",
+      "payee_id": "uuid",
+      "amount": 100.50,
+      "currency": "USD",
+      "status": "pending",
+      "payment_method": "string|null",
+      "transaction_id": "string|null",
+      "external_reference": "string|null",
+      "created_at": "iso8601-timestamp",
+      "paid_at": "iso8601-timestamp|null",
+      "user_role": "payer|payee"
+    }
+  ],
+  "sent": [...],
+  "received": [...],
+  "total_count": 10
+}
+```
+
+---
+
+### GET /payments/{payment_id}
+**Description**: Get specific payment details  
+**Authorization**: AUTH (must be payer, payee, or admin)
+
+**Path Parameters**:
+- `payment_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "payment_id": "uuid",
+  "paps_id": "uuid",
+  "payer_id": "uuid",
+  "payee_id": "uuid",
+  "amount": 100.50,
+  "currency": "USD",
+  "status": "pending",
+  "payment_method": "string|null",
+  "transaction_id": "string|null",
+  "external_reference": "string|null",
+  "created_at": "iso8601-timestamp",
+  "paid_at": "iso8601-timestamp|null"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid payment ID format
+- **403 Forbidden**: Not involved in payment
+- **404 Not Found**: Payment not found
+
+---
 
 ### GET /paps/{paps_id}/payments
 **Description**: Get all payments for a job posting  
@@ -1660,30 +1926,15 @@ file: [binary file data]
 **Success Response (200)**:
 ```json
 {
-  "payments": [
-    {
-      "payment_id": "uuid",
-      "paps_id": "uuid",
-      "paps_title": "string",
-      "payer_id": "uuid",
-      "payer_username": "string",
-      "payee_id": "uuid",
-      "payee_username": "string",
-      "amount": 100.50,
-      "currency": "USD",
-      "status": "pending",
-      "payment_method": "string|null",
-      "transaction_id": "string|null",
-      "created_at": "iso8601-timestamp",
-      "updated_at": "iso8601-timestamp",
-      "completed_at": "iso8601-timestamp|null"
-    }
-  ]
+  "paps_id": "uuid",
+  "payments": [...],
+  "count": 2
 }
 ```
 
 **Error Responses**:
-- **403 Forbidden**: Not PAPS owner or admin
+- **400 Bad Request**: Invalid PAPS ID format
+- **403 Forbidden**: Not owner or admin
 - **404 Not Found**: PAPS not found
 
 ---
@@ -1701,18 +1952,10 @@ file: [binary file data]
 {
   "payee_id": "uuid (required) - Worker receiving payment",
   "amount": "float (required, > 0)",
-  "currency": "string (optional, default: 'USD', 3 chars)",
-  "payment_method": "string (optional): card, bank_transfer, cash, paypal, etc.",
-  "transaction_id": "string (optional) - External transaction reference"
+  "currency": "string (optional, default: 'USD'): USD, EUR, GBP, CAD, AUD, JPY, CNY",
+  "payment_method": "string (optional): transfer, cash, check, crypto, paypal, stripe, other"
 }
 ```
-
-**Validation Rules**:
-- `amount`: Must be positive
-- `currency`: 3-letter code (USD, EUR, etc.)
-- `payee_id`: Must be valid user UUID
-- PAPS must exist (RESTRICT constraint)
-- Payer: Automatically set to PAPS owner (current user)
 
 **Success Response (201)**:
 ```json
@@ -1722,49 +1965,13 @@ file: [binary file data]
 ```
 
 **Error Responses**:
-- **400 Bad Request**: Invalid amount or validation failed
+- **400 Bad Request**: Invalid amount, currency, or payment method
 - **403 Forbidden**: Not PAPS owner
-- **404 Not Found**: PAPS or payee not found
+- **404 Not Found**: PAPS not found
 
 ---
 
-### GET /payments/{payment_id}
-**Description**: Get specific payment details  
-**Authorization**: AUTH (must be payer, payee, or admin)
-
-**Path Parameters**:
-- `payment_id`: string (UUID)
-
-**Success Response (200)**:
-```json
-{
-  "payment_id": "uuid",
-  "paps_id": "uuid",
-  "paps_title": "string",
-  "payer_id": "uuid",
-  "payer_username": "string",
-  "payer_email": "string",
-  "payee_id": "uuid",
-  "payee_username": "string",
-  "payee_email": "string",
-  "amount": 100.50,
-  "currency": "USD",
-  "status": "pending",
-  "payment_method": "card",
-  "transaction_id": "ext_txn_123",
-  "created_at": "iso8601-timestamp",
-  "updated_at": "iso8601-timestamp",
-  "completed_at": "iso8601-timestamp|null"
-}
-```
-
-**Error Responses**:
-- **403 Forbidden**: Not involved in payment
-- **404 Not Found**: Payment not found
-
----
-
-### PATCH /payments/{payment_id}
+### PUT /payments/{payment_id}/status
 **Description**: Update payment status  
 **Authorization**: AUTH (must be payer or admin)
 
@@ -1774,21 +1981,23 @@ file: [binary file data]
 **Request Body**:
 ```json
 {
-  "status": "string (optional): pending, processing, completed, failed, refunded",
-  "payment_method": "string (optional)",
-  "transaction_id": "string (optional)"
+  "status": "string (required): pending, processing, completed, failed, refunded, cancelled",
+  "transaction_id": "string (optional)",
+  "external_reference": "string (optional)"
 }
 ```
 
 **Validation Rules**:
-- Only payer or admin can update payment
-- Status transitions: pending → processing → completed/failed
-- Completed payments cannot be modified (except for refunded)
+- Only payer or admin can update
+- Cannot update completed/refunded/cancelled payments (except admin)
 
 **Success Response (204)**: No content
 
+**Side Effects**:
+- If status set to "completed": sets paid_at timestamp
+
 **Error Responses**:
-- **400 Bad Request**: Invalid status transition
+- **400 Bad Request**: Invalid status or cannot modify final status
 - **403 Forbidden**: Not payer or admin
 - **404 Not Found**: Payment not found
 
@@ -1796,212 +2005,142 @@ file: [binary file data]
 
 ### DELETE /payments/{payment_id}
 **Description**: Delete payment record  
-**Authorization**: ADMIN only
+**Authorization**: AUTH (must be payer) or ADMIN
 
 **Path Parameters**:
 - `payment_id`: string (UUID)
 
 **Success Response (204)**: No content
 
-**Important**:
-- Must delete payments before deleting PAPS (RESTRICT constraint)
-- Soft delete (sets deleted_at timestamp)
-
 **Error Responses**:
-- **403 Forbidden**: Not admin
+- **400 Bad Request**: Invalid ID format or can only delete pending payments (non-admin)
+- **403 Forbidden**: Not payer or admin
 - **404 Not Found**: Payment not found
-
----
-
-### GET /user/payments
-**Description**: Get current user's payments (as payer or payee)  
-**Authorization**: AUTH
-
-**Query Parameters**:
-- `role`: string (optional) - Filter by role: "payer", "payee"
-- `status`: string (optional) - Filter by status: "pending", "completed", etc.
-
-**Success Response (200)**:
-```json
-{
-  "payments": [
-    {
-      "payment_id": "uuid",
-      "paps_id": "uuid",
-      "paps_title": "string",
-      "payer_id": "uuid",
-      "payer_username": "string",
-      "payee_id": "uuid",
-      "payee_username": "string",
-      "amount": 100.50,
-      "currency": "USD",
-      "status": "completed",
-      "payment_method": "card",
-      "created_at": "iso8601-timestamp",
-      "completed_at": "iso8601-timestamp"
-    }
-  ]
-}
-```
 
 ---
 
 ## Rating System
 
-### GET /ratings/{user_id}
-**Description**: Get ratings for a specific user  
-**Authorization**: OPEN
+### GET /users/{user_id}/rating
+**Description**: Get a user's rating average and count  
+**Authorization**: AUTH
 
 **Path Parameters**:
-- `user_id`: string (UUID or username)
+- `user_id`: string (UUID)
 
 **Success Response (200)**:
 ```json
 {
   "user_id": "uuid",
-  "username": "string",
-  "average_rating": 4.5,
-  "total_ratings": 23,
-  "ratings": [
-    {
-      "rating_id": "uuid",
-      "paps_id": "uuid",
-      "paps_title": "string",
-      "rater_id": "uuid",
-      "rater_username": "string",
-      "rated_user_id": "uuid",
-      "rating": 5,
-      "review": "Excellent work!",
-      "created_at": "iso8601-timestamp"
-    }
-  ]
-}
-```
-
----
-
-### POST /ratings
-**Description**: Create rating for completed job  
-**Authorization**: AUTH  
-**Content-Type**: application/json
-
-**Request Body**:
-```json
-{
-  "paps_id": "uuid (required)",
-  "rated_user_id": "uuid (required)",
-  "rating": "integer (required, 1-5)",
-  "review": "string (optional, max 1000 chars)"
-}
-```
-
-**Validation Rules**:
-- `rating`: Integer between 1 and 5
-- PAPS must exist and be completed
-- Must be involved in the job (owner or worker)
-- Cannot rate yourself
-- Can only rate once per PAPS
-- `review`: Max 1000 characters
-
-**Success Response (201)**:
-```json
-{
-  "rating_id": "uuid"
+  "rating_average": 4.5,
+  "rating_count": 23
 }
 ```
 
 **Error Responses**:
-- **400 Bad Request**: Invalid rating value or validation failed
-- **403 Forbidden**: Not involved in job or already rated
-- **404 Not Found**: PAPS or rated user not found
+- **400 Bad Request**: Invalid user ID format
+- **404 Not Found**: User not found
 
 ---
 
-### GET /ratings/{rating_id}
-**Description**: Get specific rating details  
-**Authorization**: OPEN
-
-**Path Parameters**:
-- `rating_id`: string (UUID)
+### GET /profile/rating
+**Description**: Get current user's rating  
+**Authorization**: AUTH
 
 **Success Response (200)**:
 ```json
 {
-  "rating_id": "uuid",
-  "paps_id": "uuid",
-  "paps_title": "string",
-  "rater_id": "uuid",
-  "rater_username": "string",
-  "rater_avatar": "string|null",
-  "rated_user_id": "uuid",
-  "rated_username": "string",
-  "rating": 5,
-  "review": "Excellent work!",
-  "created_at": "iso8601-timestamp"
+  "rating_average": 4.5,
+  "rating_count": 23
 }
 ```
 
 **Error Responses**:
-- **404 Not Found**: Rating not found
+- **404 Not Found**: Profile not found
 
 ---
 
-### PATCH /ratings/{rating_id}
-**Description**: Update your rating  
-**Authorization**: AUTH (must be rater)
+### POST /asap/{asap_id}/rate
+**Description**: Rate a user for a completed ASAP  
+**Authorization**: AUTH (must be owner or worker)  
+**Content-Type**: application/json
 
 **Path Parameters**:
-- `rating_id`: string (UUID)
+- `asap_id`: string (UUID)
 
 **Request Body**:
 ```json
 {
-  "rating": "integer (optional, 1-5)",
-  "review": "string (optional, max 1000 chars)"
+  "score": "integer (required, 1-5)"
 }
 ```
 
-**Success Response (204)**: No content
+**Validation Rules**:
+- ASAP must be completed
+- Must be either the PAPS owner or the worker
+- Owner rates worker, worker rates owner (bidirectional)
+- Individual ratings are NOT stored - only the moving average is updated
+
+**Success Response (201)**:
+```json
+{
+  "message": "Rating submitted successfully",
+  "rated_user_id": "uuid",
+  "score": 5
+}
+```
 
 **Error Responses**:
-- **400 Bad Request**: Invalid rating value
-- **403 Forbidden**: Not your rating
-- **404 Not Found**: Rating not found
+- **400 Bad Request**: Invalid score (not 1-5), ASAP not completed
+- **403 Forbidden**: Not authorized to rate
+- **404 Not Found**: Assignment not found
 
 ---
 
-### DELETE /ratings/{rating_id}
-**Description**: Delete rating  
-**Authorization**: AUTH (must be rater) or ADMIN
+### GET /asap/{asap_id}/can-rate
+**Description**: Check if current user can rate this ASAP  
+**Authorization**: AUTH
 
 **Path Parameters**:
-- `rating_id`: string (UUID)
+- `asap_id`: string (UUID)
 
-**Success Response (204)**: No content
+**Success Response (200)**:
+```json
+{
+  "can_rate": true,
+  "user_to_rate_id": "uuid",
+  "is_owner": true|false,
+  "is_worker": true|false
+}
+```
+
+or if cannot rate:
+
+```json
+{
+  "can_rate": false,
+  "reason": "Assignment not yet completed"
+}
+```
 
 **Error Responses**:
-- **403 Forbidden**: Not your rating or admin
-- **404 Not Found**: Rating not found
+- **400 Bad Request**: Invalid ASAP ID format
 
 ---
 
 ## Comment System
 
 ### GET /paps/{paps_id}/comments
-**Description**: Get comments for a job posting  
-**Authorization**: OPEN
+**Description**: Get top-level comments for a job posting  
+**Authorization**: AUTH
 
 **Path Parameters**:
 - `paps_id`: string (UUID)
 
-**Query Parameters**:
-- `parent_id`: string UUID (optional) - Filter by parent comment (for replies)
-- `limit`: integer (optional, default: 50)
-- `offset`: integer (optional, default: 0)
-
 **Success Response (200)**:
 ```json
 {
+  "paps_id": "uuid",
   "comments": [
     {
       "comment_id": "uuid",
@@ -2009,22 +2148,26 @@ file: [binary file data]
       "user_id": "uuid",
       "username": "string",
       "user_avatar": "string|null",
-      "parent_id": "uuid|null",
+      "parent_id": null,
       "content": "string",
-      "created_at": "iso8601-timestamp",
-      "updated_at": "iso8601-timestamp",
       "reply_count": 3,
-      "is_deleted": false
+      "created_at": "iso8601-timestamp",
+      "updated_at": "iso8601-timestamp"
     }
   ],
-  "total": 15
+  "count": 5,
+  "total_count": 15
 }
 ```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid PAPS ID format
+- **404 Not Found**: PAPS not found
 
 ---
 
 ### POST /paps/{paps_id}/comments
-**Description**: Create comment on job posting  
+**Description**: Create top-level comment on job posting  
 **Authorization**: AUTH  
 **Content-Type**: application/json
 
@@ -2034,14 +2177,9 @@ file: [binary file data]
 **Request Body**:
 ```json
 {
-  "content": "string (required, 1-2000 chars)",
-  "parent_id": "uuid (optional) - Reply to another comment"
+  "content": "string (required, 1-2000 chars)"
 }
 ```
-
-**Validation Rules**:
-- `content`: 1-2000 characters
-- `parent_id`: Must be valid comment on same PAPS if provided
 
 **Success Response (201)**:
 ```json
@@ -2051,14 +2189,14 @@ file: [binary file data]
 ```
 
 **Error Responses**:
-- **400 Bad Request**: Content too short/long or invalid parent
-- **404 Not Found**: PAPS or parent comment not found
+- **400 Bad Request**: Content empty, too long, invalid PAPS ID, or PAPS deleted
+- **404 Not Found**: PAPS not found
 
 ---
 
 ### GET /comments/{comment_id}
 **Description**: Get specific comment  
-**Authorization**: OPEN
+**Authorization**: AUTH
 
 **Path Parameters**:
 - `comment_id`: string (UUID)
@@ -2068,35 +2206,24 @@ file: [binary file data]
 {
   "comment_id": "uuid",
   "paps_id": "uuid",
-  "paps_title": "string",
   "user_id": "uuid",
   "username": "string",
-  "user_avatar": "string|null",
   "parent_id": "uuid|null",
   "content": "string",
   "created_at": "iso8601-timestamp",
-  "updated_at": "iso8601-timestamp",
-  "is_deleted": false,
-  "replies": [
-    {
-      "comment_id": "uuid",
-      "user_id": "uuid",
-      "username": "string",
-      "content": "string",
-      "created_at": "iso8601-timestamp"
-    }
-  ]
+  "updated_at": "iso8601-timestamp"
 }
 ```
 
 **Error Responses**:
-- **404 Not Found**: Comment not found
+- **400 Bad Request**: Invalid comment ID format
+- **404 Not Found**: Comment not found or deleted
 
 ---
 
-### PATCH /comments/{comment_id}
-**Description**: Update your comment  
-**Authorization**: AUTH (must be comment author)
+### PUT /comments/{comment_id}
+**Description**: Edit a comment  
+**Authorization**: AUTH (must be comment author or admin)
 
 **Path Parameters**:
 - `comment_id`: string (UUID)
@@ -2111,14 +2238,14 @@ file: [binary file data]
 **Success Response (204)**: No content
 
 **Error Responses**:
-- **400 Bad Request**: Content validation failed
-- **403 Forbidden**: Not your comment
-- **404 Not Found**: Comment not found
+- **400 Bad Request**: Content empty/too long or invalid comment ID format
+- **403 Forbidden**: Not author or admin
+- **404 Not Found**: Comment not found or deleted
 
 ---
 
 ### DELETE /comments/{comment_id}
-**Description**: Delete comment  
+**Description**: Soft delete comment  
 **Authorization**: AUTH (must be author, PAPS owner, or admin)
 
 **Path Parameters**:
@@ -2127,25 +2254,101 @@ file: [binary file data]
 **Success Response (204)**: No content
 
 **Side Effects**:
-- Soft delete (sets deleted_at and is_deleted=true)
-- Content replaced with "[deleted]"
-- Preserves tree structure (replies remain)
+- Soft delete (sets deleted_at timestamp)
+- Also soft deletes all replies if this is a parent comment
 
 **Error Responses**:
+- **400 Bad Request**: Invalid comment ID format
 - **403 Forbidden**: Not authorized
+- **404 Not Found**: Comment not found or already deleted
+
+---
+
+### GET /comments/{comment_id}/replies
+**Description**: Get replies to a comment  
+**Authorization**: AUTH
+
+**Path Parameters**:
+- `comment_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "parent_comment_id": "uuid",
+  "replies": [...],
+  "count": 3
+}
+```
+
+**Notes**:
+- Instagram-style: Only top-level comments can have replies
+- Cannot get replies of a reply
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ID format or trying to get replies of a reply
+- **404 Not Found**: Comment not found or deleted
+
+---
+
+### POST /comments/{comment_id}/replies
+**Description**: Reply to a comment  
+**Authorization**: AUTH  
+**Content-Type**: application/json
+
+**Path Parameters**:
+- `comment_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "content": "string (required, 1-2000 chars)"
+}
+```
+
+**Notes**:
+- Instagram-style: Only top-level comments accept replies
+- Replies cannot have further replies (max depth = 1)
+
+**Success Response (201)**:
+```json
+{
+  "comment_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Content validation, invalid ID, replying to a reply, or PAPS deleted
 - **404 Not Found**: Comment not found
+
+---
+
+### GET /comments/{comment_id}/thread
+**Description**: Get comment with all its replies  
+**Authorization**: AUTH
+
+**Path Parameters**:
+- `comment_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "comment": {...},
+  "replies": [...],
+  "is_reply": false
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid comment ID format
+- **404 Not Found**: Comment not found or deleted
 
 ---
 
 ## Chat System
 
-### GET /chats
+### GET /chat
 **Description**: Get current user's chat threads  
 **Authorization**: AUTH
-
-**Query Parameters**:
-- `paps_id`: string UUID (optional) - Filter by job posting
-- `unread_only`: boolean (optional) - Show only threads with unread messages
 
 **Success Response (200)**:
 ```json
@@ -2154,70 +2357,22 @@ file: [binary file data]
     {
       "thread_id": "uuid",
       "paps_id": "uuid|null",
-      "paps_title": "string|null",
       "spap_id": "uuid|null",
       "asap_id": "uuid|null",
-      "participants": [
-        {
-          "user_id": "uuid",
-          "username": "string",
-          "avatar_url": "string|null"
-        }
-      ],
-      "last_message": {
-        "message_id": "uuid",
-        "sender_id": "uuid",
-        "sender_username": "string",
-        "content": "string",
-        "sent_at": "iso8601-timestamp"
-      },
-      "unread_count": 3,
+      "thread_type": "spap_discussion|asap_discussion|group_chat",
       "created_at": "iso8601-timestamp",
       "updated_at": "iso8601-timestamp"
     }
-  ]
+  ],
+  "count": 5
 }
 ```
 
 ---
 
-### POST /chats
-**Description**: Create new chat thread  
-**Authorization**: AUTH  
-**Content-Type**: application/json
-
-**Request Body**:
-```json
-{
-  "participant_ids": ["uuid"] (required, array of user UUIDs),
-  "paps_id": "uuid (optional) - Associate with job posting",
-  "spap_id": "uuid (optional) - Associate with application",
-  "asap_id": "uuid (optional) - Associate with assignment",
-  "initial_message": "string (optional) - First message content"
-}
-```
-
-**Validation Rules**:
-- At least 1 participant (excluding yourself)
-- Max 10 participants per thread
-- Cannot create duplicate threads with same participants
-
-**Success Response (201)**:
-```json
-{
-  "thread_id": "uuid"
-}
-```
-
-**Error Responses**:
-- **400 Bad Request**: Validation failed or duplicate thread
-- **404 Not Found**: Participant not found
-
----
-
-### GET /chats/{thread_id}
+### GET /chat/{thread_id}
 **Description**: Get chat thread details  
-**Authorization**: AUTH (must be participant)
+**Authorization**: AUTH (must be participant or admin)
 
 **Path Parameters**:
 - `thread_id`: string (UUID)
@@ -2227,48 +2382,30 @@ file: [binary file data]
 {
   "thread_id": "uuid",
   "paps_id": "uuid|null",
-  "paps_title": "string|null",
   "spap_id": "uuid|null",
   "asap_id": "uuid|null",
+  "thread_type": "string",
   "participants": [
     {
       "user_id": "uuid",
       "username": "string",
-      "avatar_url": "string|null",
-      "joined_at": "iso8601-timestamp"
+      "role": "applicant|owner|assignee",
+      "joined_at": "iso8601-timestamp",
+      "left_at": "iso8601-timestamp|null"
     }
   ],
-  "created_at": "iso8601-timestamp",
-  "updated_at": "iso8601-timestamp"
+  "created_at": "iso8601-timestamp"
 }
 ```
 
 **Error Responses**:
-- **403 Forbidden**: Not a participant
+- **400 Bad Request**: Invalid thread ID format
+- **403 Forbidden**: Not a participant or has left the thread
 - **404 Not Found**: Thread not found
 
 ---
 
-### DELETE /chats/{thread_id}
-**Description**: Delete chat thread  
-**Authorization**: AUTH (must be participant) or ADMIN
-
-**Path Parameters**:
-- `thread_id`: string (UUID)
-
-**Success Response (204)**: No content
-
-**Side Effects**:
-- Soft delete (sets deleted_at)
-- Deletes all messages in thread
-
-**Error Responses**:
-- **403 Forbidden**: Not participant or admin
-- **404 Not Found**: Thread not found
-
----
-
-### GET /chats/{thread_id}/messages
+### GET /chat/{thread_id}/messages
 **Description**: Get messages in a thread  
 **Authorization**: AUTH (must be participant)
 
@@ -2276,38 +2413,43 @@ file: [binary file data]
 - `thread_id`: string (UUID)
 
 **Query Parameters**:
-- `limit`: integer (optional, default: 50)
+- `limit`: integer (optional, default: 50, 1-100)
 - `offset`: integer (optional, default: 0)
-- `before`: string timestamp (optional) - Messages before this time
-- `after`: string timestamp (optional) - Messages after this time
 
 **Success Response (200)**:
 ```json
 {
+  "thread_id": "uuid",
   "messages": [
     {
       "message_id": "uuid",
       "thread_id": "uuid",
       "sender_id": "uuid",
       "sender_username": "string",
-      "sender_avatar": "string|null",
       "content": "string",
+      "message_type": "text|image|video|document|system",
+      "attachment_url": "string|null",
       "sent_at": "iso8601-timestamp",
-      "read_by": ["uuid"],
-      "is_system_message": false
+      "is_read": true|false
     }
   ],
-  "total": 42
+  "count": 50,
+  "limit": 50,
+  "offset": 0
 }
 ```
 
+**Side Effects**:
+- Messages are marked as read for the current user
+
 **Error Responses**:
-- **403 Forbidden**: Not a participant
+- **400 Bad Request**: Invalid thread ID format or limit/offset values
+- **403 Forbidden**: Not a participant or has left
 - **404 Not Found**: Thread not found
 
 ---
 
-### POST /chats/{thread_id}/messages
+### POST /chat/{thread_id}/messages
 **Description**: Send message to thread  
 **Authorization**: AUTH (must be participant)  
 **Content-Type**: application/json
@@ -2318,13 +2460,14 @@ file: [binary file data]
 **Request Body**:
 ```json
 {
-  "content": "string (required, 1-5000 chars)"
+  "content": "string (required, 1-5000 chars)",
+  "message_type": "string (optional, default: 'text'): text, image, video, document, system",
+  "attachment_url": "string (optional)"
 }
 ```
 
-**Validation Rules**:
-- `content`: 1-5000 characters
-- Must be thread participant
+**Notes**:
+- Only admins can send system messages
 
 **Success Response (201)**:
 ```json
@@ -2333,36 +2476,156 @@ file: [binary file data]
 }
 ```
 
-**Side Effects**:
-- Updates thread's updated_at timestamp
-- Increments unread count for other participants
-
 **Error Responses**:
-- **400 Bad Request**: Content too short/long
-- **403 Forbidden**: Not a participant
+- **400 Bad Request**: Content empty/too long or invalid message type
+- **403 Forbidden**: Not a participant, has left, or trying to send system message
 - **404 Not Found**: Thread not found
 
 ---
 
-### POST /chats/{thread_id}/read
-**Description**: Mark messages as read  
+### PUT /chat/{thread_id}/messages/{message_id}/read
+**Description**: Mark a specific message as read  
+**Authorization**: AUTH (must be participant)
+
+**Path Parameters**:
+- `thread_id`: string (UUID)
+- `message_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ID format
+- **403 Forbidden**: Not a participant
+
+---
+
+### PUT /chat/{thread_id}/read
+**Description**: Mark all messages in thread as read  
 **Authorization**: AUTH (must be participant)
 
 **Path Parameters**:
 - `thread_id`: string (UUID)
 
-**Request Body**:
-```json
-{
-  "message_ids": ["uuid"] (optional, if omitted marks all as read)
-}
-```
-
 **Success Response (204)**: No content
 
 **Error Responses**:
+- **400 Bad Request**: Invalid thread ID format
 - **403 Forbidden**: Not a participant
-- **404 Not Found**: Thread not found
+
+---
+
+### GET /chat/{thread_id}/participants
+**Description**: Get thread participants  
+**Authorization**: AUTH (must be participant or admin)
+
+**Path Parameters**:
+- `thread_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "thread_id": "uuid",
+  "participants": [...]
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid thread ID format
+- **403 Forbidden**: Not authorized
+
+---
+
+### DELETE /chat/{thread_id}/leave
+**Description**: Leave a chat thread  
+**Authorization**: AUTH (must be participant)
+
+**Path Parameters**:
+- `thread_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Sets left_at timestamp for the participant
+- User will no longer receive messages
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ID format or already left
+- **404 Not Found**: Not a participant
+
+---
+
+### GET /chat/{thread_id}/unread
+**Description**: Get unread message count  
+**Authorization**: AUTH (must be participant)
+
+**Path Parameters**:
+- `thread_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "thread_id": "uuid",
+  "unread_count": 5
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid thread ID format
+- **403 Forbidden**: Not a participant
+
+---
+
+### GET /spap/{spap_id}/chat
+**Description**: Get chat thread for a SPAP application  
+**Authorization**: AUTH (must be applicant, PAPS owner, or admin)
+
+**Path Parameters**:
+- `spap_id`: string (UUID)
+
+**Success Response (200)**: Chat thread object
+
+**Error Responses**:
+- **400 Bad Request**: Invalid SPAP ID format
+- **403 Forbidden**: Not authorized
+- **404 Not Found**: SPAP or chat thread not found
+
+---
+
+### GET /asap/{asap_id}/chat
+**Description**: Get chat thread for an ASAP assignment  
+**Authorization**: AUTH (must be worker, owner, or admin)
+
+**Path Parameters**:
+- `asap_id`: string (UUID)
+
+**Success Response (200)**: Chat thread object
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ASAP ID format
+- **403 Forbidden**: Not authorized
+- **404 Not Found**: ASAP or chat thread not found
+
+---
+
+### GET /paps/{paps_id}/chats
+**Description**: Get all chat threads for a PAPS  
+**Authorization**: AUTH (must be PAPS owner or admin)
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "threads": [...],
+  "count": 5
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid PAPS ID format
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS not found
 
 ---
 
@@ -2402,24 +2665,6 @@ file: [binary file data]
 
 ---
 
-## Data Lifecycle and Constraints
-
-### Deletion Order (RESTRICT Constraints)
-1. **Delete PAYMENT before PAPS**: PAYMENT has RESTRICT constraint on PAPS
-2. **Delete PAPS before USER**: Cannot delete user who owns PAPS with payments
-
-### Cascade Deletions
-- **PAPS deletion** → Cascades to SPAP, ASAP, COMMENT, CHAT_THREAD
-- **SPAP deletion** → Cascades to ASAP (if ASAP references SPAP)
-- **USER deletion** → Admin route handles all cascades explicitly
-
-### Soft Deletes
-- PAPS, SPAP, ASAP, COMMENT, PAYMENT: Use `deleted_at` timestamp
-- Soft-deleted items excluded from normal queries
-- Admin can query all items including deleted
-
----
-
 ## Authentication Flow
 
 1. **Registration**: POST /register → Get user_id
@@ -2443,71 +2688,26 @@ file: [binary file data]
 
 ### Category Icon
 - **Types**: PNG, JPEG, JPG, GIF, WEBP, SVG
-- **Max Size**: 2 MB
+- **Max Size**: 1 MB
 - **Storage**: `media/category/{category_id}.{ext}`
 
 ### PAPS Media
 - **Types**: PNG, JPEG, JPG, GIF, WEBP, MP4, MOV, PDF
 - **Max Size**: 50 MB
-- **Max Count**: 10 per PAPS
-- **Storage**: `media/paps/{paps_id}/{media_id}.{ext}`
+- **Compression**: Automatic for images
+- **Storage**: `media/post/{media_id}.{ext}`
 
 ### SPAP Media
 - **Types**: PNG, JPEG, JPG, GIF, WEBP, PDF
 - **Max Size**: 10 MB
-- **Max Count**: 5 per SPAP
-- **Storage**: `media/spap/{spap_id}/{media_id}.{ext}`
+- **Compression**: Automatic for images
+- **Storage**: `media/spap/{media_id}.{ext}`
 
 ### ASAP Media
 - **Types**: PNG, JPEG, JPG, GIF, WEBP, MP4, MOV, PDF
 - **Max Size**: 50 MB
-- **Max Count**: 20 per ASAP
-- **Storage**: `media/asap/{asap_id}/{media_id}.{ext}`
-
----
-
-## Rate Limiting (Not Implemented)
-
-Current implementation has no rate limiting. Consider adding:
-- **Authentication**: 5 requests/minute per IP
-- **Media Upload**: 10 uploads/hour per user
-- **API Requests**: 100 requests/minute per user
-
----
-
-## Pagination
-
-Standard pagination parameters:
-- `limit`: Max results per page (default: 50)
-- `offset`: Number of results to skip (default: 0)
-
-Response includes:
-```json
-{
-  "results": [...],
-  "total": 123,
-  "limit": 50,
-  "offset": 0
-}
-```
-
----
-
-## Search and Filtering
-
-### Text Search
-- Case-insensitive
-- Searches in multiple fields (title, description, username, etc.)
-- Use `%` wildcard in SQL LIKE patterns
-
-### Location Search
-- Provides `location_lat`, `location_lng`, `radius_km`
-- Returns results within radius
-- Includes `distance_km` in response
-
-### Status Filtering
-- Most resources have `status` field
-- Standard statuses: draft, published, closed, expired, pending, accepted, rejected, etc.
+- **Compression**: Automatic for images
+- **Storage**: `media/asap/{media_id}.{ext}`
 
 ---
 

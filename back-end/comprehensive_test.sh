@@ -123,8 +123,8 @@ api_call() {
         fi
     fi
     
-    echo "$status_code"
-    echo "$response_file"
+    # Output on single line with space separator for read command
+    echo "$status_code $response_file"
 }
 
 # Extract JSON field from response
@@ -255,14 +255,14 @@ test_authentication() {
     
     # Test 2: Register with invalid username (too short)
     print_test "POST /register - Invalid username (too short)"
-    register_data='{"username": "ab", "email": "test@example.com", "password": "test123"}'
+    register_data='{"username": "ab", "email": "test@example.com", "password": "Test123!@#"}'
     read status response <<< $(api_call "POST" "/register" "" "$register_data")
     check_status 400 "$status" "Registration rejected for short username"
     rm -f "$response"
     
     # Test 3: Register with invalid email
     print_test "POST /register - Invalid email format"
-    register_data='{"username": "testuser999", "email": "notanemail", "password": "test123"}'
+    register_data='{"username": "testuser999", "email": "notanemail", "password": "Test123!@#"}'
     read status response <<< $(api_call "POST" "/register" "" "$register_data")
     check_status 400 "$status" "Registration rejected for invalid email"
     rm -f "$response"
@@ -271,14 +271,14 @@ test_authentication() {
     print_test "POST /register - With phone number"
     new_username="testuser_phone_$(random_string 6)"
     new_email="${new_username}@example.com"
-    register_data="{\"username\": \"$new_username\", \"email\": \"$new_email\", \"password\": \"test123\", \"phone\": \"+14155551234\"}"
+    register_data="{\"username\": \"$new_username\", \"email\": \"$new_email\", \"password\": \"Test123!@#\", \"phone\": \"+14155551234\"}"
     read status response <<< $(api_call "POST" "/register" "" "$register_data")
     check_status 201 "$status" "Registration with phone successful"
     rm -f "$response"
     
     # Test 5: Register duplicate user
     print_test "POST /register - Duplicate username (should fail)"
-    register_data="{\"username\": \"$NEW_USERNAME\", \"email\": \"different@example.com\", \"password\": \"test123\"}"
+    register_data="{\"username\": \"$NEW_USERNAME\", \"email\": \"different@example.com\", \"password\": \"Test123!@#\"}"
     read status response <<< $(api_call "POST" "/register" "" "$register_data")
     check_status 409 "$status" "Duplicate registration rejected"
     rm -f "$response"
@@ -322,7 +322,7 @@ test_authentication() {
     
     # Test 10: Login with non-existent user
     print_test "POST /login - Non-existent user (should fail)"
-    login_data='{"login": "nonexistentuser999", "password": "test123"}'
+    login_data='{"login": "nonexistentuser999", "password": "Test123!@#"}'
     read status response <<< $(api_call "POST" "/login" "" "$login_data")
     check_status 401 "$status" "Non-existent user rejected"
     rm -f "$response"
@@ -356,7 +356,7 @@ test_user_management() {
     print_test "POST /users - Admin create user"
     local admin_username="adminuser_$(random_string 6)"
     local admin_email="${admin_username}@example.com"
-    user_data="{\"login\": \"$admin_username\", \"password\": \"admin123\", \"email\": \"$admin_email\", \"is_admin\": false}"
+    user_data="{\"login\": \"$admin_username\", \"password\": \"Admin123!\", \"email\": \"$admin_email\", \"is_admin\": false}"
     read status response <<< $(api_call "POST" "/users" "$admin_token" "$user_data")
     if check_status 201 "$status" "Admin user creation successful"; then
         ADMIN_CREATED_USER_ID=$(extract_json "$response" "user_id")
@@ -381,14 +381,15 @@ test_user_management() {
     
     # Test 6: Update user with PATCH
     print_test "PATCH /users/{user_id} - Partial update"
-    user_data='{"email": "newemail@example.com"}'
+    local new_email_for_patch="newemail_$(random_string 6)@example.com"
+    user_data="{\"email\": \"$new_email_for_patch\"}"
     read status response <<< $(api_call "PATCH" "/users/$ADMIN_CREATED_USER_ID" "$admin_token" "$user_data")
     check_status 204 "$status" "User partially updated"
     rm -f "$response"
     
     # Test 7: Update user password
     print_test "PATCH /users/{user_id} - Update password"
-    user_data='{"password": "newpassword123"}'
+    user_data='{"password": "NewPassword123!"}'
     read status response <<< $(api_call "PATCH" "/users/$ADMIN_CREATED_USER_ID" "$admin_token" "$user_data")
     check_status 204 "$status" "User password updated"
     rm -f "$response"
@@ -473,7 +474,7 @@ test_profile_management() {
     
     # Test 8: Add work experience
     print_test "POST /profile/experiences - Add work experience"
-    exp_data='{"job_title": "Software Engineer", "company_name": "Tech Corp", "start_date": "2020-01-01", "end_date": "2023-12-31", "description": "Developed awesome software"}'
+    exp_data='{"title": "Software Engineer", "company": "Tech Corp", "start_date": "2020-01-01", "end_date": "2023-12-31", "description": "Developed awesome software", "is_current": false}'
     read status response <<< $(api_call "POST" "/profile/experiences" "$user_token" "$exp_data")
     if check_status 201 "$status" "Experience added"; then
         EXPERIENCE_ID=$(extract_json "$response" "experience_id")
@@ -491,9 +492,9 @@ test_profile_management() {
     rm -f "$response"
     
     # Test 10: Update experience
-    print_test "PUT /profile/experiences/{id} - Update experience"
-    exp_data='{"job_title": "Senior Software Engineer", "company_name": "Tech Corp", "start_date": "2020-01-01"}'
-    read status response <<< $(api_call "PUT" "/profile/experiences/$EXPERIENCE_ID" "$user_token" "$exp_data")
+    print_test "PATCH /profile/experiences/{id} - Update experience"
+    exp_data='{"title": "Senior Software Engineer", "company": "Tech Corp", "start_date": "2020-01-01", "description": "Led development team"}'
+    read status response <<< $(api_call "PATCH" "/profile/experiences/$EXPERIENCE_ID" "$user_token" "$exp_data")
     check_status 204 "$status" "Experience updated"
     rm -f "$response"
     
@@ -516,10 +517,10 @@ test_categories() {
     
     # Test 1: Get all categories
     print_test "GET /categories - List all categories"
-    read status response <<< $(api_call "GET" "/categories")
+    read status response <<< $(api_call "GET" "/categories" "$user_token")
     if check_status 200 "$status" "Categories retrieved"; then
         cat_count=$(jq 'length' < "$response")
-        CATEGORY_ID=$(jq -r '.[0].category_id' < "$response")
+        CATEGORY_ID=$(jq -r '.[0].id' < "$response")
         echo "  Category count: $cat_count"
         echo "  First category ID: $CATEGORY_ID"
     fi
@@ -527,7 +528,7 @@ test_categories() {
     
     # Test 2: Get categories with parent filter
     print_test "GET /categories?parent_id=null - Root categories"
-    read status response <<< $(api_call "GET" "/categories?parent_id=null")
+    read status response <<< $(api_call "GET" "/categories?parent_id=null" "$user_token")
     check_status 200 "$status" "Root categories retrieved"
     rm -f "$response"
     
@@ -553,7 +554,7 @@ test_categories() {
     
     # Test 5: Get specific category
     print_test "GET /categories/{id} - Get category details"
-    read status response <<< $(api_call "GET" "/categories/$TEST_CATEGORY_ID")
+    read status response <<< $(api_call "GET" "/categories/$TEST_CATEGORY_ID" "$user_token")
     if check_status 200 "$status" "Category details retrieved"; then
         name=$(extract_json "$response" "name")
         echo "  Name: $name"
@@ -561,9 +562,9 @@ test_categories() {
     rm -f "$response"
     
     # Test 6: Update category
-    print_test "PUT /categories/{id} - Update category"
+    print_test "PATCH /categories/{id} - Update category"
     cat_data="{\"name\": \"$cat_name Updated\", \"description\": \"Updated description\", \"is_active\": true}"
-    read status response <<< $(api_call "PUT" "/categories/$TEST_CATEGORY_ID" "$admin_token" "$cat_data")
+    read status response <<< $(api_call "PATCH" "/categories/$TEST_CATEGORY_ID" "$admin_token" "$cat_data")
     check_status 204 "$status" "Category updated"
     rm -f "$response"
     
@@ -571,9 +572,7 @@ test_categories() {
     print_test "POST /profile/interests - Add category interest"
     interest_data="{\"category_id\": \"$CATEGORY_ID\"}"
     read status response <<< $(api_call "POST" "/profile/interests" "$user_token" "$interest_data")
-    if check_status 201 "$status" "Interest added"; then
-        INTEREST_ID=$(extract_json "$response" "interest_id")
-    fi
+    check_status 201 "$status" "Interest added"
     rm -f "$response"
     
     # Test 8: Get interests
@@ -585,9 +584,9 @@ test_categories() {
     fi
     rm -f "$response"
     
-    # Test 9: Delete interest
-    print_test "DELETE /profile/interests/{id} - Remove interest"
-    read status response <<< $(api_call "DELETE" "/profile/interests/$INTEREST_ID" "$user_token")
+    # Test 9: Delete interest (uses category_id, not interest_id)
+    print_test "DELETE /profile/interests/{category_id} - Remove interest"
+    read status response <<< $(api_call "DELETE" "/profile/interests/$CATEGORY_ID" "$user_token")
     check_status 204 "$status" "Interest removed"
     rm -f "$response"
 }
@@ -637,7 +636,8 @@ EOF
   "location_lng": -122.4194,
   "payment_amount": 250.00,
   "payment_currency": "USD",
-  "category_ids": ["$CATEGORY_ID"]
+  "category_ids": ["$CATEGORY_ID"],
+  "start_datetime": "2026-02-01T09:00:00Z"
 }
 EOF
 )
@@ -650,7 +650,7 @@ EOF
     
     # Test 3: Get all PAPS
     print_test "GET /paps - List all job postings"
-    read status response <<< $(api_call "GET" "/paps")
+    read status response <<< $(api_call "GET" "/paps" "$user_token")
     if check_status 200 "$status" "PAPS list retrieved"; then
         paps_count=$(jq '.paps | length' < "$response")
         total=$(extract_json "$response" "total")
@@ -661,7 +661,7 @@ EOF
     
     # Test 4: Filter by status
     print_test "GET /paps?status=published - Filter by status"
-    read status response <<< $(api_call "GET" "/paps?status=published")
+    read status response <<< $(api_call "GET" "/paps?status=published" "$user_token")
     if check_status 200 "$status" "Published PAPS retrieved"; then
         paps_count=$(jq '.paps | length' < "$response")
         echo "  Published count: $paps_count"
@@ -670,7 +670,7 @@ EOF
     
     # Test 5: Filter by owner
     print_test "GET /paps?owner_id={user_id} - Filter by owner"
-    read status response <<< $(api_call "GET" "/paps?owner_id=$NEW_USER_ID")
+    read status response <<< $(api_call "GET" "/paps?owner_id=$NEW_USER_ID" "$user_token")
     if check_status 200 "$status" "Owner PAPS retrieved"; then
         paps_count=$(jq '.paps | length' < "$response")
         echo "  Owner PAPS count: $paps_count"
@@ -679,13 +679,13 @@ EOF
     
     # Test 6: Filter by category
     print_test "GET /paps?category_id={id} - Filter by category"
-    read status response <<< $(api_call "GET" "/paps?category_id=$CATEGORY_ID")
+    read status response <<< $(api_call "GET" "/paps?category_id=$CATEGORY_ID" "$user_token")
     check_status 200 "$status" "Category PAPS retrieved"
     rm -f "$response"
     
     # Test 7: Location search
     print_test "GET /paps?location_lat=37.7749&location_lng=-122.4194&radius_km=10"
-    read status response <<< $(api_call "GET" "/paps?location_lat=37.7749&location_lng=-122.4194&radius_km=10")
+    read status response <<< $(api_call "GET" "/paps?location_lat=37.7749&location_lng=-122.4194&radius_km=10" "$user_token")
     if check_status 200 "$status" "Location search successful"; then
         paps_count=$(jq '.paps | length' < "$response")
         echo "  Nearby PAPS: $paps_count"
@@ -694,25 +694,25 @@ EOF
     
     # Test 8: Text search
     print_test "GET /paps?search=test - Text search"
-    read status response <<< $(api_call "GET" "/paps?search=test")
+    read status response <<< $(api_call "GET" "/paps?search=test" "$user_token")
     check_status 200 "$status" "Text search successful"
     rm -f "$response"
     
     # Test 9: Payment range filter
     print_test "GET /paps?min_payment=50&max_payment=300"
-    read status response <<< $(api_call "GET" "/paps?min_payment=50&max_payment=300")
+    read status response <<< $(api_call "GET" "/paps?min_payment=50&max_payment=300" "$user_token")
     check_status 200 "$status" "Payment range filter successful"
     rm -f "$response"
     
     # Test 10: Sorting
     print_test "GET /paps?sort_by=payment_amount&sort_order=desc"
-    read status response <<< $(api_call "GET" "/paps?sort_by=payment_amount&sort_order=desc")
+    read status response <<< $(api_call "GET" "/paps?sort_by=payment_amount&sort_order=desc" "$user_token")
     check_status 200 "$status" "Sorted PAPS retrieved"
     rm -f "$response"
     
     # Test 11: Pagination
     print_test "GET /paps?limit=5&offset=0 - Pagination"
-    read status response <<< $(api_call "GET" "/paps?limit=5&offset=0")
+    read status response <<< $(api_call "GET" "/paps?limit=5&offset=0" "$user_token")
     if check_status 200 "$status" "Paginated PAPS retrieved"; then
         limit=$(extract_json "$response" "limit")
         offset=$(extract_json "$response" "offset")
@@ -722,7 +722,7 @@ EOF
     
     # Test 12: Get specific PAPS
     print_test "GET /paps/{id} - Get PAPS details"
-    read status response <<< $(api_call "GET" "/paps/$PUBLISHED_PAPS_ID")
+    read status response <<< $(api_call "GET" "/paps/$PUBLISHED_PAPS_ID" "$user_token")
     if check_status 200 "$status" "PAPS details retrieved"; then
         title=$(extract_json "$response" "title")
         status_field=$(extract_json "$response" "status")
@@ -733,16 +733,16 @@ EOF
     
     # Test 13: Update PAPS with PUT
     print_test "PUT /paps/{id} - Full update"
-    paps_data='{"title": "Updated Test Job", "description": "Updated description for the test job posting with sufficient length.", "status": "published"}'
+    paps_data='{"title": "Updated Test Job", "description": "Updated description for the test job posting with sufficient length.", "status": "published", "start_datetime": "2026-02-01T09:00:00Z"}'
     read status response <<< $(api_call "PUT" "/paps/$DRAFT_PAPS_ID" "$user_token" "$paps_data")
     check_status 204 "$status" "PAPS fully updated"
     rm -f "$response"
     
-    # Test 14: Update PAPS with PATCH
-    print_test "PATCH /paps/{id} - Partial update"
+    # Test 14: Update PAPS payment with PUT (no PATCH endpoint)
+    print_test "PUT /paps/{id} - Update payment"
     paps_data='{"payment_amount": 150.00}'
-    read status response <<< $(api_call "PATCH" "/paps/$DRAFT_PAPS_ID" "$user_token" "$paps_data")
-    check_status 204 "$status" "PAPS partially updated"
+    read status response <<< $(api_call "PUT" "/paps/$DRAFT_PAPS_ID" "$user_token" "$paps_data")
+    check_status 204 "$status" "PAPS payment updated"
     rm -f "$response"
     
     # Test 15: Add schedule
@@ -756,7 +756,7 @@ EOF
     
     # Test 16: Get schedule
     print_test "GET /paps/{id}/schedule - Get schedule"
-    read status response <<< $(api_call "GET" "/paps/$PUBLISHED_PAPS_ID/schedule")
+    read status response <<< $(api_call "GET" "/paps/$PUBLISHED_PAPS_ID/schedule" "$user_token")
     if check_status 200 "$status" "Schedule retrieved"; then
         schedule_count=$(jq 'length' < "$response")
         echo "  Schedule entries: $schedule_count"
