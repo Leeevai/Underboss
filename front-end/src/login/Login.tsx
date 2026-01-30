@@ -65,7 +65,7 @@ export default function Login({ onLogUser }: LoginProps) {
   const [isLoginMode, setIsLoginMode] = useState<boolean>(true)
   
   // Form state
-  const [username, setUsername] = useState<string>('hassan')
+  const [username, setUsername] = useState<string>('osman')
   const [password, setPassword] = useState<string>('123')
   const [email, setEmail] = useState<string>('') // Only for register
   
