@@ -7,7 +7,7 @@ import PapsFeed from '../feed/PapsFeed';
 import NotificationPage from '../pages/NotificationPage';
 import ProfilePage from '../pages/ProfilePage';
 import SettingsPage from '../pages/SettingsPage';
-import ModifyProfil from '../pages/ModifyProfil.tsx';
+import Spap from '../spap/Spap';import ModifyProfil from '../pages/ModifyProfil.tsx';
 
 
 import { serv, getCurrentUser } from '../serve';
@@ -76,10 +76,7 @@ const Message = () => (
   <View style={styles.center}><Text>Message uploading...</Text></View>
 )
 
-const Spap = () => (
-  <View style={styles.center}><Text>Spap something...</Text></View>
-  
-)
+
 const Calendar = () => (
   <View style={styles.center}><Text>Spap something...</Text></View>
   
