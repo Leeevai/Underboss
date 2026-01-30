@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import UnderbossBar from '../header/underbossbar';
 import ModifyProfil from './ModifyProfil.tsx';
+import { serv, ApiError } from '../serve';
 
 // Définition du type pour les données utilisateur (Propre pour TypeScript)
 interface UserData {
@@ -18,17 +19,34 @@ interface UserData {
 
 export default function ProfilePage({ navigation }: any) {
     // État initial de l'utilisateur
-    const [user, setUser] = useState<UserData>({
-        nom: "Dupont",
-        prenom: "Jean",
-        pseudo: "baby",
-        dateNaissance: "12/05/1998",
-        adresse: "123 Rue de la Paix, Paris",
-        genre: "Masculin",
-        bio: "Passionné par la gastronomie et toujours prêt à découvrir de nouvelles saveurs !",
-        langue: "Français (FR)",
-        note: 4.8
-    });
+    const [user, setUser] = useState<any[]>([])
+      const [loading, setLoading] = useState(true)
+      const [refreshing, setRefreshing] = useState(false)
+      const [error, setError] = useState('')
+    const fetchProfile = async () => {
+        try {
+          const response = await serv('profile.get')
+          console.log(response)
+          // serv returns { paps: [], total_count: number }
+          setUser(response)
+
+
+
+          console.log(user)
+          setError('')
+        } catch (err) {
+          console.error('Failed to fetch paps', err)
+          const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load feed.'
+          setError(msg)
+        } finally {
+          setLoading(false)
+          setRefreshing(false)
+        }
+    }
+    
+    useEffect(() => {
+        fetchProfile()
+    }, [])
 
     return (
         <View style={styles.screen}>
@@ -38,9 +56,9 @@ export default function ProfilePage({ navigation }: any) {
                 {/* En-tête : Avatar, Pseudo & Note */}
                 <View style={styles.header}>
                     <View style={styles.avatarPlaceholder} />
-                    <Text style={styles.pseudo}>@{user.pseudo}</Text>
+                    <Text style={styles.pseudo}>@pseudo</Text>
                     <View style={styles.ratingBadge}>
-                        <Text style={styles.ratingText}>⭐ {user.note}</Text>
+                        <Text style={styles.ratingText}>⭐ note</Text>
                     </View>
                 </View>
 
@@ -50,22 +68,22 @@ export default function ProfilePage({ navigation }: any) {
                     
                     <View style={styles.infoRow}>
                         <Text style={styles.label}>Nom</Text>
-                        <Text style={styles.value}>{user.nom}</Text>
+                        <Text style={styles.value}>nom</Text>
                     </View>
 
                     <View style={styles.infoRow}>
                         <Text style={styles.label}>Prénom</Text>
-                        <Text style={styles.value}>{user.prenom}</Text>
+                        <Text style={styles.value}>prenom</Text>
                     </View>
 
                     <View style={styles.infoRow}>
                         <Text style={styles.label}>Date de naissance</Text>
-                        <Text style={styles.value}>{user.dateNaissance}</Text>
+                        <Text style={styles.value}>dateNaissance</Text>
                     </View>
 
                     <View style={styles.infoRow}>
                         <Text style={styles.label}>Genre</Text>
-                        <Text style={styles.value}>{user.genre}</Text>
+                        <Text style={styles.value}>genre</Text>
                     </View>
                 </View>
 
@@ -75,19 +93,19 @@ export default function ProfilePage({ navigation }: any) {
                     
                     <View style={styles.infoRow}>
                         <Text style={styles.label}>Adresse</Text>
-                        <Text style={styles.value}>{user.adresse}</Text>
+                        <Text style={styles.value}>adresse</Text>
                     </View>
 
                     <View style={styles.infoRow}>
                         <Text style={styles.label}>Langue</Text>
-                        <Text style={styles.value}>{user.langue}</Text>
+                        <Text style={styles.value}>langue</Text>
                     </View>
                 </View>
 
                 {/* Section : Bio */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Bio</Text>
-                    <Text style={styles.bioText}>{user.bio}</Text>
+                    <Text style={styles.bioText}>bio</Text>
                 </View>
 
                 {/* Bouton de modification */}
@@ -95,7 +113,7 @@ export default function ProfilePage({ navigation }: any) {
                     style={styles.editButton} 
                     onPress={() => navigation.navigate('ModifyProfil', { 
                         currentUser: user, 
-                        onSave: (updatedUser: UserData) => setUser(updatedUser) 
+                         
                     })}
                 >
                     <Text style={styles.editButtonText}>Modifier le profil</Text>
