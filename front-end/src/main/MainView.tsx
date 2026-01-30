@@ -7,11 +7,13 @@ import PapsFeed from '../feed/PapsFeed';
 import NotificationPage from '../pages/NotificationPage';
 import ProfilePage from '../pages/ProfilePage';
 import SettingsPage from '../pages/SettingsPage';
-import Spap from '../spap/Spap';import ModifyProfil from '../pages/ModifyProfil.tsx';
+import Spap from '../spap/SpapFeed';
+import ModifyProfil from '../pages/ModifyProfil.tsx';
 import Post from '../posting/posting_page'
 
 
 import { serv, getCurrentUser } from '../serve';
+import SpapFeed from '../spap/SpapFeed';
 
 
 const currentUser = getCurrentUser();
@@ -92,7 +94,7 @@ function MainTabs() {
       />
       <Tab.Screen
         name="Spap"
-        component={Spap}
+        component={SpapFeed}
         options={{ title: 'Spap' }}
       />
       <Tab.Screen
