@@ -8,6 +8,7 @@ import NotificationPage from '../pages/NotificationPage';
 import ProfilePage from '../pages/ProfilePage';
 import SettingsPage from '../pages/SettingsPage';
 import Spap from '../spap/Spap';import ModifyProfil from '../pages/ModifyProfil.tsx';
+import Post from '../posting/posting_page'
 
 
 import { serv, getCurrentUser } from '../serve';
@@ -69,9 +70,9 @@ const styles = StyleSheet.create({
 })
 
 // --- Placeholders for core components ---
-const Post = () => (
-  <View style={styles.center}><Text>Post something...</Text></View>
-)
+//const Post = () => (
+//  <View style={styles.center}><Text>Post something...</Text></View>
+//)
 const Message = () => (
   <View style={styles.center}><Text>Message uploading...</Text></View>
 )
