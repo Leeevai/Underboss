@@ -2,24 +2,12 @@ import React, { useState,useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import UnderbossBar from '../header/underbossbar';
 import ModifyProfil from './ModifyProfil.tsx';
-import { serv, ApiError } from '../serve';
+import { serv, ApiError,UserProfile } from '../serve';
 
-// Définition du type pour les données utilisateur (Propre pour TypeScript)
-interface UserData {
-    nom: string;
-    prenom: string;
-    pseudo: string;
-    dateNaissance: string;
-    adresse: string;
-    genre: string;
-    bio: string;
-    langue: string;
-    note: number;
-}
 
 export default function ProfilePage({ navigation }: any) {
     // État initial de l'utilisateur
-    const [user, setUser] = useState<any[]>([])
+    const [user, setUser] = useState<UserProfile>()
       const [loading, setLoading] = useState(true)
       const [refreshing, setRefreshing] = useState(false)
       const [error, setError] = useState('')
@@ -67,8 +55,8 @@ export default function ProfilePage({ navigation }: any) {
                     <Text style={styles.sectionTitle}>Informations personnelles</Text>
                     
                     <View style={styles.infoRow}>
-                        <Text style={styles.label}>Nom</Text>
-                        <Text style={styles.value}>nom</Text>
+                        <Text style={styles.label}>nom</Text>
+                        <Text style={styles.value}>{user?.first_name}</Text>
                     </View>
 
                     <View style={styles.infoRow}>
