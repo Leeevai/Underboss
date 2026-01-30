@@ -41,59 +41,57 @@ export default function ProfilePage({ navigation }: any) {
             <UnderbossBar />
             
             <ScrollView contentContainerStyle={styles.container}>
-                {/* En-tête : Avatar, Pseudo & Note */}
+                
                 <View style={styles.header}>
                     <View style={styles.avatarPlaceholder} />
-                    <Text style={styles.pseudo}>@pseudo</Text>
+                    <Text style={styles.pseudo}>@{user?.username}</Text>
                     <View style={styles.ratingBadge}>
-                        <Text style={styles.ratingText}>⭐ note</Text>
+                        <Text style={styles.ratingText}>⭐</Text>
                     </View>
                 </View>
 
-                {/* Section : Informations Personnelles */}
+                
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Informations personnelles</Text>
                     
                     <View style={styles.infoRow}>
-                        <Text style={styles.label}>nom</Text>
-                        <Text style={styles.value}>{user?.first_name}</Text>
+                        <Text style={styles.label}>Name</Text>
+                        <Text style={styles.value}>{user?.last_name}</Text>
                     </View>
 
-                    <View style={styles.infoRow}>
-                        <Text style={styles.label}>Prénom</Text>
-                        <Text style={styles.value}>prenom</Text>
+                     <View style={styles.infoRow}>
+                        <Text style={styles.label}>Surname</Text>
+                        <Text style={styles.value}>{user?.last_name}</Text>
                     </View>
 
-                    <View style={styles.infoRow}>
-                        <Text style={styles.label}>Date de naissance</Text>
-                        <Text style={styles.value}>dateNaissance</Text>
-                    </View>
+    
 
                     <View style={styles.infoRow}>
-                        <Text style={styles.label}>Genre</Text>
-                        <Text style={styles.value}>genre</Text>
+                        <Text style={styles.label}>Date of birth</Text>
+                        <Text style={styles.value}>{user?.date_of_birth}</Text>
                     </View>
+
                 </View>
 
-                {/* Section : Coordonnées & Préférences */}
+                
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Détails du compte</Text>
+                    <Text style={styles.sectionTitle}>Details</Text>
                     
                     <View style={styles.infoRow}>
-                        <Text style={styles.label}>Adresse</Text>
-                        <Text style={styles.value}>adresse</Text>
+                        <Text style={styles.label}>Postal adresse</Text>
+                        <Text style={styles.value}>{user?.location_address}</Text>
                     </View>
 
                     <View style={styles.infoRow}>
-                        <Text style={styles.label}>Langue</Text>
-                        <Text style={styles.value}>langue</Text>
+                        <Text style={styles.label}>Main language</Text>
+                        <Text style={styles.value}>{user?.preferred_language}</Text>
                     </View>
                 </View>
 
                 {/* Section : Bio */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Bio</Text>
-                    <Text style={styles.bioText}>bio</Text>
+                    <Text style={styles.bioText}>{user?.bio}</Text>
                 </View>
 
                 {/* Bouton de modification */}
