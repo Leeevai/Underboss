@@ -358,74 +358,103 @@ async function testPapsScheduleCreate() {
 // SPAP (APPLICATIONS) ENDPOINTS
 // =============================================================================
 
-/** GET /spaps */
-async function testSpapList() {
-  const result = await serv('spap.list', { status: 'pending' });
-  console.log('Applications:', result.spaps.length);
+/** GET /spap/my - Get current user's applications */
+async function testSpapMy() {
+  const result = await serv('spap.my');
+  console.log('My applications:', result.applications.length);
 }
 
-/** GET /spaps/{id} */
+/** GET /paps/{paps_id}/applications - Get applications for a PAPS (owner only) */
+async function testSpapListByPaps() {
+  const result = await serv('spap.listByPaps', { paps_id: SAMPLE_UUID });
+  console.log('Applications:', result.applications.length);
+}
+
+/** GET /spap/{spap_id} - Get specific application */
 async function testSpapGet() {
   const spap = await serv('spap.get', { spap_id: SAMPLE_UUID });
   console.log('Application status:', spap.status);
 }
 
-/** POST /spaps */
-async function testSpapCreate() {
-  const result = await serv('spap.create', {
+/** POST /paps/{paps_id}/apply - Apply to a job posting */
+async function testSpapApply() {
+  const result = await serv('spap.apply', {
     paps_id: SAMPLE_UUID,
     message: 'I would love to work on this project!',
   });
   console.log('Applied:', result.spap_id);
+  console.log('Chat thread:', result.chat_thread_id);
 }
 
-/** PATCH /spaps/{id} */
-async function testSpapUpdate() {
-  await serv('spap.update', {
-    spap_id: SAMPLE_UUID,
-    status: 'accepted',
-  });
-  console.log('Updated');
+/** PUT /spap/{spap_id}/accept - Accept application (owner only) */
+async function testSpapAccept() {
+  const result = await serv('spap.accept', { spap_id: SAMPLE_UUID });
+  console.log('Accepted, created ASAP:', result.asap_id);
 }
 
-/** DELETE /spaps/{id} */
-async function testSpapDelete() {
-  await serv('spap.delete', { spap_id: SAMPLE_UUID });
-  console.log('Withdrawn');
+/** PUT /spap/{spap_id}/reject - Reject application (owner only) */
+async function testSpapReject() {
+  await serv('spap.reject', { spap_id: SAMPLE_UUID });
+  console.log('Application rejected');
+}
+
+/** DELETE /spap/{spap_id} - Withdraw application */
+async function testSpapWithdraw() {
+  await serv('spap.withdraw', { spap_id: SAMPLE_UUID });
+  console.log('Application withdrawn');
 }
 
 // =============================================================================
 // ASAP (ASSIGNMENTS) ENDPOINTS
 // =============================================================================
 
-/** GET /asaps */
-async function testAsapList() {
-  const result = await serv('asap.list', { status: 'in_progress' });
-  console.log('Assignments:', result.asaps.length);
+/** GET /asap - Get current user's assignments */
+async function testAsapMy() {
+  const result = await serv('asap.my');
+  console.log('As worker:', result.as_worker.length);
+  console.log('As owner:', result.as_owner.length);
 }
 
-/** GET /asaps/{id} */
+/** GET /paps/{paps_id}/assignments - Get assignments for a PAPS (owner only) */
+async function testAsapListByPaps() {
+  const result = await serv('asap.listByPaps', { paps_id: SAMPLE_UUID });
+  console.log('Assignments:', result.assignments.length);
+}
+
+/** GET /asap/{asap_id} - Get specific assignment */
 async function testAsapGet() {
   const asap = await serv('asap.get', { asap_id: SAMPLE_UUID });
   console.log('Assignment status:', asap.status);
 }
 
-/** POST /asaps */
-async function testAsapCreate() {
-  const result = await serv('asap.create', {
-    paps_id: SAMPLE_UUID,
-    accepted_user_id: SAMPLE_UUID,
-  });
-  console.log('Created assignment:', result.asap_id);
-}
-
-/** PATCH /asaps/{id} */
-async function testAsapUpdate() {
-  await serv('asap.update', {
+/** PUT /asap/{asap_id}/status - Update assignment status */
+async function testAsapUpdateStatus() {
+  await serv('asap.updateStatus', {
     asap_id: SAMPLE_UUID,
     status: 'completed',
   });
   console.log('Marked complete');
+}
+
+/** DELETE /asap/{asap_id} - Delete assignment */
+async function testAsapDelete() {
+  await serv('asap.delete', { asap_id: SAMPLE_UUID });
+  console.log('Assignment deleted');
+}
+
+/** POST /asap/{asap_id}/rate - Rate user for completed assignment */
+async function testAsapRate() {
+  const result = await serv('asap.rate', {
+    asap_id: SAMPLE_UUID,
+    score: 5,
+  });
+  console.log('Rated user:', result.rated_user_id);
+}
+
+/** GET /asap/{asap_id}/can-rate - Check if can rate */
+async function testAsapCanRate() {
+  const result = await serv('asap.canRate', { asap_id: SAMPLE_UUID });
+  console.log('Can rate:', result.can_rate);
 }
 
 // =============================================================================

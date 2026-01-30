@@ -2,27 +2,24 @@
  * ASAP module - Request validators
  */
 
-import type { AsapCreateRequest, AsapUpdateRequest } from './types';
+import type { AsapStatusUpdateRequest, AsapRateRequest } from './types';
 
 const VALID_STATUSES = ['active', 'in_progress', 'completed', 'cancelled', 'disputed'];
 
 /**
- * Validate ASAP create request
+ * Validate ASAP status update request
  */
-export function validateAsapCreate(data: AsapCreateRequest): void {
-  if (!data.paps_id || typeof data.paps_id !== 'string') {
-    throw new Error('PAPS ID is required');
-  }
-  if (!data.accepted_user_id || typeof data.accepted_user_id !== 'string') {
-    throw new Error('Accepted user ID is required');
+export function validateAsapStatusUpdate(data: AsapStatusUpdateRequest): void {
+  if (!data.status || !VALID_STATUSES.includes(data.status)) {
+    throw new Error(`Status is required and must be one of: ${VALID_STATUSES.join(', ')}`);
   }
 }
 
 /**
- * Validate ASAP update request
+ * Validate ASAP rating request
  */
-export function validateAsapUpdate(data: AsapUpdateRequest): void {
-  if (!data.status || !VALID_STATUSES.includes(data.status)) {
-    throw new Error(`Status is required and must be one of: ${VALID_STATUSES.join(', ')}`);
+export function validateAsapRate(data: AsapRateRequest): void {
+  if (typeof data.score !== 'number' || data.score < 1 || data.score > 5) {
+    throw new Error('Score must be an integer between 1 and 5');
   }
 }

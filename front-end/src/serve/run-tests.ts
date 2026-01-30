@@ -572,19 +572,19 @@ async function cleanupPapsForComments() {
 // SPAP TESTS
 // =============================================================================
 
-async function testSpapList() {
+async function testSpapMy() {
   try {
-    const res = await api('GET', '/spaps');
-    const count = res.data?.spaps?.length || 0;
-    success('spap.list', `Found ${count} applications`);
+    const res = await api('GET', '/spap/my');
+    const count = res.data?.applications?.length || 0;
+    success('spap.my', `Found ${count} applications`);
     return true;
   } catch (e: any) {
-    // May return empty or 404 if no applications
+    // May return empty if no applications
     if (e?.response?.status === 404) {
-      success('spap.list', 'No applications (OK)');
+      success('spap.my', 'No applications (OK)');
       return true;
     }
-    fail('spap.list', e);
+    fail('spap.my', e);
     return false;
   }
 }
@@ -593,18 +593,19 @@ async function testSpapList() {
 // ASAP TESTS
 // =============================================================================
 
-async function testAsapList() {
+async function testAsapMy() {
   try {
-    const res = await api('GET', '/asaps');
-    const count = res.data?.asaps?.length || 0;
-    success('asap.list', `Found ${count} assignments`);
+    const res = await api('GET', '/asap');
+    const workerCount = res.data?.as_worker?.length || 0;
+    const ownerCount = res.data?.as_owner?.length || 0;
+    success('asap.my', `Worker: ${workerCount}, Owner: ${ownerCount}`);
     return true;
   } catch (e: any) {
     if (e?.response?.status === 404) {
-      success('asap.list', 'No assignments (OK)');
+      success('asap.my', 'No assignments (OK)');
       return true;
     }
-    fail('asap.list', e);
+    fail('asap.my', e);
     return false;
   }
 }
@@ -615,8 +616,8 @@ async function testAsapList() {
 
 async function testPaymentsMy() {
   try {
-    const res = await api('GET', '/user/payments');
-    const count = res.data?.payments?.length || 0;
+    const res = await api('GET', '/payments');
+    const count = res.data?.payments?.length || res.data?.total_count || 0;
     success('payments.my', `Found ${count} payments`);
     return true;
   } catch (e: any) {
@@ -635,8 +636,8 @@ async function testPaymentsMy() {
 
 async function testChatList() {
   try {
-    const res = await api('GET', '/chats');
-    const count = res.data?.threads?.length || 0;
+    const res = await api('GET', '/chat');
+    const count = res.data?.threads?.length || res.data?.count || 0;
     success('chat.list', `Found ${count} threads`);
     return true;
   } catch (e: any) {
@@ -714,11 +715,11 @@ async function runTests() {
 
   // SPAP
   section('SPAP (Applications)');
-  track(await testSpapList());
+  track(await testSpapMy());
 
   // ASAP
   section('ASAP (Assignments)');
-  track(await testAsapList());
+  track(await testAsapMy());
 
   // Payments
   section('PAYMENTS');
