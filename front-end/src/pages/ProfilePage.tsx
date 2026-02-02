@@ -52,7 +52,7 @@ export default function ProfilePage({ navigation }: any) {
 
                 
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Informations personnelles</Text>
+                    <Text style={styles.sectionTitle}>Personal Informations</Text>
                     
                     <View style={styles.infoRow}>
                         <Text style={styles.label}>Name</Text>
@@ -60,7 +60,7 @@ export default function ProfilePage({ navigation }: any) {
                     </View>
 
                      <View style={styles.infoRow}>
-                        <Text style={styles.label}>Surname</Text>
+                        <Text style={styles.label}>Last Name</Text>
                         <Text style={styles.value}>{user?.last_name}</Text>
                     </View>
 
@@ -102,7 +102,7 @@ export default function ProfilePage({ navigation }: any) {
                          
                     })}
                 >
-                    <Text style={styles.editButtonText}>Modifier le profil</Text>
+                    <Text style={styles.editButtonText}>Modify Profile</Text>
                 </TouchableOpacity>
             </ScrollView>
         </View>

@@ -10,6 +10,7 @@ import SettingsPage from '../pages/SettingsPage';
 import Spap from '../spap/SpapFeed';
 import ModifyProfil from '../pages/ModifyProfil.tsx';
 import Post from '../posting/posting_page'
+import Calendar from '../calendar/Calendar'
 
 
 import { serv, getCurrentUser } from '../serve';
@@ -80,10 +81,6 @@ const Message = () => (
 )
 
 
-const Calendar = () => (
-  <View style={styles.center}><Text>Spap something...</Text></View>
-  
-)
 function MainTabs() {
   return (
     <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { height: 150 } }}>
