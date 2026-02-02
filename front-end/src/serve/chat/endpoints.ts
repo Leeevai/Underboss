@@ -160,4 +160,6 @@ export const chatEndpoints: Record<string, EndpointConfig> = {
   'chat.unreadCount': {
     method: 'GET',
     path: '/chat/{thread_id}/unread',
+    auth: true,
+  },
 };

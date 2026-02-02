@@ -64,3 +64,5 @@ export const ratingEndpoints: Record<string, EndpointConfig> = {
     path: '/asap/{asap_id}/rate',
     auth: true,
     validate: validateRatingCreate,
+  },
+};
