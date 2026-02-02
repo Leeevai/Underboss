@@ -10,12 +10,13 @@ Complete API reference for the Underboss backend system. All routes, parameters,
 4. [Profile Management](#profile-management)
 5. [Category Management](#category-management)
 6. [Job Postings (PAPS)](#job-postings-paps)
-7. [Applications (SPAP)](#applications-spap)
-8. [Assignments (ASAP)](#assignments-asap)
-9. [Payment Management](#payment-management)
-10. [Rating System](#rating-system)
-11. [Comment System](#comment-system)
-12. [Chat System](#chat-system)
+7. [PAPS Schedules](#paps-schedules)
+8. [Applications (SPAP)](#applications-spap)
+9. [Assignments (ASAP)](#assignments-asap)
+10. [Payment Management](#payment-management)
+11. [Rating System](#rating-system)
+12. [Comment System](#comment-system)
+13. [Chat System](#chat-system)
 
 ---
 
@@ -426,6 +427,7 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
   "last_name": "string|null",
   "display_name": "string|null",
   "bio": "string|null",
+  "gender": "char|null (M=Male, F=Female, O=Other, N=Prefer not to say)",
   "avatar_url": "string (URL or default)",
   "date_of_birth": "YYYY-MM-DD|null",
   "location_address": "string|null",
@@ -455,6 +457,7 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
   "last_name": "string|null",
   "display_name": "string|null",
   "bio": "string|null",
+  "gender": "char|null (M=Male, F=Female, O=Other, N=Prefer not to say)",
   "date_of_birth": "YYYY-MM-DD|null",
   "location_address": "string|null",
   "location_lat": "float (-90 to 90)|null",
@@ -468,6 +471,7 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
 - `location_lat`: -90 to 90 (decimal degrees)
 - `location_lng`: -180 to 180 (decimal degrees)
 - `date_of_birth`: ISO 8601 date format (YYYY-MM-DD)
+- `gender`: Must be one of: M (Male), F (Female), O (Other), N (Prefer not to say)
 
 **Success Response (204)**: No content
 
@@ -559,6 +563,7 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
     "start_date": "iso8601-timestamp",
     "end_date": "iso8601-timestamp|null",
     "is_current": "boolean",
+    "display_order": "integer",
     "created_at": "iso8601-timestamp",
     "updated_at": "iso8601-timestamp"
   }
@@ -580,7 +585,8 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
   "description": "string (optional)",
   "start_date": "iso8601-timestamp (required)",
   "end_date": "iso8601-timestamp (optional, must be after start_date)",
-  "is_current": "boolean (optional, default: false)"
+  "is_current": "boolean (optional, default: false)",
+  "display_order": "integer (optional, for ordering experiences)"
 }
 ```
 
@@ -617,7 +623,8 @@ http://localhost:5000/media/spap/456789ab-cdef-1234-5678-90abcdef1234.pdf
   "description": "string",
   "start_date": "iso8601-timestamp",
   "end_date": "iso8601-timestamp",
-  "is_current": "boolean"
+  "is_current": "boolean",
+  "display_order": "integer"
 }
 ```
 
@@ -1341,6 +1348,155 @@ media: [binary file data] (can be multiple files)
 - **400 Bad Request**: Invalid media ID format
 - **403 Forbidden**: Not owner or admin
 - **404 Not Found**: Media not found
+
+---
+
+### GET /paps/{paps_id}/schedules
+**Description**: Get all schedules for a PAPS  
+**Authorization**: AUTH (must be PAPS owner or admin)
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+[
+  {
+    "schedule_id": "uuid",
+    "paps_id": "uuid",
+    "recurrence_rule": "DAILY|WEEKLY|MONTHLY|YEARLY|CRON",
+    "cron_expression": "string|null",
+    "start_date": "iso8601-timestamp|null",
+    "end_date": "iso8601-timestamp|null",
+    "next_run_at": "iso8601-timestamp|null",
+    "is_active": "boolean",
+    "created_at": "iso8601-timestamp",
+    "updated_at": "iso8601-timestamp"
+  }
+]
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid PAPS ID format
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS not found
+
+---
+
+### POST /paps/{paps_id}/schedules
+**Description**: Create a schedule for a PAPS  
+**Authorization**: AUTH (must be PAPS owner or admin)  
+**Content-Type**: application/json
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "recurrence_rule": "string (required: daily, weekly, monthly, yearly, cron)",
+  "cron_expression": "string (required if recurrence_rule is 'cron')",
+  "start_date": "iso8601-timestamp (optional, when schedule starts)",
+  "end_date": "iso8601-timestamp (optional, when schedule expires)",
+  "next_run_at": "iso8601-timestamp (optional, computed if not provided)"
+}
+```
+
+**Validation Rules**:
+- `recurrence_rule`: Must be one of: daily, weekly, monthly, yearly, cron (case-insensitive input, stored as uppercase)
+- `cron_expression`: Required when recurrence_rule is 'cron'
+- `end_date`: Must be after or equal to start_date if both provided
+- `start_date`: Required, defaults to current date if not provided
+
+**Success Response (201)**:
+```json
+{
+  "schedule_id": "uuid"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid recurrence_rule, date format, or missing cron_expression for cron
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS not found
+
+---
+
+### GET /paps/{paps_id}/schedules/{schedule_id}
+**Description**: Get specific schedule details  
+**Authorization**: AUTH (must be PAPS owner or admin)
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+- `schedule_id`: string (UUID)
+
+**Success Response (200)**:
+```json
+{
+  "schedule_id": "uuid",
+  "paps_id": "uuid",
+  "recurrence_rule": "string",
+  "cron_expression": "string|null",
+  "start_date": "iso8601-timestamp|null",
+  "end_date": "iso8601-timestamp|null",
+  "next_run_at": "iso8601-timestamp|null",
+  "is_active": "boolean",
+  "created_at": "iso8601-timestamp",
+  "updated_at": "iso8601-timestamp"
+}
+```
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ID format or schedule doesn't belong to PAPS
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS or schedule not found
+
+---
+
+### PUT /paps/{paps_id}/schedules/{schedule_id}
+**Description**: Update a schedule  
+**Authorization**: AUTH (must be PAPS owner or admin)  
+**Content-Type**: application/json
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+- `schedule_id`: string (UUID)
+
+**Request Body** (all optional):
+```json
+{
+  "recurrence_rule": "string",
+  "cron_expression": "string",
+  "start_date": "iso8601-timestamp",
+  "end_date": "iso8601-timestamp",
+  "next_run_at": "iso8601-timestamp",
+  "is_active": "boolean"
+}
+```
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid validation, ID format, or schedule doesn't belong to PAPS
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS or schedule not found
+
+---
+
+### DELETE /paps/{paps_id}/schedules/{schedule_id}
+**Description**: Delete a schedule  
+**Authorization**: AUTH (must be PAPS owner or admin)
+
+**Path Parameters**:
+- `paps_id`: string (UUID)
+- `schedule_id`: string (UUID)
+
+**Success Response (204)**: No content
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ID format or schedule doesn't belong to PAPS
+- **403 Forbidden**: Not owner or admin
+- **404 Not Found**: PAPS or schedule not found
 
 ---
 
@@ -2480,6 +2636,38 @@ or if cannot rate:
 - **400 Bad Request**: Content empty/too long or invalid message type
 - **403 Forbidden**: Not a participant, has left, or trying to send system message
 - **404 Not Found**: Thread not found
+
+---
+
+### PUT /chat/{thread_id}/messages/{message_id}
+**Description**: Edit a chat message  
+**Authorization**: AUTH (must be message sender or admin)
+
+**Path Parameters**:
+- `thread_id`: string (UUID)
+- `message_id`: string (UUID)
+
+**Request Body**:
+```json
+{
+  "content": "string (required, 1-5000 chars)"
+}
+```
+
+**Validation Rules**:
+- Only the original sender can edit their own messages
+- System messages cannot be edited
+- Content cannot be empty or exceed 5000 characters
+
+**Success Response (204)**: No content
+
+**Side Effects**:
+- Sets `edited_at` timestamp on the message
+
+**Error Responses**:
+- **400 Bad Request**: Content empty/too long, invalid ID format, system message, or message not in thread
+- **403 Forbidden**: Not the message sender
+- **404 Not Found**: Message not found
 
 ---
 

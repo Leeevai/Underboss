@@ -113,7 +113,7 @@ FROM USER_PROFILE up
 JOIN "USER" u ON up.user_id = u.id
 WHERE up.user_id = :user_id::uuid;
 
--- name: update_user_profile(user_id, first_name, last_name, display_name, bio, avatar_url, date_of_birth, location_address, location_lat, location_lng, timezone, preferred_language)!
+-- name: update_user_profile(user_id, first_name, last_name, display_name, bio, avatar_url, date_of_birth, gender, location_address, location_lat, location_lng, timezone, preferred_language)!
 UPDATE USER_PROFILE SET
     first_name = COALESCE(:first_name, first_name),
     last_name = COALESCE(:last_name, last_name),
@@ -121,6 +121,7 @@ UPDATE USER_PROFILE SET
     bio = COALESCE(:bio, bio),
     avatar_url = COALESCE(:avatar_url, avatar_url),
     date_of_birth = COALESCE(:date_of_birth, date_of_birth),
+    gender = COALESCE(:gender, gender),
     location_address = COALESCE(:location_address, location_address),
     location_lat = COALESCE(:location_lat, location_lat),
     location_lng = COALESCE(:location_lng, location_lng),
@@ -152,19 +153,20 @@ ORDER BY display_order, start_date DESC;
 -- name: get_user_experience_by_id(exp_id)^
 SELECT * FROM USER_EXPERIENCE WHERE id = :exp_id::uuid;
 
--- name: insert_user_experience(user_id, title, company, description, start_date, end_date, is_current)$
-INSERT INTO USER_EXPERIENCE (user_id, title, company, description, start_date, end_date, is_current)
-VALUES (:user_id::uuid, :title, :company, :description, :start_date, :end_date, :is_current)
+-- name: insert_user_experience(user_id, title, company, description, start_date, end_date, is_current, display_order)$
+INSERT INTO USER_EXPERIENCE (user_id, title, company, description, start_date, end_date, is_current, display_order)
+VALUES (:user_id::uuid, :title, :company, :description, :start_date, :end_date, :is_current, COALESCE(:display_order, 0))
 RETURNING id::text;
 
--- name: update_user_experience(exp_id, title, company, description, start_date, end_date, is_current)!
+-- name: update_user_experience(exp_id, title, company, description, start_date, end_date, is_current, display_order)!
 UPDATE USER_EXPERIENCE SET
     title = COALESCE(:title, title),
     company = COALESCE(:company, company),
     description = COALESCE(:description, description),
     start_date = COALESCE(:start_date, start_date),
     end_date = COALESCE(:end_date, end_date),
-    is_current = COALESCE(:is_current, is_current)
+    is_current = COALESCE(:is_current, is_current),
+    display_order = COALESCE(:display_order, display_order)
 WHERE id = :exp_id::uuid;
 
 -- name: delete_user_experience(exp_id)!
@@ -1361,6 +1363,11 @@ INSERT INTO CHAT_MESSAGE (thread_id, sender_id, content, message_type, attachmen
 VALUES (:thread_id::uuid, :sender_id::uuid, :content, :message_type, :attachment_url)
 RETURNING id::text;
 
+-- Update chat message content
+-- name: update_chat_message(message_id, content)!
+UPDATE CHAT_MESSAGE SET content = :content, edited_at = CURRENT_TIMESTAMP
+WHERE id = :message_id::uuid;
+
 -- Mark message as read
 -- name: mark_message_read(message_id)!
 UPDATE CHAT_MESSAGE SET is_read = TRUE, read_at = CURRENT_TIMESTAMP
@@ -1446,3 +1453,96 @@ FROM ASAP a
 WHERE a.status = 'completed' 
   AND a.completed_at IS NOT NULL 
   AND a.completed_at < CURRENT_TIMESTAMP - (:days_old || ' days')::interval;
+
+-- ============================================
+-- PAPS SCHEDULE QUERIES (Recurring Jobs)
+-- ============================================
+
+-- Get all schedules for a PAPS
+-- name: get_paps_schedules(paps_id)
+SELECT 
+    id::text as schedule_id,
+    paps_id::text,
+    recurrence_rule,
+    cron_expression,
+    start_date,
+    end_date,
+    next_run_at,
+    last_run_at,
+    is_active,
+    created_at,
+    updated_at
+FROM PAPS_SCHEDULE
+WHERE paps_id = :paps_id::uuid
+ORDER BY start_date;
+
+-- Get a specific schedule
+-- name: get_paps_schedule_by_id(schedule_id)^
+SELECT 
+    ps.id::text as schedule_id,
+    ps.paps_id::text,
+    ps.recurrence_rule,
+    ps.cron_expression,
+    ps.start_date,
+    ps.end_date,
+    ps.next_run_at,
+    ps.last_run_at,
+    ps.is_active,
+    ps.created_at,
+    ps.updated_at,
+    p.owner_id::text
+FROM PAPS_SCHEDULE ps
+JOIN PAPS p ON ps.paps_id = p.id
+WHERE ps.id = :schedule_id::uuid;
+
+-- Create a schedule
+-- name: insert_paps_schedule(paps_id, recurrence_rule, cron_expression, start_date, end_date, next_run_at)$
+INSERT INTO PAPS_SCHEDULE (paps_id, recurrence_rule, cron_expression, start_date, end_date, next_run_at)
+VALUES (:paps_id::uuid, :recurrence_rule, :cron_expression, :start_date, :end_date, :next_run_at)
+RETURNING id::text;
+
+-- Update a schedule
+-- name: update_paps_schedule(schedule_id, recurrence_rule, cron_expression, start_date, end_date, next_run_at, is_active)!
+UPDATE PAPS_SCHEDULE SET
+    recurrence_rule = COALESCE(:recurrence_rule, recurrence_rule),
+    cron_expression = COALESCE(:cron_expression, cron_expression),
+    start_date = COALESCE(:start_date, start_date),
+    end_date = COALESCE(:end_date, end_date),
+    next_run_at = COALESCE(:next_run_at, next_run_at),
+    is_active = COALESCE(:is_active, is_active),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = :schedule_id::uuid;
+
+-- Update last_run_at after schedule executes
+-- name: update_schedule_last_run(schedule_id, next_run_at)!
+UPDATE PAPS_SCHEDULE SET 
+    last_run_at = CURRENT_TIMESTAMP,
+    next_run_at = :next_run_at
+WHERE id = :schedule_id::uuid;
+
+-- Delete a schedule
+-- name: delete_paps_schedule(schedule_id)!
+DELETE FROM PAPS_SCHEDULE WHERE id = :schedule_id::uuid;
+
+-- Delete all schedules for a PAPS
+-- name: delete_paps_schedules(paps_id)!
+DELETE FROM PAPS_SCHEDULE WHERE paps_id = :paps_id::uuid;
+
+-- Get active schedules due for execution
+-- name: get_due_schedules()
+SELECT 
+    ps.id::text as schedule_id,
+    ps.paps_id::text,
+    ps.recurrence_rule,
+    ps.cron_expression,
+    ps.start_date,
+    ps.end_date,
+    ps.next_run_at,
+    p.owner_id::text
+FROM PAPS_SCHEDULE ps
+JOIN PAPS p ON ps.paps_id = p.id
+WHERE ps.is_active = TRUE
+  AND ps.next_run_at IS NOT NULL
+  AND ps.next_run_at <= CURRENT_TIMESTAMP
+  AND (ps.end_date IS NULL OR ps.end_date >= CURRENT_DATE)
+  AND p.deleted_at IS NULL;

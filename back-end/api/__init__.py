@@ -14,6 +14,7 @@ from . import payment
 from . import rating
 from . import user
 from . import comment
+from . import schedule
 
 def register_routes(app):
     """Register all API route modules with the Flask app."""
@@ -29,3 +30,4 @@ def register_routes(app):
     rating.register_routes(app)
     user.register_routes(app)
     comment.register_routes(app)
+    schedule.register_routes(app)

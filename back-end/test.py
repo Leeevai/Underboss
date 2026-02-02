@@ -2595,3 +2595,439 @@ def test_full_workflow(api):
     api.setPass(worker, None)
     
     log.info("Full workflow test completed successfully!")
+
+
+# ===========================================================================
+# Profile Gender Field Tests
+# ===========================================================================
+
+def test_profile_gender_field(api):
+    """Test the gender field on user profiles."""
+    import uuid
+    
+    suffix = uuid.uuid4().hex[:8]
+    user = f"genderuser{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(user, pswd)
+    
+    # Register user
+    api.post("/register", 201, json={
+        "username": user,
+        "email": f"{user}@test.com",
+        "password": pswd
+    }, login=None)
+    user_token = api.get("/login", 200, login=user).json
+    api.setToken(user, user_token.get("token") if isinstance(user_token, dict) else user_token)
+    
+    # Get profile - gender should be null initially
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    assert res.json.get("gender") is None or res.json.get("gender") == ""
+    
+    # Update profile with gender - M (male)
+    api.patch(f"/user/{user}/profile", 204, data={
+        "gender": "M"
+    }, login=user)
+    
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    assert res.json["gender"] == "M"
+    
+    # Update gender to F (female)
+    api.patch(f"/user/{user}/profile", 204, data={
+        "gender": "F"
+    }, login=user)
+    
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    assert res.json["gender"] == "F"
+    
+    # Update gender to O (other)
+    api.patch(f"/user/{user}/profile", 204, data={
+        "gender": "O"
+    }, login=user)
+    
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    assert res.json["gender"] == "O"
+    
+    # Update gender to N (prefer not to say / non-binary)
+    api.patch(f"/user/{user}/profile", 204, data={
+        "gender": "N"
+    }, login=user)
+    
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    assert res.json["gender"] == "N"
+    
+    # Test invalid gender value
+    api.patch(f"/user/{user}/profile", 400, data={
+        "gender": "invalid"
+    }, login=user)
+    
+    # Verify gender is unchanged after invalid update
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    assert res.json["gender"] == "N"
+    
+    # Cleanup
+    user_id = res.json["user_id"]
+    api.delete(f"/users/{user_id}", 204, login=ADMIN)
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+
+# ===========================================================================
+# Experience Display Order Tests
+# ===========================================================================
+
+def test_experience_display_order(api):
+    """Test the display_order field on user experiences."""
+    import uuid
+    
+    suffix = uuid.uuid4().hex[:8]
+    user = f"exporderuser{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(user, pswd)
+    
+    # Register user
+    api.post("/register", 201, json={
+        "username": user,
+        "email": f"{user}@test.com",
+        "password": pswd
+    }, login=None)
+    user_token = api.get("/login", 200, login=user).json
+    api.setToken(user, user_token.get("token") if isinstance(user_token, dict) else user_token)
+    
+    # Create experiences with display_order
+    res = api.post("/profile/experiences", 201, json={
+        "title": "Third Position",
+        "company": "Company C",
+        "start_date": "2018-01-01",
+        "display_order": 3
+    }, login=user)
+    exp_id3 = res.json.get("experience_id")
+    
+    res = api.post("/profile/experiences", 201, json={
+        "title": "First Position",
+        "company": "Company A",
+        "start_date": "2020-01-01",
+        "display_order": 1
+    }, login=user)
+    exp_id1 = res.json.get("experience_id")
+    
+    res = api.post("/profile/experiences", 201, json={
+        "title": "Second Position",
+        "company": "Company B",
+        "start_date": "2019-01-01",
+        "display_order": 2
+    }, login=user)
+    exp_id2 = res.json.get("experience_id")
+    
+    # Get experiences - should be ordered by display_order
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
+    assert len(res.json) == 3
+    assert res.json[0]["title"] == "First Position"
+    assert res.json[1]["title"] == "Second Position"
+    assert res.json[2]["title"] == "Third Position"
+    
+    # Update display_order
+    api.patch(f"/profile/experiences/{exp_id3}", 204, json={
+        "display_order": 0
+    }, login=user)
+    
+    # Now Third Position should be first
+    res = api.get(f"/user/{user}/profile/experiences", 200, login=None)
+    assert res.json[0]["title"] == "Third Position"
+    
+    # Cleanup
+    api.delete(f"/profile/experiences/{exp_id1}", 204, login=user)
+    api.delete(f"/profile/experiences/{exp_id2}", 204, login=user)
+    api.delete(f"/profile/experiences/{exp_id3}", 204, login=user)
+    
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    user_id = res.json["user_id"]
+    api.delete(f"/users/{user_id}", 204, login=ADMIN)
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+
+# ===========================================================================
+# Chat Message Editing Tests
+# ===========================================================================
+
+def test_chat_message_editing(api):
+    """Test editing chat messages."""
+    import datetime
+    import uuid
+    
+    suffix = uuid.uuid4().hex[:8]
+    owner = f"editmsgowner{suffix}"
+    worker = f"editmsgworker{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+    
+    # Register users
+    api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": pswd
+    }, login=None)
+    owner_token = api.get("/login", 200, login=owner).json
+    api.setToken(owner, owner_token.get("token") if isinstance(owner_token, dict) else owner_token)
+    
+    api.post("/register", 201, json={
+        "username": worker,
+        "email": f"{worker}@test.com",
+        "password": pswd
+    }, login=None)
+    worker_token = api.get("/login", 200, login=worker).json
+    api.setToken(worker, worker_token.get("token") if isinstance(worker_token, dict) else worker_token)
+    
+    # Create future date
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+    
+    # Create PAPS and apply to get chat thread
+    res = api.post("/paps", 201, json={
+        "title": "Message Edit Test Job",
+        "description": "Testing chat message editing.",
+        "payment_type": "fixed",
+        "payment_amount": 300.00,
+        "payment_currency": "USD",
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+    
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "Interested in this project."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+    thread_id = res.json.get("chat_thread_id")
+    
+    # Send a message from owner
+    res = api.post(f"/chat/{thread_id}/messages", 201, json={
+        "content": "Original message content"
+    }, login=owner)
+    msg_id = res.json.get("message_id")
+    
+    # Verify original message
+    res = api.get(f"/chat/{thread_id}/messages", 200, login=owner)
+    original_msg = [m for m in res.json["messages"] if m.get("message_id") == msg_id or m.get("id") == msg_id][0]
+    assert "Original message content" in original_msg["content"]
+    
+    # Edit the message
+    api.put(f"/chat/{thread_id}/messages/{msg_id}", 204, json={
+        "content": "Edited message content"
+    }, login=owner)
+    
+    # Verify message was edited
+    res = api.get(f"/chat/{thread_id}/messages", 200, login=owner)
+    edited_msg = [m for m in res.json["messages"] if m.get("message_id") == msg_id or m.get("id") == msg_id][0]
+    assert "Edited message content" in edited_msg["content"]
+    
+    # Worker cannot edit owner's message
+    api.put(f"/chat/{thread_id}/messages/{msg_id}", 403, json={
+        "content": "Hacking attempt"
+    }, login=worker)
+    
+    # Worker sends their own message
+    res = api.post(f"/chat/{thread_id}/messages", 201, json={
+        "content": "Worker original message"
+    }, login=worker)
+    worker_msg_id = res.json.get("message_id")
+    
+    # Worker can edit their own message
+    api.put(f"/chat/{thread_id}/messages/{worker_msg_id}", 204, json={
+        "content": "Worker edited message"
+    }, login=worker)
+    
+    # Owner cannot edit worker's message
+    api.put(f"/chat/{thread_id}/messages/{worker_msg_id}", 403, json={
+        "content": "Owner hacking"
+    }, login=owner)
+    
+    # Third party cannot edit any message
+    api.put(f"/chat/{thread_id}/messages/{msg_id}", 403, json={
+        "content": "Third party hacking"
+    }, login=NOADM)
+    
+    # Test invalid message ID
+    api.put(f"/chat/{thread_id}/messages/00000000-0000-0000-0000-000000000000", 404, json={
+        "content": "Invalid message"
+    }, login=owner)
+    
+    # Test empty content
+    api.put(f"/chat/{thread_id}/messages/{msg_id}", 400, json={
+        "content": ""
+    }, login=owner)
+    
+    # Cleanup - worker withdraws their application, then delete PAPS
+    api.delete(f"/spap/{spap_id}", 204, login=worker)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    owner_id = res.json["user_id"]
+    api.delete(f"/users/{owner_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_id = res.json["user_id"]
+    api.delete(f"/users/{worker_id}", 204, login=ADMIN)
+    
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(worker, None)
+    api.setPass(worker, None)
+
+
+# ===========================================================================
+# PAPS Schedule Tests
+# ===========================================================================
+
+def test_paps_schedules(api):
+    """Test PAPS schedule management."""
+    import datetime
+    import uuid
+    
+    suffix = uuid.uuid4().hex[:8]
+    owner = f"schedowner{suffix}"
+    other = f"schedother{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(other, pswd)
+    
+    # Register users
+    api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": pswd
+    }, login=None)
+    owner_token = api.get("/login", 200, login=owner).json
+    api.setToken(owner, owner_token.get("token") if isinstance(owner_token, dict) else owner_token)
+    
+    api.post("/register", 201, json={
+        "username": other,
+        "email": f"{other}@test.com",
+        "password": pswd
+    }, login=None)
+    other_token = api.get("/login", 200, login=other).json
+    api.setToken(other, other_token.get("token") if isinstance(other_token, dict) else other_token)
+    
+    # Create future dates
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+    schedule_start = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).isoformat()
+    schedule_end = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).isoformat()
+    
+    # Create a PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Schedule Test Job",
+        "description": "Testing PAPS schedules.",
+        "payment_type": "hourly",
+        "payment_amount": 50.00,
+        "payment_currency": "USD",
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+    
+    # Get schedules - empty initially
+    res = api.get(f"/paps/{paps_id}/schedules", 200, login=owner)
+    assert res.json == []
+    
+    # Create a daily schedule (API accepts lowercase, DB stores uppercase)
+    res = api.post(f"/paps/{paps_id}/schedules", 201, json={
+        "recurrence_rule": "daily",
+        "start_date": schedule_start,
+        "end_date": schedule_end
+    }, login=owner)
+    schedule_id1 = res.json.get("schedule_id")
+    
+    # Create a weekly schedule
+    res = api.post(f"/paps/{paps_id}/schedules", 201, json={
+        "recurrence_rule": "weekly",
+        "start_date": schedule_start
+    }, login=owner)
+    schedule_id2 = res.json.get("schedule_id")
+    
+    # Get all schedules
+    res = api.get(f"/paps/{paps_id}/schedules", 200, login=owner)
+    assert len(res.json) == 2
+    
+    # Get specific schedule (DB returns uppercase)
+    res = api.get(f"/paps/{paps_id}/schedules/{schedule_id1}", 200, login=owner)
+    assert res.json["recurrence_rule"] == "DAILY"
+    
+    # Update schedule (use valid DB value: MONTHLY instead of biweekly)
+    api.put(f"/paps/{paps_id}/schedules/{schedule_id1}", 204, json={
+        "recurrence_rule": "monthly",
+        "is_active": False
+    }, login=owner)
+    
+    res = api.get(f"/paps/{paps_id}/schedules/{schedule_id1}", 200, login=owner)
+    assert res.json["recurrence_rule"] == "MONTHLY"
+    assert res.json["is_active"] == False
+    
+    # Other user cannot view schedules
+    api.get(f"/paps/{paps_id}/schedules", 403, login=other)
+    
+    # Other user cannot create schedules
+    api.post(f"/paps/{paps_id}/schedules", 403, json={
+        "recurrence_rule": "monthly"
+    }, login=other)
+    
+    # Other user cannot update schedules
+    api.put(f"/paps/{paps_id}/schedules/{schedule_id1}", 403, json={
+        "is_active": True
+    }, login=other)
+    
+    # Other user cannot delete schedules
+    api.delete(f"/paps/{paps_id}/schedules/{schedule_id1}", 403, login=other)
+    
+    # Test invalid recurrence_rule
+    api.post(f"/paps/{paps_id}/schedules", 400, json={
+        "recurrence_rule": "invalid-rule"
+    }, login=owner)
+    
+    # Test cron rule without cron_expression
+    api.post(f"/paps/{paps_id}/schedules", 400, json={
+        "recurrence_rule": "cron"
+    }, login=owner)
+    
+    # Test cron rule with cron_expression
+    res = api.post(f"/paps/{paps_id}/schedules", 201, json={
+        "recurrence_rule": "cron",
+        "cron_expression": "0 9 * * MON-FRI"
+    }, login=owner)
+    schedule_id3 = res.json.get("schedule_id")
+    
+    # Delete schedule
+    api.delete(f"/paps/{paps_id}/schedules/{schedule_id1}", 204, login=owner)
+    
+    # Verify deletion
+    api.get(f"/paps/{paps_id}/schedules/{schedule_id1}", 404, login=owner)
+    
+    # Test invalid PAPS ID
+    api.get("/paps/invalid-uuid/schedules", 400, login=owner)
+    
+    # Test non-existent PAPS
+    api.get("/paps/00000000-0000-0000-0000-000000000000/schedules", 404, login=owner)
+    
+    # Admin can view schedules
+    res = api.get(f"/paps/{paps_id}/schedules", 200, login=ADMIN)
+    assert len(res.json) == 2
+    
+    # Cleanup - delete remaining schedules
+    api.delete(f"/paps/{paps_id}/schedules/{schedule_id2}", 204, login=owner)
+    api.delete(f"/paps/{paps_id}/schedules/{schedule_id3}", 204, login=owner)
+    
+    # Delete PAPS
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    
+    # Delete users
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    owner_id = res.json["user_id"]
+    api.delete(f"/users/{owner_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{other}/profile", 200, login=None)
+    other_id = res.json["user_id"]
+    api.delete(f"/users/{other_id}", 204, login=ADMIN)
+    
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(other, None)
+    api.setPass(other, None)

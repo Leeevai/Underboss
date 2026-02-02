@@ -441,6 +441,29 @@ test_profile_management() {
     read status response <<< $(api_call "PATCH" "/profile" "$user_token" "$profile_data")
     check_status 204 "$status" "Profile partially updated"
     rm -f "$response"
+
+    # Test 3a: Update profile gender field
+    print_test "PATCH /profile - Update gender field"
+    profile_data='{"gender": "M"}'
+    read status response <<< $(api_call "PATCH" "/profile" "$user_token" "$profile_data")
+    check_status 204 "$status" "Gender updated"
+    rm -f "$response"
+
+    # Test 3b: Verify gender field was saved
+    print_test "GET /profile - Verify gender field saved"
+    read status response <<< $(api_call "GET" "/profile" "$user_token")
+    if check_status 200 "$status" "Profile with gender retrieved"; then
+        gender=$(extract_json "$response" "gender")
+        echo "  Gender: $gender"
+    fi
+    rm -f "$response"
+
+    # Test 3c: Test invalid gender value
+    print_test "PATCH /profile - Invalid gender (should fail)"
+    profile_data='{"gender": "invalid"}'
+    read status response <<< $(api_call "PATCH" "/profile" "$user_token" "$profile_data")
+    check_status 400 "$status" "Invalid gender rejected"
+    rm -f "$response"
     
     # Test 4: Update profile with location coordinates
     print_test "PUT /profile - Update with coordinates"
@@ -474,11 +497,21 @@ test_profile_management() {
     
     # Test 8: Add work experience
     print_test "POST /profile/experiences - Add work experience"
-    exp_data='{"title": "Software Engineer", "company": "Tech Corp", "start_date": "2020-01-01", "end_date": "2023-12-31", "description": "Developed awesome software", "is_current": false}'
+    exp_data='{"title": "Software Engineer", "company": "Tech Corp", "start_date": "2020-01-01", "end_date": "2023-12-31", "description": "Developed awesome software", "is_current": false, "display_order": 1}'
     read status response <<< $(api_call "POST" "/profile/experiences" "$user_token" "$exp_data")
     if check_status 201 "$status" "Experience added"; then
         EXPERIENCE_ID=$(extract_json "$response" "experience_id")
         echo "  Experience ID: $EXPERIENCE_ID"
+    fi
+    rm -f "$response"
+
+    # Test 8a: Add second experience with different display_order
+    print_test "POST /profile/experiences - Add second experience with display_order"
+    exp_data='{"title": "Junior Developer", "company": "Startup Inc", "start_date": "2018-01-01", "end_date": "2019-12-31", "description": "Early career work", "is_current": false, "display_order": 2}'
+    read status response <<< $(api_call "POST" "/profile/experiences" "$user_token" "$exp_data")
+    if check_status 201 "$status" "Second experience added"; then
+        EXPERIENCE_ID2=$(extract_json "$response" "experience_id")
+        echo "  Experience ID 2: $EXPERIENCE_ID2"
     fi
     rm -f "$response"
     
@@ -746,21 +779,85 @@ EOF
     rm -f "$response"
     
     # Test 15: Add schedule
-    print_test "POST /paps/{id}/schedule - Add schedule entry"
-    schedule_data='{"start_time": "2026-02-01T09:00:00Z", "end_time": "2026-02-01T17:00:00Z", "is_recurring": false}'
-    read status response <<< $(api_call "POST" "/paps/$PUBLISHED_PAPS_ID/schedule" "$user_token" "$schedule_data")
-    if check_status 201 "$status" "Schedule added"; then
+    print_test "POST /paps/{id}/schedules - Create schedule"
+    schedule_data='{"recurrence_rule": "weekly", "start_date": "2026-02-01T09:00:00Z", "end_date": "2026-06-01T17:00:00Z"}'
+    read status response <<< $(api_call "POST" "/paps/$PUBLISHED_PAPS_ID/schedules" "$user_token" "$schedule_data")
+    if check_status 201 "$status" "Schedule created"; then
         SCHEDULE_ID=$(extract_json "$response" "schedule_id")
+        echo "  Schedule ID: $SCHEDULE_ID"
+    fi
+    rm -f "$response"
+
+    # Test 15a: Create daily schedule
+    print_test "POST /paps/{id}/schedules - Create daily schedule"
+    schedule_data='{"recurrence_rule": "daily", "start_date": "2026-03-01T08:00:00Z"}'
+    read status response <<< $(api_call "POST" "/paps/$PUBLISHED_PAPS_ID/schedules" "$user_token" "$schedule_data")
+    if check_status 201 "$status" "Daily schedule created"; then
+        DAILY_SCHEDULE_ID=$(extract_json "$response" "schedule_id")
+        echo "  Daily Schedule ID: $DAILY_SCHEDULE_ID"
+    fi
+    rm -f "$response"
+
+    # Test 15b: Create cron schedule
+    print_test "POST /paps/{id}/schedules - Create cron schedule"
+    schedule_data='{"recurrence_rule": "cron", "cron_expression": "0 9 * * MON,WED,FRI"}'
+    read status response <<< $(api_call "POST" "/paps/$PUBLISHED_PAPS_ID/schedules" "$user_token" "$schedule_data")
+    if check_status 201 "$status" "Cron schedule created"; then
+        CRON_SCHEDULE_ID=$(extract_json "$response" "schedule_id")
+        echo "  Cron Schedule ID: $CRON_SCHEDULE_ID"
     fi
     rm -f "$response"
     
-    # Test 16: Get schedule
-    print_test "GET /paps/{id}/schedule - Get schedule"
-    read status response <<< $(api_call "GET" "/paps/$PUBLISHED_PAPS_ID/schedule" "$user_token")
-    if check_status 200 "$status" "Schedule retrieved"; then
+    # Test 15c: Create cron schedule without cron expression (should fail)
+    print_test "POST /paps/{id}/schedules - Cron without expression (should fail)"
+    schedule_data='{"recurrence_rule": "cron"}'
+    read status response <<< $(api_call "POST" "/paps/$PUBLISHED_PAPS_ID/schedules" "$user_token" "$schedule_data")
+    check_status 400 "$status" "Cron without expression rejected"
+    rm -f "$response"
+    
+    # Test 16: Get schedules
+    print_test "GET /paps/{id}/schedules - Get all schedules"
+    read status response <<< $(api_call "GET" "/paps/$PUBLISHED_PAPS_ID/schedules" "$user_token")
+    if check_status 200 "$status" "Schedules retrieved"; then
         schedule_count=$(jq 'length' < "$response")
         echo "  Schedule entries: $schedule_count"
     fi
+    rm -f "$response"
+
+    # Test 16a: Get specific schedule
+    print_test "GET /paps/{id}/schedules/{schedule_id} - Get specific schedule"
+    read status response <<< $(api_call "GET" "/paps/$PUBLISHED_PAPS_ID/schedules/$SCHEDULE_ID" "$user_token")
+    if check_status 200 "$status" "Specific schedule retrieved"; then
+        recurrence=$(extract_json "$response" "recurrence_rule")
+        echo "  Recurrence: $recurrence"
+    fi
+    rm -f "$response"
+
+    # Test 16b: Update schedule
+    print_test "PUT /paps/{id}/schedules/{schedule_id} - Update schedule"
+    schedule_data='{"recurrence_rule": "monthly", "is_active": true}'
+    read status response <<< $(api_call "PUT" "/paps/$PUBLISHED_PAPS_ID/schedules/$SCHEDULE_ID" "$user_token" "$schedule_data")
+    check_status 204 "$status" "Schedule updated"
+    rm -f "$response"
+
+    # Test 16c: Deactivate schedule
+    print_test "PUT /paps/{id}/schedules/{schedule_id} - Deactivate schedule"
+    schedule_data='{"is_active": false}'
+    read status response <<< $(api_call "PUT" "/paps/$PUBLISHED_PAPS_ID/schedules/$DAILY_SCHEDULE_ID" "$user_token" "$schedule_data")
+    check_status 204 "$status" "Schedule deactivated"
+    rm -f "$response"
+
+    # Test 16d: Delete schedule
+    print_test "DELETE /paps/{id}/schedules/{schedule_id} - Delete schedule"
+    read status response <<< $(api_call "DELETE" "/paps/$PUBLISHED_PAPS_ID/schedules/$CRON_SCHEDULE_ID" "$user_token")
+    check_status 204 "$status" "Schedule deleted"
+    rm -f "$response"
+
+    # Test 16e: Non-owner cannot access schedules
+    print_test "GET /paps/{id}/schedules - Non-owner access (should fail)"
+    local other_token=$(get_user_token "$TEST_USER" "$TEST_PASS")
+    read status response <<< $(api_call "GET" "/paps/$PUBLISHED_PAPS_ID/schedules" "$other_token")
+    check_status 403 "$status" "Non-owner schedule access rejected"
     rm -f "$response"
 }
 

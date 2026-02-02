@@ -142,6 +142,40 @@ def register_routes(app):
 
         return fsa.jsonify({"message_id": message_id}), 201
 
+    # PUT /chat/<thread_id>/messages/<message_id> - edit a message
+    @app.put("/chat/<thread_id>/messages/<message_id>", authz="AUTH")
+    def edit_message(thread_id: str, message_id: str, auth: model.CurrentAuth, content: str):
+        """Edit a chat message. Only the sender can edit their own messages."""
+        try:
+            uuid.UUID(thread_id)
+            uuid.UUID(message_id)
+        except ValueError:
+            return {"error": "Invalid ID format"}, 400
+
+        fsa.checkVal(len(content.strip()) >= 1, "Message content cannot be empty", 400)
+        fsa.checkVal(len(content) <= 5000, "Message content too long (max 5000 chars)", 400)
+
+        # Get the message to check ownership
+        message = db.get_chat_message_by_id(message_id=message_id)
+        if not message:
+            return {"error": "Message not found"}, 404
+
+        # Verify the message belongs to this thread
+        if message['thread_id'] != thread_id:
+            return {"error": "Message does not belong to this thread"}, 400
+
+        # Only the sender can edit (or admin)
+        if not auth.is_admin and message['sender_id'] != auth.aid:
+            return {"error": "Only the message sender can edit this message"}, 403
+
+        # System messages cannot be edited
+        if message.get('message_type') == 'system':
+            return {"error": "System messages cannot be edited"}, 400
+
+        db.update_chat_message(message_id=message_id, content=content.strip())
+
+        return "", 204
+
     # PUT /chat/<thread_id>/messages/<message_id>/read - mark message as read
     @app.put("/chat/<thread_id>/messages/<message_id>/read", authz="AUTH")
     def mark_message_read(thread_id: str, message_id: str, auth: model.CurrentAuth):

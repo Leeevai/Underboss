@@ -59,14 +59,17 @@ curl http://localhost:5000/uptime
 - Update password/email/admin status
 - Get non-existent user
 
-### Profile Management (11 tests)
+### Profile Management (15 tests)
 - Get current profile
 - Update profile (PUT/PATCH)
 - Update location with coordinates
 - Invalid latitude/longitude
 - Date of birth
+- **Gender field** (male, female, non-binary, other, prefer-not-to-say)
+- **Invalid gender value** (should fail)
 - Public profile viewing
 - Add/update/delete work experience
+- **Experience display_order** for custom ordering
 - List experiences
 
 ### Categories (9 tests)
@@ -78,7 +81,7 @@ curl http://localhost:5000/uptime
 - Add/remove user interests
 - List interests
 
-### Job Postings - PAPS (16 tests)
+### Job Postings - PAPS (22 tests)
 - Create draft/published posting
 - List all postings
 - Filter by status/owner/category
@@ -88,7 +91,14 @@ curl http://localhost:5000/uptime
 - Sorting and pagination
 - Get specific posting details
 - Update posting (PUT/PATCH)
-- Add/get schedule entries
+- **Create schedule** (once, daily, weekly, biweekly, monthly, custom)
+- **Get all schedules**
+- **Get specific schedule**
+- **Update schedule** (recurrence, dates, is_active)
+- **Delete schedule**
+- **Custom schedule with cron expression**
+- **Custom without cron (should fail)**
+- **Non-owner schedule access (should fail)**
 - Media upload
 
 ### Applications - SPAP (10 tests)
@@ -135,6 +145,20 @@ curl http://localhost:5000/uptime
 - Update comment
 - Delete comment (soft delete)
 - Pagination
+
+### Chat (12 tests)
+- Get user's chat threads
+- Get specific thread details
+- Get thread messages
+- Send message
+- **Edit message** (only sender can edit)
+- **Edit non-owner message (should fail)**
+- **Edit empty content (should fail)**
+- Mark message as read
+- Mark all messages as read
+- Get unread count
+- Get participants
+- Leave thread
 
 ### Full Workflow Test (14 steps)
 Complete end-to-end scenario:

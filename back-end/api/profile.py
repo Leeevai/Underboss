@@ -39,11 +39,11 @@ def register_routes(app):
     @app.put("/profile", authz="AUTH")
     def put_profile(auth: model.CurrentAuth, first_name: str|None = None, last_name: str|None = None,
                     display_name: str|None = None, bio: str|None = None, date_of_birth: str|None = None,
-                    location_address: str|None = None, location_lat: float|None = None,
+                    gender: str|None = None, location_address: str|None = None, location_lat: float|None = None,
                     location_lng: float|None = None, timezone: str|None = None,
                     preferred_language: str|None = None):
         """Update the current user's profile information."""
-        _validate_profile_update(location_lat, location_lng, date_of_birth)
+        _validate_profile_update(location_lat, location_lng, date_of_birth, gender)
 
         db.update_user_profile(
             user_id=auth.aid,
@@ -53,6 +53,7 @@ def register_routes(app):
             bio=bio.strip() if bio else None,
             avatar_url=None,
             date_of_birth=date_of_birth,
+            gender=gender,
             location_address=location_address.strip() if location_address else None,
             location_lat=location_lat,
             location_lng=location_lng,
@@ -65,11 +66,11 @@ def register_routes(app):
     @app.patch("/profile", authz="AUTH")
     def patch_profile(auth: model.CurrentAuth, first_name: str|None = None, last_name: str|None = None,
                       display_name: str|None = None, bio: str|None = None, date_of_birth: str|None = None,
-                      location_address: str|None = None, location_lat: float|None = None,
+                      gender: str|None = None, location_address: str|None = None, location_lat: float|None = None,
                       location_lng: float|None = None, timezone: str|None = None,
                       preferred_language: str|None = None):
         """Partially update the current user's profile information."""
-        _validate_profile_update(location_lat, location_lng, date_of_birth)
+        _validate_profile_update(location_lat, location_lng, date_of_birth, gender)
 
         db.update_user_profile(
             user_id=auth.aid,
@@ -79,6 +80,7 @@ def register_routes(app):
             bio=bio.strip() if bio else None,
             avatar_url=None,
             date_of_birth=date_of_birth,
+            gender=gender,
             location_address=location_address.strip() if location_address else None,
             location_lat=location_lat,
             location_lng=location_lng,
@@ -202,7 +204,8 @@ def register_routes(app):
     @app.post("/profile/experiences", authz="AUTH")
     def post_experience(auth: model.CurrentAuth, title: str, company: str|None = None,
                        description: str|None = None, start_date: str = None,
-                       end_date: str|None = None, is_current: bool = False):
+                       end_date: str|None = None, is_current: bool = False,
+                       display_order: int|None = None):
         """Add work experience to current user's profile."""
         fsa.checkVal(len(title.strip()) >= 2, "Title must be at least 2 characters", 400)
 
@@ -221,6 +224,10 @@ def register_routes(app):
                 fsa.checkVal(False, "Invalid end_date format", 400)
 
         fsa.checkVal(not is_current or end_date is None, "Current experiences cannot have end date", 400)
+        
+        # Validate display_order if provided
+        if display_order is not None:
+            fsa.checkVal(display_order >= 0, "Display order must be non-negative", 400)
 
         exp_id = db.insert_user_experience(
             user_id=auth.aid,
@@ -229,7 +236,8 @@ def register_routes(app):
             description=description.strip() if description else None,
             start_date=start_dt,
             end_date=end_dt,
-            is_current=is_current
+            is_current=is_current,
+            display_order=display_order
         )
 
         return fsa.jsonify({"experience_id": exp_id}), 201
@@ -239,7 +247,7 @@ def register_routes(app):
     def patch_experience(exp_id: str, auth: model.CurrentAuth, title: str|None = None,
                         company: str|None = None, description: str|None = None,
                         start_date: str|None = None, end_date: str|None = None,
-                        is_current: bool|None = None):
+                        is_current: bool|None = None, display_order: int|None = None):
         """Update a work experience."""
         try:
             uuid.UUID(exp_id)
@@ -256,6 +264,10 @@ def register_routes(app):
         # Validate title if provided
         if title is not None:
             fsa.checkVal(len(title.strip()) >= 2, "Title must be at least 2 characters", 400)
+
+        # Validate display_order if provided
+        if display_order is not None:
+            fsa.checkVal(display_order >= 0, "Display order must be non-negative", 400)
 
         # Validate dates if provided
         start_dt = None
@@ -279,7 +291,8 @@ def register_routes(app):
             description=description.strip() if description else None,
             start_date=start_dt,
             end_date=end_dt,
-            is_current=is_current
+            is_current=is_current,
+            display_order=display_order
         )
 
         return "", 204
@@ -408,9 +421,10 @@ def register_routes(app):
     @app.patch("/user/<username>/profile", authz="AUTH")
     def patch_user_profile(auth: model.CurrentAuth, username: str, first_name: str|None = None, 
                           last_name: str|None = None, display_name: str|None = None, bio: str|None = None, 
-                          date_of_birth: str|None = None, location_address: str|None = None, 
-                          location_lat: float|None = None, location_lng: float|None = None, 
-                          timezone: str|None = None, preferred_language: str|None = None):
+                          date_of_birth: str|None = None, gender: str|None = None,
+                          location_address: str|None = None, location_lat: float|None = None, 
+                          location_lng: float|None = None, timezone: str|None = None, 
+                          preferred_language: str|None = None):
         """Update user's profile - must be authenticated as that user."""
         user = db.get_user_by_username(username=username)
         if not user:
@@ -419,7 +433,7 @@ def register_routes(app):
         user_id = user["id"]
         fsa.checkVal(str(user_id) == str(auth.aid), "can only update your own profile", 403)
         
-        _validate_profile_update(location_lat, location_lng, date_of_birth)
+        _validate_profile_update(location_lat, location_lng, date_of_birth, gender)
 
         db.update_user_profile(
             user_id=user_id,
@@ -429,6 +443,7 @@ def register_routes(app):
             bio=bio.strip() if bio else None,
             avatar_url=None,
             date_of_birth=date_of_birth,
+            gender=gender,
             location_address=location_address.strip() if location_address else None,
             location_lat=location_lat,
             location_lng=location_lng,
@@ -466,7 +481,7 @@ def register_routes(app):
     # HELPER FUNCTIONS
     # =========================================================================
 
-    def _validate_profile_update(location_lat, location_lng, date_of_birth):
+    def _validate_profile_update(location_lat, location_lng, date_of_birth, gender=None):
         """Validate profile update parameters."""
         # Validate optional location params
         if (location_lat is not None or location_lng is not None):
@@ -481,5 +496,10 @@ def register_routes(app):
                 datetime.datetime.fromisoformat(date_of_birth.replace('Z', '+00:00'))
             except ValueError:
                 fsa.checkVal(False, "Invalid date_of_birth format", 400)
+
+        # Validate optional gender
+        if gender is not None:
+            fsa.checkVal(gender in ('M', 'F', 'O', 'N'),
+                        "Invalid gender. Must be M, F, O, or N", 400)
 
 

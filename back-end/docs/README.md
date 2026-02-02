@@ -62,6 +62,7 @@ back-end/
 │   ├── profile.py         # User profile management
 │   ├── category.py        # Category management
 │   ├── paps.py            # Job posting management
+│   ├── schedule.py        # PAPS schedule management
 │   ├── spap.py            # Application management
 │   ├── asap.py            # Assignment management
 │   ├── payment.py         # Payment management
