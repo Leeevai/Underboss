@@ -1,60 +1,57 @@
 /**
  * Ratings module - Types for the rating system
+ * 
+ * The rating system works via ASAP (completed assignments).
+ * Individual ratings are NOT stored - only the moving average is updated.
+ * 
+ * @module serve/ratings/types
  */
 
-import type { UUID, ISODateTime, RatingValue } from '../common/types';
+import type { UUID, RatingValue } from '../common/types';
 
 // =============================================================================
-// RATING ENTITY
+// RATING RESPONSE
 // =============================================================================
 
-/** Rating - List item */
-export interface Rating {
-  rating_id: UUID;
-  paps_id: UUID;
-  paps_title: string;
-  rater_id: UUID;
-  rater_username: string;
-  rater_avatar?: string | null;
-  rated_user_id: UUID;
-  rated_username?: string;
-  rating: RatingValue;
-  review: string | null;
-  created_at: ISODateTime;
-}
-
-/** User ratings summary */
-export interface UserRatings {
-  user_id: UUID;
-  username: string;
-  average_rating: number;
-  total_ratings: number;
-  ratings: Rating[];
+/** 
+ * GET /users/{user_id}/rating response
+ * GET /profile/rating response
+ */
+export interface UserRating {
+  user_id?: UUID;
+  rating_average: number;
+  rating_count: number;
 }
 
 // =============================================================================
-// REQUEST TYPES
+// REQUEST TYPES (via ASAP)
 // =============================================================================
 
-/** POST /ratings */
+/** 
+ * POST /asap/{asap_id}/rate request
+ * 
+ * Validation:
+ * - ASAP must be completed
+ * - Must be either the PAPS owner or the worker
+ * - Owner rates worker, worker rates owner (bidirectional)
+ */
 export interface RatingCreateRequest {
-  paps_id: UUID;
-  rated_user_id: UUID;
-  rating: RatingValue;
-  review?: string;
-}
-
-/** PATCH /ratings/{id} */
-export interface RatingUpdateRequest {
-  rating?: RatingValue;
-  review?: string;
+  /** Rating score 1-5 (required) */
+  score: RatingValue;
 }
 
 // =============================================================================
 // RESPONSE TYPES
 // =============================================================================
 
-/** POST /ratings response */
+/** POST /asap/{asap_id}/rate response */
 export interface RatingCreateResponse {
-  rating_id: UUID;
+  message: string;
+  rated_user_id: UUID;
+  score: number;
 }
+
+// Legacy type aliases
+export type Rating = UserRating;
+export type UserRatings = UserRating;
+export type RatingUpdateRequest = never;  // Ratings cannot be updated

@@ -1,9 +1,11 @@
 /**
  * Payments module - Endpoint definitions
+ * 
+ * @module serve/payments/endpoints
  */
 
 import type { HttpMethod } from '../common/types';
-import { validatePaymentCreate, validatePaymentUpdate } from './validators';
+import { validatePaymentCreate, validatePaymentStatusUpdate } from './validators';
 
 export interface EndpointConfig {
   method: HttpMethod;
@@ -13,41 +15,59 @@ export interface EndpointConfig {
 }
 
 export const paymentEndpoints: Record<string, EndpointConfig> = {
-  // PAPS Payments
-  'payments.listForPaps': {
+  // ==========================================================================
+  // USER PAYMENTS
+  // ==========================================================================
+  
+  /** GET /payments - Get current user's payments (as payer or payee) */
+  'payments.my': {
     method: 'GET',
-    path: '/paps/{paps_id}/payments',
+    path: '/payments',
     auth: true,
   },
-  'payments.create': {
-    method: 'POST',
-    path: '/paps/{paps_id}/payments',
-    auth: true,
-    validate: validatePaymentCreate,
-  },
-
-  // Payment CRUD
+  
+  // ==========================================================================
+  // PAYMENT CRUD
+  // ==========================================================================
+  
+  /** GET /payments/{payment_id} - Get specific payment details */
   'payments.get': {
     method: 'GET',
     path: '/payments/{payment_id}',
     auth: true,
   },
-  'payments.update': {
-    method: 'PATCH',
-    path: '/payments/{payment_id}',
+  
+  /** PUT /payments/{payment_id}/status - Update payment status */
+  'payments.updateStatus': {
+    method: 'PUT',
+    path: '/payments/{payment_id}/status',
     auth: true,
-    validate: validatePaymentUpdate,
+    validate: validatePaymentStatusUpdate,
   },
+  
+  /** DELETE /payments/{payment_id} - Delete payment (pending only unless admin) */
   'payments.delete': {
     method: 'DELETE',
     path: '/payments/{payment_id}',
-    auth: true,  // Admin only
-  },
-
-  // User payments
-  'payments.my': {
-    method: 'GET',
-    path: '/user/payments',
     auth: true,
+  },
+  
+  // ==========================================================================
+  // PAPS PAYMENTS
+  // ==========================================================================
+  
+  /** GET /paps/{paps_id}/payments - Get payments for a PAPS */
+  'payments.listForPaps': {
+    method: 'GET',
+    path: '/paps/{paps_id}/payments',
+    auth: true,
+  },
+  
+  /** POST /paps/{paps_id}/payments - Create payment for PAPS */
+  'payments.create': {
+    method: 'POST',
+    path: '/paps/{paps_id}/payments',
+    auth: true,
+    validate: validatePaymentCreate,
   },
 };

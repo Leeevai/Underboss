@@ -1,74 +1,122 @@
 /**
  * Payments module - Types for payment management
+ * 
+ * @module serve/payments/types
  */
 
-import type { UUID, ISODateTime, PaymentStatus } from '../common/types';
+import type { UUID, ISODateTime, PaymentStatus, PaymentMethod, Currency } from '../common/types';
 
 // =============================================================================
 // PAYMENT ENTITY
 // =============================================================================
 
-/** Payment - List item */
+/** 
+ * Payment - List item 
+ * 
+ * @see GET /payments
+ */
 export interface Payment {
   payment_id: UUID;
   paps_id: UUID;
-  paps_title: string;
   payer_id: UUID;
-  payer_username: string;
   payee_id: UUID;
-  payee_username: string;
   amount: number;
-  currency: string;
+  currency: Currency | string;
   status: PaymentStatus;
-  payment_method: string | null;
+  payment_method: PaymentMethod | string | null;
   transaction_id: string | null;
+  external_reference: string | null;
   created_at: ISODateTime;
-  updated_at?: ISODateTime;
-  completed_at: ISODateTime | null;
+  paid_at: ISODateTime | null;
+  /** User's role in this payment: 'payer' or 'payee' */
+  user_role?: 'payer' | 'payee';
 }
 
-/** Payment with full details */
+/** 
+ * Payment with full details 
+ * 
+ * @see GET /payments/{payment_id}
+ */
 export interface PaymentDetail extends Payment {
-  payer_email: string;
-  payee_email: string;
+  // Same fields as Payment currently
 }
 
 // =============================================================================
 // REQUEST TYPES
 // =============================================================================
 
-/** GET /user/payments params */
+/** GET /payments query params */
 export interface PaymentListParams {
   role?: 'payer' | 'payee';
   status?: PaymentStatus;
 }
 
-/** POST /paps/{id}/payments */
+/** 
+ * POST /paps/{paps_id}/payments - Create payment
+ * 
+ * Supported currencies: USD, EUR, GBP, CAD, AUD, JPY, CNY
+ * Payment methods: transfer, cash, check, crypto, paypal, stripe, other
+ */
 export interface PaymentCreateRequest {
+  /** Worker receiving payment (required) */
   payee_id: UUID;
+  /** Amount (required, > 0) */
   amount: number;
-  currency?: string;
-  payment_method?: string;
-  transaction_id?: string;
+  /** Currency (default: 'USD') */
+  currency?: Currency | string;
+  /** Payment method */
+  payment_method?: PaymentMethod | string;
 }
 
-/** PATCH /payments/{id} */
-export interface PaymentUpdateRequest {
-  status?: PaymentStatus;
-  payment_method?: string;
+/** 
+ * PUT /payments/{payment_id}/status - Update payment status
+ * 
+ * Validation:
+ * - Only payer or admin can update
+ * - Cannot update completed/refunded/cancelled payments (except admin)
+ * 
+ * Side effects:
+ * - If status set to "completed": sets paid_at timestamp
+ */
+export interface PaymentStatusUpdateRequest {
+  /** New status: pending, processing, completed, failed, refunded, cancelled */
+  status: PaymentStatus;
+  /** External transaction ID */
   transaction_id?: string;
+  /** External reference */
+  external_reference?: string;
 }
 
 // =============================================================================
 // RESPONSE TYPES
 // =============================================================================
 
-/** GET /paps/{id}/payments response */
-export interface PaymentListResponse {
+/** 
+ * GET /payments response - User's payments 
+ */
+export interface PaymentMyResponse {
   payments: Payment[];
+  sent: Payment[];
+  received: Payment[];
+  total_count: number;
 }
 
-/** POST /paps/{id}/payments response */
+/** 
+ * GET /paps/{paps_id}/payments response 
+ */
+export interface PaymentListByPapsResponse {
+  paps_id: UUID;
+  payments: Payment[];
+  count: number;
+}
+
+/** 
+ * POST /paps/{paps_id}/payments response 
+ */
 export interface PaymentCreateResponse {
   payment_id: UUID;
 }
+
+// Legacy type aliases
+export type PaymentListResponse = PaymentMyResponse;
+export type PaymentUpdateRequest = PaymentStatusUpdateRequest;

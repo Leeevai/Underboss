@@ -1,5 +1,7 @@
 /**
  * Common type definitions shared across all API modules.
+ * 
+ * @module serve/common/types
  */
 
 // =============================================================================
@@ -9,7 +11,7 @@
 /** UUID v4 format string */
 export type UUID = string;
 
-/** ISO 8601 datetime string */
+/** ISO 8601 datetime string (e.g., "2025-01-15T14:30:00Z") */
 export type ISODateTime = string;
 
 /** ISO 8601 date string (YYYY-MM-DD) */
@@ -25,8 +27,8 @@ export type AuthLevel = 'OPEN' | 'AUTH' | 'ADMIN';
 // ENUMS
 // =============================================================================
 
-/** PAPS (Job Posting) status */
-export type PapsStatus = 'draft' | 'published' | 'closed' | 'expired';
+/** PAPS (Job Posting) status - matches backend exactly */
+export type PapsStatus = 'draft' | 'published' | 'open' | 'closed' | 'cancelled';
 
 /** SPAP (Application) status */
 export type SpapStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
@@ -35,13 +37,34 @@ export type SpapStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
 export type AsapStatus = 'active' | 'in_progress' | 'completed' | 'cancelled' | 'disputed';
 
 /** Payment status */
-export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';
+export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded' | 'cancelled';
 
 /** Payment types */
 export type PaymentType = 'fixed' | 'hourly' | 'negotiable';
 
+/** Payment methods */
+export type PaymentMethod = 'transfer' | 'cash' | 'check' | 'crypto' | 'paypal' | 'stripe' | 'other';
+
+/** Currency codes supported */
+export type Currency = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'JPY' | 'CNY';
+
 /** Media types */
 export type MediaType = 'image' | 'video' | 'document';
+
+/** Message types for chat */
+export type MessageType = 'text' | 'image' | 'video' | 'document' | 'system';
+
+/** Thread types for chat */
+export type ThreadType = 'spap_discussion' | 'asap_discussion' | 'group_chat';
+
+/** Participant roles in chat */
+export type ParticipantRole = 'applicant' | 'owner' | 'assignee';
+
+/** Recurrence rules for schedules */
+export type RecurrenceRule = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CRON';
+
+/** Gender options */
+export type Gender = 'M' | 'F' | 'O' | 'N';  // Male, Female, Other, Prefer not to say
 
 /** Proficiency levels for interests (1-5) */
 export type ProficiencyLevel = 1 | 2 | 3 | 4 | 5;
@@ -91,7 +114,7 @@ export interface FileUploadConfig {
 // MEDIA ENTITIES (shared across PAPS, SPAP, ASAP)
 // =============================================================================
 
-/** Media item */
+/** Media item - returned from backend */
 export interface MediaItem {
   media_id: UUID;
   media_url: string;
@@ -99,7 +122,7 @@ export interface MediaItem {
   file_size_bytes: number;
   mime_type?: string;
   display_order: number;
-  uploaded_at?: ISODateTime;
+  created_at?: ISODateTime;
 }
 
 /** Media upload response */
@@ -112,4 +135,14 @@ export interface MediaUploadResponse {
 export interface MediaListResponse {
   media_count: number;
   media: MediaItem[];
+}
+
+// =============================================================================
+// USER RATING (shared)
+// =============================================================================
+
+/** User rating summary */
+export interface UserRatingInfo {
+  rating_average: number;
+  rating_count: number;
 }

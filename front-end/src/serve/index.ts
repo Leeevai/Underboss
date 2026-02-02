@@ -58,9 +58,17 @@ export type {
   AsapStatus,
   PaymentStatus,
   PaymentType,
+  PaymentMethod,
+  Currency,
   MediaType,
   ProficiencyLevel,
   RatingValue,
+  MessageType,
+  ThreadType,
+  ParticipantRole,
+  RecurrenceRule,
+  Gender,
+  UserRatingInfo,
   PaginationParams,
   PaginatedResponse,
   MediaItem,
@@ -94,7 +102,9 @@ export type {
   ExperienceCreateResponse,
   Interest,
   InterestCreateRequest,
+  InterestUpdateRequest,
   InterestCreateResponse,
+  ProfileRatingResponse,
 } from './profile/types';
 
 // =============================================================================
@@ -122,8 +132,12 @@ export type {
   PapsListParams,
   PapsCreateRequest,
   PapsUpdateRequest,
+  PapsStatusUpdateRequest,
+  ScheduleUpdateRequest,
   PapsListResponse,
   PapsCreateResponse,
+  PapsStatusResponse,
+  PapsCategoryAddResponse,
   PapsMediaListResponse,
   ScheduleCreateRequest,
   ScheduleCreateResponse,
@@ -169,7 +183,10 @@ export type {
   PaymentListParams,
   PaymentCreateRequest,
   PaymentUpdateRequest,
+  PaymentStatusUpdateRequest,
   PaymentListResponse,
+  PaymentMyResponse,
+  PaymentListByPapsResponse,
   PaymentCreateResponse,
 } from './payments/types';
 
@@ -179,9 +196,8 @@ export type {
 
 export type {
   Rating,
-  UserRatings,
+  UserRating,
   RatingCreateRequest,
-  RatingUpdateRequest,
   RatingCreateResponse,
 } from './ratings/types';
 
@@ -191,12 +207,15 @@ export type {
 
 export type {
   Comment,
-  CommentDetail,
+  CommentThread,
   CommentListParams,
   CommentCreateRequest,
   CommentUpdateRequest,
   CommentListResponse,
   CommentCreateResponse,
+  CommentUpdateResponse,
+  CommentDeleteResponse,
+  CommentThreadResponse,
 } from './comments/types';
 
 // =============================================================================
@@ -208,15 +227,24 @@ export type {
   ChatThreadDetail,
   ChatMessage,
   ChatParticipant,
+  LastMessage,
   ChatListParams,
   ChatCreateRequest,
   MessageListParams,
   MessageCreateRequest,
-  MarkReadRequest,
+  MessageUpdateRequest,
+  MarkMessageReadRequest,
+  MarkThreadReadRequest,
   ChatListResponse,
   ChatCreateResponse,
+  ChatThreadResponse,
   MessageListResponse,
   MessageCreateResponse,
+  MessageUpdateResponse,
+  MarkMessageReadResponse,
+  MarkThreadReadResponse,
+  LeaveThreadResponse,
+  UnreadCountResponse,
 } from './chat/types';
 
 // =============================================================================
@@ -227,9 +255,15 @@ export type {
   UptimeResponse,
   SystemInfoResponse,
   StatsResponse,
+  GitInfo,
+  DatabaseInfo,
+  ServerStatus,
   AdminUser,
+  AdminUserListResponse,
+  AdminUserGetResponse,
   AdminUserCreateRequest,
   AdminUserUpdateRequest,
   AdminUserReplaceRequest,
   AdminUserCreateResponse,
-} from './system/types';
+  AdminUserUpdateResponse,
+  AdminUserDeleteResponse,

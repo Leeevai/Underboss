@@ -1,7 +1,7 @@
 # Serve Module - Complete API Documentation
 
 > **Last Updated**: January 2025  
-> **Version**: 2.0  
+> **Version**: 3.0  
 > **Author**: Underboss Development Team
 
 ---
@@ -24,6 +24,7 @@
    - [PAPS (Jobs) Endpoints](#paps-jobs-endpoints)
    - [PAPS Media Endpoints](#paps-media-endpoints)
    - [PAPS Schedule Endpoints](#paps-schedule-endpoints)
+   - [PAPS Categories Endpoints](#paps-categories-endpoints)
    - [SPAP (Applications) Endpoints](#spap-applications-endpoints)
    - [ASAP (Assignments) Endpoints](#asap-assignments-endpoints)
    - [Payments Endpoints](#payments-endpoints)
@@ -48,7 +49,7 @@ The `serve` module is the **single point of communication** between the Underbos
 
 - **Type Safety**: Full TypeScript support with auto-complete
 - **Validation**: Client-side validation before network calls
-- **Consistency**: Same interface for all 70+ endpoints
+- **Consistency**: Same interface for all 80+ endpoints
 - **Auth Management**: Automatic token handling
 - **Error Handling**: Consistent error format across all endpoints
 
@@ -74,7 +75,7 @@ serve/
 ├── CLEMENT_READ_THIS.md  # This documentation
 │
 ├── common/               # Shared utilities
-│   ├── types.ts          # Base types (UUID, dates, enums)
+│   ├── types.ts          # Base types (UUID, dates, enums, Gender, Currency, etc.)
 │   ├── errors.ts         # ApiError class
 │   └── index.ts
 │
@@ -85,7 +86,7 @@ serve/
 │   └── index.ts
 │
 ├── profile/              # User profiles
-│   ├── types.ts          # UserProfile, Experience, Interest
+│   ├── types.ts          # UserProfile, Experience, Interest, ProfileRatingResponse
 │   ├── validators.ts
 │   ├── endpoints.ts
 │   └── index.ts
@@ -97,7 +98,7 @@ serve/
 │   └── index.ts
 │
 ├── paps/                 # Job postings
-│   ├── types.ts          # Paps, PapsDetail, Schedule
+│   ├── types.ts          # Paps, PapsDetail, Schedule (with RecurrenceRule)
 │   ├── validators.ts
 │   ├── endpoints.ts
 │   └── index.ts
@@ -115,31 +116,31 @@ serve/
 │   └── index.ts
 │
 ├── payments/             # Payment processing
-│   ├── types.ts
+│   ├── types.ts          # Payment, PaymentMethod, Currency
 │   ├── validators.ts
 │   ├── endpoints.ts
 │   └── index.ts
 │
-├── ratings/              # Rating system
-│   ├── types.ts
+├── ratings/              # Rating system (via ASAP)
+│   ├── types.ts          # UserRating, RatingCreateRequest
 │   ├── validators.ts
 │   ├── endpoints.ts
 │   └── index.ts
 │
-├── comments/             # Comment system
-│   ├── types.ts
+├── comments/             # Comment system (with threading)
+│   ├── types.ts          # Comment, CommentThread
 │   ├── validators.ts
 │   ├── endpoints.ts
 │   └── index.ts
 │
-├── chat/                 # Messaging
-│   ├── types.ts
+├── chat/                 # Messaging (uses /chat singular path)
+│   ├── types.ts          # ChatThread, ChatMessage, MessageType
 │   ├── validators.ts
 │   ├── endpoints.ts
 │   └── index.ts
 │
 └── system/               # System & admin
-    ├── types.ts
+    ├── types.ts          # AdminUser, SystemInfoResponse
     ├── validators.ts
     ├── endpoints.ts
     └── index.ts
@@ -161,6 +162,9 @@ import {
   UserInfo, 
   Paps, 
   PapsStatus,
+  PaymentMethod,
+  Currency,
+  Gender,
   ApiError 
 } from '../serve';
 ```
@@ -498,6 +502,7 @@ interface UserProfile {
   last_name: string | null;
   display_name: string | null;
   bio: string | null;
+  gender: 'M' | 'F' | 'O' | 'N' | null;  // Male, Female, Other, Not specified
   avatar_url: string | null;
   date_of_birth: string | null;      // YYYY-MM-DD
   location_address: string | null;
@@ -505,6 +510,8 @@ interface UserProfile {
   location_lng: number | null;
   timezone: string | null;
   preferred_language: string | null;
+  rating_average: number;            // User's average rating
+  rating_count: number;              // Number of ratings received
   created_at?: string;               // ISO8601
   updated_at?: string;               // ISO8601
 }
@@ -521,6 +528,7 @@ await serv('profile.update', {
   first_name: 'John',
   last_name: 'Doe',
   bio: 'Software developer and coffee enthusiast',
+  gender: 'M',                       // 'M', 'F', 'O', or 'N'
   location_lat: 37.7749,
   location_lng: -122.4194,
   location_address: 'San Francisco, CA'
@@ -534,6 +542,7 @@ interface ProfileUpdateRequest {
   last_name?: string | null;
   display_name?: string | null;
   bio?: string | null;
+  gender?: 'M' | 'F' | 'O' | 'N' | null;
   date_of_birth?: string | null;     // YYYY-MM-DD
   location_address?: string | null;
   location_lat?: number | null;      // -90 to 90
@@ -558,6 +567,39 @@ const profile = await serv('profile.getByUsername', {
 ```
 
 **Response:** `UserProfile` (public fields only)
+
+---
+
+#### `profile.updateByUsername` (Admin)
+
+Update a user's profile by username. **Admin only.**
+
+```typescript
+await serv('profile.updateByUsername', {
+  username: 'jane_doe',
+  bio: 'Updated bio'
+});
+```
+
+---
+
+#### `profile.rating`
+
+Get current user's rating summary.
+
+```typescript
+const rating = await serv('profile.rating');
+console.log('Rating:', rating.rating_average);
+console.log('Count:', rating.rating_count);
+```
+
+**Response:**
+```typescript
+interface ProfileRatingResponse {
+  rating_average: number;
+  rating_count: number;
+}
+```
 
 ---
 
@@ -757,15 +799,17 @@ const experiences = await serv('experiences.list');
 Experience[]
 
 interface Experience {
-  experience_id: string;       // UUID
+  id: string;                    // UUID
   user_id: string;
-  title: string;               // Job title
-  company_name: string;
+  title: string;                 // Job title
+  company: string;               // Company name
   location: string | null;
-  start_date: string;          // YYYY-MM-DD
-  end_date: string | null;     // YYYY-MM-DD or null if current
+  start_date: string;            // YYYY-MM-DD
+  end_date: string | null;       // YYYY-MM-DD or null if is_current
+  is_current: boolean;           // Currently working here
   description: string | null;
-  created_at: string;          // ISO8601
+  display_order: number;         // For sorting
+  created_at: string;            // ISO8601
   updated_at?: string;
 }
 ```
@@ -779,11 +823,13 @@ Add work experience.
 ```typescript
 const result = await serv('experiences.create', {
   title: 'Senior Developer',
-  company_name: 'Tech Corp',
+  company: 'Tech Corp',
   location: 'San Francisco, CA',
   start_date: '2020-01-15',
-  end_date: '2023-06-30',        // Omit if current job
-  description: 'Led development of mobile applications'
+  end_date: '2023-06-30',        // Omit if is_current: true
+  is_current: false,             // Set to true if current job
+  description: 'Led development of mobile applications',
+  display_order: 1
 });
 ```
 
@@ -791,32 +837,39 @@ const result = await serv('experiences.create', {
 ```typescript
 interface ExperienceCreateRequest {
   title: string;           // Required
-  company_name: string;    // Required
+  company: string;         // Required
   location?: string;
   start_date: string;      // YYYY-MM-DD, required
-  end_date?: string;       // YYYY-MM-DD, optional
+  end_date?: string;       // YYYY-MM-DD, required if is_current is false
+  is_current?: boolean;    // Default: false
   description?: string;
+  display_order?: number;
 }
 ```
 
 **Response:**
 ```typescript
 {
-  experience_id: string;   // UUID of created experience
+  id: string;              // UUID of created experience
 }
 ```
+
+**Validation:**
+- Cannot set both `is_current: true` AND provide `end_date`
+- `end_date` is required if `is_current` is false
 
 ---
 
 #### `experiences.update`
 
-Update existing experience.
+Update existing experience. Uses **PATCH** method.
 
 ```typescript
 await serv('experiences.update', {
   experience_id: 'uuid-here',
   title: 'Lead Developer',
-  description: 'Updated description'
+  is_current: true,
+  end_date: null               // Clear end_date when marking as current
 });
 ```
 
@@ -825,11 +878,13 @@ await serv('experiences.update', {
 interface ExperienceUpdateRequest {
   experience_id: string;   // Required (path param)
   title?: string;
-  company_name?: string;
+  company?: string;
   location?: string | null;
   start_date?: string;
   end_date?: string | null;
+  is_current?: boolean;
   description?: string | null;
+  display_order?: number;
 }
 ```
 
@@ -864,7 +919,7 @@ const interests = await serv('interests.list');
 Interest[]
 
 interface Interest {
-  interest_id: string;
+  id: string;                  // Interest ID
   user_id: string;
   category_id: string;
   category_name: string;
@@ -890,7 +945,28 @@ const result = await serv('interests.create', {
 **Response:**
 ```typescript
 {
-  interest_id: string;
+  id: string;                    // Interest ID
+}
+```
+
+---
+
+#### `interests.update`
+
+Update interest (change proficiency level).
+
+```typescript
+await serv('interests.update', {
+  category_id: 'category-uuid',  // Use category_id, not interest_id
+  proficiency_level: 5
+});
+```
+
+**Request:**
+```typescript
+interface InterestUpdateRequest {
+  category_id: string;           // Required (path param)
+  proficiency_level: 1 | 2 | 3 | 4 | 5;
 }
 ```
 
@@ -902,7 +978,7 @@ Remove interest.
 
 ```typescript
 await serv('interests.delete', {
-  interest_id: 'interest-uuid'
+  category_id: 'category-uuid'   // Use category_id, not interest_id
 });
 ```
 
@@ -998,6 +1074,19 @@ await serv('categories.delete', {
 
 Job postings - the core of Underboss.
 
+**PAPS Statuses:**
+- `draft` - Not published yet
+- `open` - Open for applications
+- `published` - Publicly visible
+- `closed` - No longer accepting applications
+- `cancelled` - Job cancelled
+
+**Payment Types:**
+- `fixed` - Fixed price
+- `hourly` - Hourly rate
+- `milestone` - Milestone-based
+- `negotiable` - To be negotiated
+
 #### `paps.list`
 
 List/search jobs with filters.
@@ -1038,7 +1127,7 @@ result.paps.forEach(job => {
 **Request:**
 ```typescript
 interface PapsListParams {
-  status?: 'draft' | 'published' | 'closed' | 'cancelled';
+  status?: 'draft' | 'open' | 'published' | 'closed' | 'cancelled';
   owner_id?: string;
   category_ids?: string[];
   location_lat?: number;
@@ -1065,17 +1154,27 @@ interface PapsListResponse {
 }
 
 interface Paps {
-  paps_id: string;
+  id: string;                       // UUID (was paps_id)
   owner_id: string;
   owner_username: string;
   title: string;
+  subtitle: string | null;          // NEW
   description: string;
   status: PapsStatus;
   location_address: string | null;
   location_lat: number | null;
   location_lng: number | null;
+  location_timezone: string | null; // NEW
+  start_datetime: string | null;    // NEW: When job starts
+  end_datetime: string | null;      // NEW: When job ends
+  estimated_duration_minutes: number | null; // NEW
   payment_amount: number | null;
   payment_currency: string;
+  payment_type: PaymentType;        // NEW: 'fixed', 'hourly', etc.
+  max_applicants: number | null;    // NEW
+  max_assignees: number | null;     // NEW
+  is_public: boolean;               // NEW
+  publish_at: string | null;        // NEW: Scheduled publish time
   created_at: string;
   updated_at: string;
   published_at: string | null;
@@ -1124,41 +1223,27 @@ Create a job posting.
 ```typescript
 const result = await serv('paps.create', {
   title: 'Need React Native Developer',
+  subtitle: 'Mobile app project',           // Optional
   description: 'Looking for an experienced React Native developer...',
   payment_amount: 5000,
   payment_currency: 'USD',
-  status: 'draft',               // 'draft' or 'published'
+  payment_type: 'fixed',                    // 'fixed', 'hourly', 'milestone', 'negotiable'
+  status: 'draft',
   location_address: 'San Francisco, CA',
   location_lat: 37.7749,
   location_lng: -122.4194,
+  location_timezone: 'America/Los_Angeles', // Optional
+  start_datetime: '2025-02-01T09:00:00Z',   // Optional
+  end_datetime: '2025-02-28T17:00:00Z',     // Optional
+  estimated_duration_minutes: 2400,          // 40 hours
+  max_applicants: 10,                       // Optional
+  max_assignees: 1,                         // Optional
+  is_public: true,                          // Default: true
   category_ids: ['uuid1', 'uuid2'],
   expires_at: '2025-12-31T23:59:59Z'
 });
 
-console.log('Created job:', result.paps_id);
-```
-
-**Request:**
-```typescript
-interface PapsCreateRequest {
-  title: string;                 // 5-200 chars
-  description: string;           // 10-5000 chars
-  payment_amount: number;        // Required, > 0
-  payment_currency?: string;     // Default: 'USD'
-  status?: PapsStatus;           // Default: 'draft'
-  location_address?: string;
-  location_lat?: number;         // -90 to 90
-  location_lng?: number;         // -180 to 180
-  category_ids?: string[];
-  expires_at?: string;           // ISO8601
-}
-```
-
-**Response:**
-```typescript
-{
-  paps_id: string;
-}
+console.log('Created job:', result.id);
 ```
 
 ---
@@ -1174,6 +1259,26 @@ await serv('paps.update', {
   payment_amount: 6000,
   status: 'published'
 });
+```
+
+---
+
+#### `paps.updateStatus`
+
+Update only the status of a PAPS.
+
+```typescript
+await serv('paps.updateStatus', {
+  paps_id: 'uuid',
+  status: 'closed'
+});
+```
+
+**Request:**
+```typescript
+interface PapsStatusUpdateRequest {
+  status: PapsStatus;
+}
 ```
 
 ---
@@ -1259,9 +1364,17 @@ await serv('paps.media.delete', {
 
 ### PAPS Schedule Endpoints
 
+**Recurrence Rules:**
+- `none` - One-time schedule
+- `daily` - Every day
+- `weekly` - Every week
+- `biweekly` - Every two weeks
+- `monthly` - Every month
+- `custom` - Custom cron expression
+
 #### `paps.schedule.list`
 
-Get job schedule.
+Get job schedule. **Note:** Uses `/schedules` path (plural).
 
 ```typescript
 const schedule = await serv('paps.schedule.list', {
@@ -1274,14 +1387,29 @@ const schedule = await serv('paps.schedule.list', {
 PapsSchedule[]
 
 interface PapsSchedule {
-  schedule_id: string;
+  id: string;                      // Schedule ID
   paps_id: string;
-  start_time: string;              // ISO8601
-  end_time: string;                // ISO8601
-  is_recurring: boolean;
-  recurrence_pattern: string | null;  // 'daily', 'weekly', 'monthly'
+  recurrence_rule: RecurrenceRule; // 'none', 'daily', 'weekly', etc.
+  cron_expression: string | null;  // For 'custom' rule
+  start_date: string | null;       // YYYY-MM-DD
+  end_date: string | null;         // YYYY-MM-DD
+  next_run_at: string | null;      // Next scheduled run (ISO8601)
+  is_active: boolean;
   created_at: string;
+  updated_at?: string;
 }
+```
+
+---
+
+#### `paps.schedule.get`
+
+Get schedule details.
+
+```typescript
+const schedule = await serv('paps.schedule.get', {
+  paps_id: 'uuid'
+});
 ```
 
 ---
@@ -1293,10 +1421,73 @@ Add schedule entry.
 ```typescript
 const result = await serv('paps.schedule.create', {
   paps_id: 'uuid',
-  start_time: '2025-03-01T09:00:00Z',
-  end_time: '2025-03-01T17:00:00Z',
-  is_recurring: true,
-  recurrence_pattern: 'weekly'
+  recurrence_rule: 'weekly',
+  start_date: '2025-03-01',
+  end_date: '2025-06-30',
+  is_active: true
+});
+
+// Or with custom cron
+const customResult = await serv('paps.schedule.create', {
+  paps_id: 'uuid',
+  recurrence_rule: 'custom',
+  cron_expression: '0 9 * * 1-5',  // 9 AM weekdays
+  start_date: '2025-03-01'
+});
+```
+
+**Request:**
+```typescript
+interface ScheduleCreateRequest {
+  recurrence_rule: RecurrenceRule;
+  cron_expression?: string;        // Required if recurrence_rule is 'custom'
+  start_date?: string;             // YYYY-MM-DD
+  end_date?: string;               // YYYY-MM-DD
+  is_active?: boolean;             // Default: true
+}
+```
+
+---
+
+#### `paps.schedule.update`
+
+Update schedule.
+
+```typescript
+await serv('paps.schedule.update', {
+  paps_id: 'uuid',
+  recurrence_rule: 'biweekly',
+  is_active: false
+});
+```
+
+---
+
+### PAPS Categories Endpoints
+
+Manage categories associated with a PAPS.
+
+#### `paps.categories.add`
+
+Add a category to a PAPS.
+
+```typescript
+await serv('paps.categories.add', {
+  paps_id: 'paps-uuid',
+  category_id: 'category-uuid'
+});
+```
+
+---
+
+#### `paps.categories.remove`
+
+Remove a category from a PAPS.
+
+```typescript
+await serv('paps.categories.remove', {
+  paps_id: 'paps-uuid',
+  category_id: 'category-uuid'
 });
 ```
 
@@ -1507,6 +1698,17 @@ await serv('asap.update', {
 - `completed` - Payment successful
 - `failed` - Payment failed
 - `refunded` - Payment refunded
+- `cancelled` - Payment cancelled
+
+**Payment Methods:**
+- `card` - Credit/debit card
+- `bank_transfer` - Bank transfer
+- `wallet` - Digital wallet
+- `cash` - Cash payment
+- `crypto` - Cryptocurrency
+
+**Currencies:**
+- `USD`, `EUR`, `GBP`, `CAD`, `AUD`, `JPY`, `CNY`, `INR`, `BRL`, `MXN`
 
 #### `payments.listForPaps`
 
@@ -1516,6 +1718,42 @@ Get payments for a job.
 const result = await serv('payments.listForPaps', {
   paps_id: 'job-uuid'
 });
+```
+
+**Response:**
+```typescript
+interface PaymentListByPapsResponse {
+  payments: Payment[];
+  total: number;
+}
+```
+
+---
+
+#### `payments.my`
+
+Get current user's payments.
+
+```typescript
+// All my payments
+const payments = await serv('payments.my');
+
+// Filter by role
+const received = await serv('payments.my', {
+  role: 'payee'                  // Payments I received
+});
+
+const sent = await serv('payments.my', {
+  role: 'payer'                  // Payments I made
+});
+```
+
+**Response:**
+```typescript
+interface PaymentMyResponse {
+  payments: Payment[];
+  total: number;
+}
 ```
 
 ---
@@ -1530,8 +1768,19 @@ const result = await serv('payments.create', {
   payee_id: 'worker-uuid',
   amount: 500,
   currency: 'USD',
-  payment_method: 'card'         // 'card', 'bank', 'wallet'
+  payment_method: 'card'
 });
+```
+
+**Request:**
+```typescript
+interface PaymentCreateRequest {
+  paps_id: string;               // Required
+  payee_id: string;              // Required (who receives)
+  amount: number;                // Required, > 0
+  currency?: Currency;           // Default: 'USD'
+  payment_method?: PaymentMethod; // Default: 'card'
+}
 ```
 
 ---
@@ -1549,7 +1798,7 @@ const payment = await serv('payments.get', {
 **Response:**
 ```typescript
 interface Payment {
-  payment_id: string;
+  id: string;                    // UUID
   paps_id: string;
   payer_id: string;
   payee_id: string;
@@ -1559,7 +1808,7 @@ interface Payment {
   payment_method: string;
   transaction_id: string | null;
   created_at: string;
-  completed_at: string | null;
+  paid_at: string | null;        // When payment completed
 }
 ```
 
@@ -1567,121 +1816,135 @@ interface Payment {
 
 #### `payments.update`
 
-Update payment status.
+Update payment (for processing integrations).
 
 ```typescript
 await serv('payments.update', {
   payment_id: 'uuid',
-  status: 'completed',
   transaction_id: 'stripe-txn-123'
 });
 ```
 
 ---
 
-#### `payments.my`
+#### `payments.updateStatus`
 
-Get user's payments.
+Update payment status.
 
 ```typescript
-// As receiver (worker)
-const received = await serv('payments.my', {
-  role: 'payee'
+await serv('payments.updateStatus', {
+  payment_id: 'uuid',
+  status: 'completed'
 });
+```
 
-// As sender (job owner)
-const sent = await serv('payments.my', {
-  role: 'payer'
-});
+**Request:**
+```typescript
+interface PaymentStatusUpdateRequest {
+  status: PaymentStatus;         // 'pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled'
+}
 ```
 
 ---
 
 ### Ratings Endpoints
 
-User ratings after job completion.
+User ratings after ASAP (assignment) completion. **Important:** Individual ratings are NOT stored - only the moving average is updated on user profiles.
+
+**How ratings work:**
+1. An ASAP is completed
+2. Either party can rate the other via `POST /asap/{asap_id}/rate`
+3. Owner rates worker, worker rates owner (bidirectional)
+4. The rated user's `rating_average` and `rating_count` are updated
 
 #### `ratings.forUser`
 
-Get user's ratings.
+Get user's rating summary.
 
 ```typescript
 const result = await serv('ratings.forUser', {
   user_id: 'uuid'
 });
 
-console.log('Average:', result.average_rating);
-console.log('Total:', result.total_ratings);
+console.log('Average:', result.rating_average);  // e.g., 4.5
+console.log('Count:', result.rating_count);      // e.g., 23
 ```
 
 **Response:**
 ```typescript
-interface UserRatings {
+interface UserRating {
   user_id: string;
-  average_rating: number;        // 1.0 - 5.0
-  total_ratings: number;
-  ratings: Rating[];
-}
-
-interface Rating {
-  rating_id: string;
-  paps_id: string;
-  paps_title: string;
-  rater_id: string;
-  rater_username: string;
-  rated_user_id: string;
-  rating: number;                // 1-5
-  review: string | null;
-  created_at: string;
+  rating_average: number;        // 1.0 - 5.0
+  rating_count: number;          // Total ratings received
 }
 ```
 
 ---
 
-#### `ratings.create`
+#### `ratings.my`
 
-Rate a user.
+Get current user's rating summary.
 
 ```typescript
-const result = await serv('ratings.create', {
-  paps_id: 'job-uuid',
-  rated_user_id: 'user-uuid',
-  rating: 5,                     // 1-5
-  review: 'Excellent work! Highly recommended.'
-});
+const myRating = await serv('ratings.my');
+console.log('My rating:', myRating.rating_average);
 ```
+
+**Response:** `UserRating`
 
 ---
 
-#### `ratings.update`
+#### `ratings.create` (via ASAP)
 
-Update rating.
+Rate a user after ASAP completion. **Note:** Use `asap.rate` endpoint instead.
 
 ```typescript
-await serv('ratings.update', {
-  rating_id: 'uuid',
-  rating: 4,
-  review: 'Updated review'
+// Better: Use asap.rate directly
+const result = await serv('asap.rate', {
+  asap_id: 'asap-uuid',
+  score: 5                       // 1-5
 });
 ```
 
+**Request:**
+```typescript
+interface RatingCreateRequest {
+  score: 1 | 2 | 3 | 4 | 5;     // Required
+}
+```
+
+**Validation:**
+- ASAP must be completed
+- Must be owner or worker of the ASAP
+- Can only rate once per ASAP per direction
+
 ---
 
-#### `ratings.delete`
+#### `asap.canRate`
 
-Delete rating.
+Check if current user can rate an ASAP.
 
 ```typescript
-await serv('ratings.delete', {
-  rating_id: 'uuid'
+const { can_rate, reason } = await serv('asap.canRate', {
+  asap_id: 'uuid'
 });
+
+if (can_rate) {
+  // Show rating UI
+}
 ```
 
 ---
 
 ### Comments Endpoints
 
-Comments on job postings.
+Comments on job postings with threading support.
+
+**Comment Structure:**
+- Top-level comments have `parent_id: null`
+- Replies have `parent_id` set to parent comment's ID
+- Use `/comments/{id}/replies` for nested reply operations
+- Use `/comments/{id}/thread` to get full thread with nested replies
 
 #### `comments.list`
 
@@ -1690,6 +1953,7 @@ Get comments for a job.
 ```typescript
 const result = await serv('comments.list', {
   paps_id: 'job-uuid',
+  parent_id: null,               // null = top-level only
   limit: 20,
   offset: 0
 });
@@ -1698,22 +1962,22 @@ const result = await serv('comments.list', {
 **Response:**
 ```typescript
 {
-  comments: CommentDetail[];
+  comments: Comment[];
   total: number;
 }
 
-interface CommentDetail {
-  comment_id: string;
+interface Comment {
+  id: string;                    // UUID
   paps_id: string;
   user_id: string;
   username: string;
-  avatar_url: string | null;
-  content: string;
+  user_avatar: string | null;
   parent_id: string | null;      // For replies
-  replies_count: number;
+  content: string;
+  reply_count: number;
+  is_deleted: boolean;
   created_at: string;
   updated_at: string | null;
-  is_owner: boolean;
 }
 ```
 
@@ -1730,12 +1994,68 @@ const result = await serv('comments.create', {
   content: 'Great opportunity!'
 });
 
-// Reply to comment
+// Reply to comment (alternative method)
 const reply = await serv('comments.create', {
   paps_id: 'job-uuid',
   content: 'Thanks for your interest!',
   parent_id: 'comment-uuid'      // Makes it a reply
 });
+```
+
+**Response:**
+```typescript
+{
+  id: string;                    // New comment UUID
+  message: string;
+}
+```
+
+---
+
+#### `comments.replies.list`
+
+Get replies to a comment.
+
+```typescript
+const replies = await serv('comments.replies.list', {
+  comment_id: 'parent-uuid',
+  limit: 20
+});
+```
+
+---
+
+#### `comments.replies.create`
+
+Add reply to a comment (preferred over using parent_id).
+
+```typescript
+const reply = await serv('comments.replies.create', {
+  comment_id: 'parent-uuid',
+  content: 'This is a reply!'
+});
+```
+
+---
+
+#### `comments.thread`
+
+Get full comment thread with nested replies.
+
+```typescript
+const thread = await serv('comments.thread', {
+  comment_id: 'uuid'
+});
+
+// Returns comment with all replies nested
+console.log(thread.comment.replies);
+```
+
+**Response:**
+```typescript
+interface CommentThreadResponse {
+  comment: CommentThread;        // Comment with nested replies[]
+}
 ```
 
 ---
@@ -1754,7 +2074,7 @@ const comment = await serv('comments.get', {
 
 #### `comments.update`
 
-Edit comment.
+Edit comment (owner only).
 
 ```typescript
 await serv('comments.update', {
@@ -1767,7 +2087,7 @@ await serv('comments.update', {
 
 #### `comments.delete`
 
-Delete comment.
+Delete comment (soft delete - owner only).
 
 ```typescript
 await serv('comments.delete', {
@@ -1779,7 +2099,19 @@ await serv('comments.delete', {
 
 ### Chat Endpoints
 
-Direct messaging between users.
+Direct messaging between users. **Important:** Backend uses `/chat` (singular), not `/chats`.
+
+**Thread Types:**
+- `paps` - Associated with a PAPS
+- `spap` - Associated with an application
+- `asap` - Associated with an assignment
+- `direct` - Direct message (no association)
+
+**Message Types:**
+- `text` - Regular text message
+- `system` - System-generated message
+- `image` - Image attachment
+- `file` - File attachment
 
 #### `chat.list`
 
@@ -1788,7 +2120,8 @@ Get chat threads.
 ```typescript
 const result = await serv('chat.list', {
   unread_only: true,             // Optional
-  limit: 20
+  paps_id: 'uuid',               // Optional: filter by PAPS
+  thread_type: 'paps'            // Optional: 'paps', 'spap', 'asap', 'direct'
 });
 ```
 
@@ -1800,11 +2133,14 @@ const result = await serv('chat.list', {
 }
 
 interface ChatThread {
-  thread_id: string;
+  id: string;                    // Thread UUID
+  thread_type: 'paps' | 'spap' | 'asap' | 'direct';
   paps_id: string | null;
   paps_title: string | null;
+  spap_id: string | null;
+  asap_id: string | null;
   participants: ChatParticipant[];
-  last_message: ChatMessage | null;
+  last_message: LastMessage | null;
   unread_count: number;
   created_at: string;
   updated_at: string;
@@ -1815,6 +2151,15 @@ interface ChatParticipant {
   username: string;
   avatar_url: string | null;
   joined_at: string;
+  role?: 'owner' | 'participant' | 'admin';
+}
+
+interface LastMessage {
+  id: string;
+  sender_id: string;
+  sender_username: string;
+  content: string;
+  sent_at: string;
 }
 ```
 
@@ -1831,7 +2176,7 @@ const result = await serv('chat.create', {
   initial_message: 'Hi! I have questions about your job posting.'
 });
 
-console.log('Thread:', result.thread_id);
+console.log('Thread:', result.id);
 ```
 
 ---
@@ -1848,12 +2193,12 @@ const thread = await serv('chat.get', {
 
 ---
 
-#### `chat.delete`
+#### `chat.leave`
 
-Leave thread.
+Leave a thread (removes you as participant, doesn't delete for others).
 
 ```typescript
-await serv('chat.delete', {
+await serv('chat.leave', {
   thread_id: 'uuid'
 });
 ```
@@ -1868,7 +2213,8 @@ Get messages in thread.
 const result = await serv('chat.messages.list', {
   thread_id: 'uuid',
   limit: 50,
-  before: 'message-uuid'         // For pagination
+  before: '2025-01-29T10:00:00Z',  // For pagination
+  after: '2025-01-28T00:00:00Z'    // Optional: messages after this time
 });
 ```
 
@@ -1877,17 +2223,20 @@ const result = await serv('chat.messages.list', {
 {
   messages: ChatMessage[];
   total: number;
-  has_more: boolean;
 }
 
 interface ChatMessage {
-  message_id: string;
+  id: string;
   thread_id: string;
   sender_id: string;
   sender_username: string;
+  sender_avatar: string | null;
   content: string;
-  is_read: boolean;
-  created_at: string;
+  sent_at: string;
+  edited_at: string | null;      // Set if message was edited
+  read_by: string[];             // Array of user IDs who read this
+  message_type: 'text' | 'system' | 'image' | 'file';
+  is_system_message: boolean;
 }
 ```
 
@@ -1906,14 +2255,57 @@ const result = await serv('chat.messages.send', {
 
 ---
 
-#### `chat.messages.read`
+#### `chat.messages.update`
 
-Mark messages as read.
+Edit a message (sender only).
 
 ```typescript
-await serv('chat.messages.read', {
+await serv('chat.messages.update', {
+  thread_id: 'thread-uuid',
+  message_id: 'message-uuid',
+  content: 'Updated message content'
+});
+```
+
+---
+
+#### `chat.messages.markRead`
+
+Mark a specific message as read.
+
+```typescript
+await serv('chat.messages.markRead', {
+  thread_id: 'thread-uuid',
+  message_id: 'message-uuid'
+});
+```
+
+---
+
+#### `chat.markAllRead`
+
+Mark all messages in thread as read.
+
+```typescript
+const result = await serv('chat.markAllRead', {
   thread_id: 'uuid'
 });
+
+console.log('Marked', result.marked_count, 'messages as read');
+```
+
+---
+
+#### `chat.unreadCount`
+
+Get unread message count for a thread.
+
+```typescript
+const result = await serv('chat.unreadCount', {
+  thread_id: 'uuid'
+});
+
+console.log('Unread:', result.unread_count);
 ```
 
 ---
@@ -1927,7 +2319,27 @@ await serv('chat.messages.read', {
 List all users.
 
 ```typescript
-const users = await serv('admin.users.list');
+const result = await serv('admin.users.list');
+console.log('Total users:', result.total);
+result.users.forEach(u => console.log(u.login));
+```
+
+**Response:**
+```typescript
+interface AdminUserListResponse {
+  users: AdminUser[];
+  total: number;
+}
+
+interface AdminUser {
+  aid: string;               // User ID
+  login: string;             // Username
+  email: string;
+  phone: string | null;
+  is_admin: boolean;
+  created_at: string;
+  updated_at?: string;
+}
 ```
 
 ---
@@ -1941,8 +2353,11 @@ const result = await serv('admin.users.create', {
   login: 'newuser',
   email: 'new@example.com',
   password: 'SecurePass123!',
+  phone: '+1234567890',      // Optional
   is_admin: false
 });
+
+console.log('Created user:', result.user_id);
 ```
 
 ---
@@ -1952,21 +2367,48 @@ const result = await serv('admin.users.create', {
 Get user details.
 
 ```typescript
-const user = await serv('admin.users.get', {
+const result = await serv('admin.users.get', {
   user_id: 'uuid'
 });
+console.log('User:', result.user);
+```
+
+**Response:**
+```typescript
+interface AdminUserGetResponse {
+  user: AdminUser;
+}
 ```
 
 ---
 
 #### `admin.users.update`
 
-Update user.
+Partially update user (PATCH).
 
 ```typescript
 await serv('admin.users.update', {
   user_id: 'uuid',
-  is_admin: true
+  is_admin: true,
+  email: 'updated@example.com'
+});
+```
+
+---
+
+#### `admin.users.replace`
+
+Replace user data (PUT).
+
+```typescript
+await serv('admin.users.replace', {
+  user_id: 'uuid',
+  auth: {
+    login: 'updatedlogin',
+    password: 'NewSecurePass123!',
+    email: 'replaced@example.com',
+    isadmin: false
+  }
 });
 ```
 
@@ -2001,20 +2443,52 @@ type ISODate = string;      // "2025-01-29"
 // Proficiency level for interests
 type ProficiencyLevel = 1 | 2 | 3 | 4 | 5;
 
+// Rating value
+type RatingValue = 1 | 2 | 3 | 4 | 5;
+
 // HTTP methods
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+// Gender options
+type Gender = 'M' | 'F' | 'O' | 'N';  // Male, Female, Other, Not specified
 ```
 
 ### Status Enums
 
 ```typescript
-type PapsStatus = 'draft' | 'published' | 'closed' | 'cancelled';
+type PapsStatus = 'draft' | 'open' | 'published' | 'closed' | 'cancelled';
 
 type SpapStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
 
 type AsapStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'disputed';
 
-type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';
+type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded' | 'cancelled';
+
+type PaymentType = 'fixed' | 'hourly' | 'milestone' | 'negotiable';
+```
+
+### Chat/Message Types
+
+```typescript
+type MessageType = 'text' | 'system' | 'image' | 'file';
+
+type ThreadType = 'paps' | 'spap' | 'asap' | 'direct';
+
+type ParticipantRole = 'owner' | 'participant' | 'admin';
+```
+
+### Schedule Types
+
+```typescript
+type RecurrenceRule = 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
+```
+
+### Payment Types
+
+```typescript
+type PaymentMethod = 'card' | 'bank_transfer' | 'wallet' | 'cash' | 'crypto';
+
+type Currency = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'JPY' | 'CNY' | 'INR' | 'BRL' | 'MXN';
 ```
 
 ### Import All Types
@@ -2026,6 +2500,21 @@ import {
   ISODateTime,
   MediaItem,
   PaginatedResponse,
+  Gender,
+  RatingValue,
+  
+  // Enums
+  PapsStatus,
+  SpapStatus,
+  AsapStatus,
+  PaymentStatus,
+  PaymentType,
+  PaymentMethod,
+  Currency,
+  MessageType,
+  ThreadType,
+  ParticipantRole,
+  RecurrenceRule,
 
   // Auth
   UserInfo,
@@ -2035,10 +2524,12 @@ import {
   // Profile
   UserProfile,
   ProfileUpdateRequest,
+  ProfileRatingResponse,
   Experience,
   ExperienceCreateRequest,
   Interest,
   InterestCreateRequest,
+  InterestUpdateRequest,
 
   // Categories
   Category,
@@ -2047,44 +2538,55 @@ import {
   // PAPS
   Paps,
   PapsDetail,
-  PapsStatus,
   PapsCreateRequest,
   PapsUpdateRequest,
+  PapsStatusUpdateRequest,
   PapsListParams,
   PapsSchedule,
+  ScheduleUpdateRequest,
 
   // SPAP
   Spap,
   SpapDetail,
-  SpapStatus,
   SpapCreateRequest,
 
   // ASAP
   Asap,
   AsapDetail,
-  AsapStatus,
   AsapCreateRequest,
 
   // Payments
   Payment,
-  PaymentStatus,
   PaymentCreateRequest,
+  PaymentStatusUpdateRequest,
+  PaymentMyResponse,
+  PaymentListByPapsResponse,
 
   // Ratings
-  Rating,
-  UserRatings,
+  UserRating,
   RatingCreateRequest,
 
   // Comments
   Comment,
-  CommentDetail,
+  CommentThread,
   CommentCreateRequest,
+  CommentThreadResponse,
 
   // Chat
   ChatThread,
   ChatMessage,
   ChatParticipant,
+  LastMessage,
   ChatCreateRequest,
+  MessageCreateRequest,
+  MessageUpdateRequest,
+  LeaveThreadResponse,
+  UnreadCountResponse,
+
+  // System
+  AdminUser,
+  AdminUserListResponse,
+  SystemInfoResponse,
 
   // Errors
   ApiError,
