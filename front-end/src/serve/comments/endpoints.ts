@@ -140,4 +140,6 @@ export const commentEndpoints: Record<string, EndpointConfig> = {
   'comments.thread': {
     method: 'GET',
     path: '/comments/{comment_id}/thread',
+    auth: true,
+  },
 };

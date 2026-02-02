@@ -135,3 +135,5 @@ export function validateAdminUserReplace(data: AdminUserReplaceRequest): void {
   // isadmin is optional, must be boolean if provided
   if (data.auth.isadmin !== undefined && typeof data.auth.isadmin !== 'boolean') {
     throw new Error('isadmin must be a boolean');
+  }
+}

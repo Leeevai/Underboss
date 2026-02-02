@@ -203,3 +203,4 @@ export interface AdminUserUpdateResponse {
 export interface AdminUserDeleteResponse {
   /** Success message */
   message: string;
+}

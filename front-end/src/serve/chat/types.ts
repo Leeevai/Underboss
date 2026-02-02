@@ -269,3 +269,4 @@ export interface LegacyChatMessage extends Omit<ChatMessage, 'id'> {
 /** @deprecated Use ChatThread with id field instead */
 export interface LegacyChatThread extends Omit<ChatThread, 'id'> {
   thread_id: UUID;
+}

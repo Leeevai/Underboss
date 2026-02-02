@@ -148,3 +148,5 @@ export const systemEndpoints: Record<string, EndpointConfig> = {
     method: 'DELETE',
     path: '/users/{user_id}',
     auth: true,
+  },
+};

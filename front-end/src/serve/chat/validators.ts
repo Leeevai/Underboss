@@ -137,3 +137,5 @@ export function validateMessageListParams(data: MessageListParams): void {
   }
   if (data.after !== undefined && typeof data.after !== 'string') {
     throw new Error('After must be an ISO datetime string');
+  }
+}

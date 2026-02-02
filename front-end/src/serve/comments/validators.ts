@@ -90,3 +90,5 @@ export function validateCommentUpdate(data: CommentUpdateRequest): void {
   }
   if (trimmed.length > MAX_COMMENT_LENGTH) {
     throw new Error(`Content must be at most ${MAX_COMMENT_LENGTH} characters`);
+  }
+}

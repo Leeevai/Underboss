@@ -50,3 +50,4 @@ export function isValidRatingScore(score: unknown): score is 1 | 2 | 3 | 4 | 5 {
     score >= 1 &&
     score <= 5
   );
+}
