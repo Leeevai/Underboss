@@ -1,7 +1,7 @@
 import React, { useState,useEffect } from 'react';
-import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Pressable, ScrollView } from 'react-native';
+import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Pressable, ScrollView, FlatList } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
-import { serv, getMediaUrl } from '../serve';
+import { serv, getMediaUrl,PapsDetail,MediaItem } from '../serve';
 import type { Paps } from '../serve/paps';
 
 
@@ -17,6 +17,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [papsDetail, setPapsDetail] = useState<any>(null);
+  const [papsMedia, setPapsMedia] = useState<MediaItem[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [applying, setApplying] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
@@ -48,7 +49,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
   // Fetch full PAPS details when modal opens
   useEffect(() => {
     const fetchPapsDetails = async () => {
-      if (!modalVisible || papsDetail) return;
+      if (!modalVisible) return;
       
       if (!pap.id) {
         console.error("No id available:", pap);
@@ -66,10 +67,20 @@ export default function PapsPost({ pap }: PapsPostProps) {
         setLoadingDetail(false);
       }
     };
-    
     fetchPapsDetails();
+    fetchPapsMedia();
   }, [modalVisible, pap.id]);
 
+  const fetchPapsMedia = async () => {
+    if (!pap.id) return;
+    serv('paps.media.list', { paps_id: pap.id })
+      .then((response) => {
+        setPapsMedia(response.media || []);
+      })
+      .catch((error) => {
+        console.error("Error fetching PAPS media:", error);
+      });
+  };
   // Handle apply for job
   const handleApply = async () => {
     setApplying(true);
@@ -116,6 +127,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
               <View style={styles.metaRow}>
                 <Text style={styles.metaIcon}>📍</Text>
                 <Text style={styles.metaText}>{pap.location_address}</Text>
+                <Text></Text>
               </View>
               <View style={styles.metaRow}>
                 <Text style={styles.metaIcon}>🕒</Text>
@@ -179,16 +191,55 @@ export default function PapsPost({ pap }: PapsPostProps) {
                           <Text style={styles.categoryTextSmall}>
                             {typeof pap.categories[0] === 'string' 
                               ? pap.categories[0] 
-                              : pap.categories[0]?.category_name || pap.categories[0]?.name || 'Category'}
+                              : pap.categories[0].name || pap.categories[0]?.category_id || 'Category??'}
                           </Text>
                         </View>
                       )}
                     </View>
 
                     <View style={styles.postedTimeRow}>
-                      <Text style={styles.postedTimeText}>🕒 Posted {pap.published_at ? new Date(pap.published_at).toLocaleDateString() : 'Unknown'}</Text>
+                      <Text style={styles.postedTimeText}>🕒 Posted {pap.publish_at ? new Date(pap.publish_at).toLocaleDateString() : 'Unknown'}</Text>
                     </View>
 
+                    {/* Medias */}
+                    {papsMedia.length > 0 ? (
+                      <View style={{ marginBottom: 24, padding:10, backgroundColor:'#d4e3e4'}}>
+                        <FlatList
+                          data={papsMedia}
+                          keyExtractor={(item, index) => item.media_id.toString() || `media-${index}`}
+                          horizontal
+                          showsHorizontalScrollIndicator={true}
+                          renderItem={({ item }) => {
+                            const mediaUrl = getMediaUrl(item.media_url);
+                            console.log("\n\n\nRendering media item:", item.media_url);
+                            if (item.media_type === 'image' && mediaUrl) {
+                              return (
+                                <Image
+                                  source={{ uri: mediaUrl }}
+                                  style={{ width: 300, height: 300, borderRadius: 12, marginRight: 12 }}
+                                  resizeMode="cover"
+                                />
+                                
+                              );
+                            } else if (item.media_type === 'video') {
+                              return (
+                                <View style={{ width: 300, height: 300, borderRadius: 12, marginRight: 12, backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Text>Video</Text>
+                                </View>
+                              );
+                            } else if (item.media_type === 'document') {
+                              return (
+                                <View style={{ width: 300, height: 300, borderRadius: 12, marginRight: 12, backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Text>PDF</Text>
+                                </View>
+                              );
+                            } else {
+                              return null;
+                            }
+                          }}
+                        />
+                      </View>
+                    ) : null}
 
                     <View style={styles.infoBoxesRow}>
                       <View style={styles.infoBox}>
@@ -207,6 +258,7 @@ export default function PapsPost({ pap }: PapsPostProps) {
                       </View>
                       <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>📍</Text>
+                        <Text></Text>
                         <View>
                           <Text style={styles.infoBoxLabel}>Location</Text>
                           <Text style={styles.infoBoxValue} numberOfLines={2}>{pap.location_address || 'Remote'}</Text>
@@ -452,7 +504,8 @@ const styles = StyleSheet.create({
     fontWeight: '300',
   },
   modalScrollBody: {
-    padding: 20,
+    padding: 30,
+
   },
   modalTitleRow: {
     flexDirection: 'row',
