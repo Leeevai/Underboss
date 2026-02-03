@@ -1,7 +1,7 @@
 # Serve Module - Complete API Documentation
 
-> **Last Updated**: January 2025  
-> **Version**: 3.0  
+> **Last Updated**: February 2026  
+> **Version**: 3.1  
 > **Author**: Underboss Development Team
 
 ---
@@ -318,7 +318,7 @@ const result = await serv('system.uptime');
 ```typescript
 {
   app: string;    // "underboss"
-  up: number;     // Server uptime in seconds
+  up: string;     // Server uptime as time delta string (e.g., "0:05:23")
 }
 ```
 
@@ -326,7 +326,7 @@ const result = await serv('system.uptime');
 
 #### `system.info`
 
-Get server information. **Admin only.**
+Get comprehensive server information. **Requires authentication (any user).**
 
 ```typescript
 const info = await serv('system.info');
@@ -335,10 +335,30 @@ const info = await serv('system.info');
 **Response:**
 ```typescript
 {
-  version: string;
-  environment: string;
-  database: string;
-  uptime: number;
+  app: string;               // "underboss"
+  git: {
+    remote: string;
+    branch: string;
+    commit: string;
+    date: string;
+  };
+  authentication: {
+    config: string[];
+    user: string;
+    auth: string;
+  };
+  db: {
+    type: string;            // e.g., "postgresql"
+    driver: string;
+    version: string;
+  };
+  status: {
+    started: string;         // ISO datetime
+    now: string;             // ISO datetime
+    connections: number;
+    hits: number;
+  };
+  version: Record<string, string>;  // Dependency versions
 }
 ```
 
@@ -346,7 +366,7 @@ const info = await serv('system.info');
 
 #### `system.stats`
 
-Get server statistics. **Admin only.**
+Get database connection pool statistics. **Requires authentication (any user).**
 
 ```typescript
 const stats = await serv('system.stats');
@@ -355,9 +375,7 @@ const stats = await serv('system.stats');
 **Response:**
 ```typescript
 {
-  pool_statistics: object;
-  active_connections: number;
-  total_requests: number;
+  pool_statistics: object;   // Database pool stats
 }
 ```
 
@@ -391,7 +409,7 @@ interface RegisterRequest {
 **Response:**
 ```typescript
 {
-  userId: string;       // UUID of created user
+  user_id: string;       // UUID of created user
 }
 ```
 
@@ -446,17 +464,17 @@ interface UserInfo {
 
 #### `whoami`
 
-Quick authentication check.
+Quick authentication check. Returns the current user's login identifier.
 
 ```typescript
 const result = await serv('whoami');
-console.log('Logged in as:', result.username);
+console.log('Logged in as:', result.user);
 ```
 
 **Response:**
 ```typescript
 {
-  username: string;
+  user: string;   // The username/email/phone used to login
 }
 ```
 
@@ -503,25 +521,29 @@ interface UserProfile {
   display_name: string | null;
   bio: string | null;
   gender: 'M' | 'F' | 'O' | 'N' | null;  // Male, Female, Other, Not specified
-  avatar_url: string | null;
-  date_of_birth: string | null;      // YYYY-MM-DD
+  avatar_url: string | null;             // Path to avatar (e.g., "media/user/profile/uuid.png")
+  date_of_birth: string | null;          // YYYY-MM-DD
   location_address: string | null;
   location_lat: number | null;
   location_lng: number | null;
   timezone: string | null;
   preferred_language: string | null;
-  rating_average: number;            // User's average rating
-  rating_count: number;              // Number of ratings received
-  created_at?: string;               // ISO8601
-  updated_at?: string;               // ISO8601
+  created_at?: string;                   // ISO8601
+  updated_at?: string;                   // ISO8601
 }
 ```
+
+**Note:** User rating is retrieved separately via `profile.rating` endpoint.
+
+**Note:** Avatar images are served statically. Use `getMediaUrl(profile.avatar_url)` to get the full URL.
 
 ---
 
 #### `profile.update`
 
-Update current user's profile.
+Update current user's profile. Uses **PUT** method (replaces all fields).
+
+For partial updates, use `profile.patch` instead.
 
 ```typescript
 await serv('profile.update', {
@@ -552,13 +574,29 @@ interface ProfileUpdateRequest {
 }
 ```
 
-**Response:** Updated `UserProfile`
+**Response:** `204 No Content`
+
+---
+
+#### `profile.patch`
+
+Partially update current user's profile. Uses **PATCH** method.
+
+```typescript
+await serv('profile.patch', {
+  bio: 'Updated bio only'
+});
+```
+
+**Request:** Same as `profile.update` - all fields optional
+
+**Response:** `204 No Content`
 
 ---
 
 #### `profile.getByUsername`
 
-Get another user's public profile.
+Get another user's public profile. **No authentication required.**
 
 ```typescript
 const profile = await serv('profile.getByUsername', {
@@ -570,9 +608,9 @@ const profile = await serv('profile.getByUsername', {
 
 ---
 
-#### `profile.updateByUsername` (Admin)
+#### `profile.updateByUsername`
 
-Update a user's profile by username. **Admin only.**
+Update a user's profile by username. **Must be authenticated as that user.**
 
 ```typescript
 await serv('profile.updateByUsername', {
@@ -580,6 +618,14 @@ await serv('profile.updateByUsername', {
   bio: 'Updated bio'
 });
 ```
+
+**Response:** `204 No Content`
+
+**Errors:**
+| Code | Description |
+|------|-------------|
+| 403 | Can only update your own profile |
+| 404 | User not found |
 
 ---
 
@@ -604,6 +650,24 @@ interface ProfileRatingResponse {
 ---
 
 ### Avatar Endpoints
+
+**Important:** Avatar images are served statically via the `/media/` path. There are no `avatar.get` or `avatar.getByUsername` endpoints. Instead:
+
+1. Get the user's profile to obtain `avatar_url`
+2. Use `getMediaUrl(avatar_url)` to construct the full URL
+3. Use the URL directly in an `<Image>` component
+
+```typescript
+import { serv, getMediaUrl } from '../serve';
+
+// Get avatar URL from profile
+const profile = await serv('profile.get');
+const avatarUrl = getMediaUrl(profile.avatar_url);  // Full URL or null
+
+// For another user
+const otherProfile = await serv('profile.getByUsername', { username: 'jane_doe' });
+const otherAvatarUrl = getMediaUrl(otherProfile.avatar_url);
+```
 
 #### `avatar.upload`
 
@@ -647,22 +711,6 @@ if (result.assets?.[0]) {
 
 ---
 
-#### `avatar.get`
-
-Get current user's avatar as Blob.
-
-```typescript
-const blob = await serv('avatar.get');
-const imageUrl = URL.createObjectURL(blob);
-
-// Use in React Native Image
-<Image source={{ uri: imageUrl }} />
-```
-
-**Response:** `Blob` (image data)
-
----
-
 #### `avatar.delete`
 
 Remove profile picture.
@@ -671,76 +719,16 @@ Remove profile picture.
 await serv('avatar.delete');
 ```
 
-**Response:** `void`
+**Response:** `204 No Content`
 
 ---
-
-#### `avatar.getByUsername`
-
-Get any user's avatar.
-
-```typescript
-const blob = await serv('avatar.getByUsername', {
-  username: 'jane_doe'
-});
-const imageUrl = URL.createObjectURL(blob);
-```
-
-**Request:**
-```typescript
-{
-  username: string;
-}
-```
-
-**Response:** `Blob`
-
-**Advanced Avatar Usage:**
-
-```typescript
-// Convert Blob to Base64
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
-// Handle missing avatars
-async function getUserAvatar(username: string): Promise<string | null> {
-  try {
-    const blob = await serv('avatar.getByUsername', { username });
-    return URL.createObjectURL(blob);
-  } catch (error) {
-    if (error instanceof ApiError && error.isNotFoundError()) {
-      return null;  // User has no avatar
-    }
-    throw error;
-  }
-}
-
-// Cache avatars
-const avatarCache = new Map<string, string>();
-
-async function getCachedAvatar(username: string): Promise<string> {
-  if (avatarCache.has(username)) {
-    return avatarCache.get(username)!;
-  }
-  const blob = await serv('avatar.getByUsername', { username });
-  const url = URL.createObjectURL(blob);
-  avatarCache.set(username, url);
-  return url;
-}
-```
 
 **React Native Component Example:**
 
 ```typescript
 import React, { useEffect, useState } from 'react';
 import { Image, ActivityIndicator, View } from 'react-native';
-import { serv, ApiError } from '../serve';
+import { serv, getMediaUrl } from '../serve';
 
 interface UserAvatarProps {
   username: string;
@@ -754,12 +742,10 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({ username, size = 50 }) =
   useEffect(() => {
     async function loadAvatar() {
       try {
-        const blob = await serv('avatar.getByUsername', { username });
-        setAvatarUri(URL.createObjectURL(blob));
+        const profile = await serv('profile.getByUsername', { username });
+        setAvatarUri(getMediaUrl(profile.avatar_url));
       } catch (error) {
-        if (!(error instanceof ApiError && error.isNotFoundError())) {
-          console.error('Failed to load avatar:', error);
-        }
+        console.error('Failed to load profile:', error);
       } finally {
         setLoading(false);
       }
@@ -799,15 +785,14 @@ const experiences = await serv('experiences.list');
 Experience[]
 
 interface Experience {
-  id: string;                    // UUID
+  experience_id: string;         // UUID
   user_id: string;
-  title: string;                 // Job title
-  company: string;               // Company name
-  location: string | null;
-  start_date: string;            // YYYY-MM-DD
-  end_date: string | null;       // YYYY-MM-DD or null if is_current
+  title: string;                 // Job title (2+ chars)
+  company: string | null;        // Company name
+  description: string | null;    // Job description
+  start_date: string;            // ISO8601 datetime
+  end_date: string | null;       // ISO8601 or null if is_current
   is_current: boolean;           // Currently working here
-  description: string | null;
   display_order: number;         // For sorting
   created_at: string;            // ISO8601
   updated_at?: string;
@@ -823,11 +808,10 @@ Add work experience.
 ```typescript
 const result = await serv('experiences.create', {
   title: 'Senior Developer',
-  company: 'Tech Corp',
-  location: 'San Francisco, CA',
-  start_date: '2020-01-15',
-  end_date: '2023-06-30',        // Omit if is_current: true
-  is_current: false,             // Set to true if current job
+  company: 'Tech Corp',                  // Optional
+  start_date: '2020-01-15T00:00:00Z',
+  end_date: '2023-06-30T00:00:00Z',      // Omit if is_current: true
+  is_current: false,                     // Set to true if current job
   description: 'Led development of mobile applications',
   display_order: 1
 });
@@ -836,13 +820,12 @@ const result = await serv('experiences.create', {
 **Request:**
 ```typescript
 interface ExperienceCreateRequest {
-  title: string;           // Required
-  company: string;         // Required
-  location?: string;
-  start_date: string;      // YYYY-MM-DD, required
-  end_date?: string;       // YYYY-MM-DD, required if is_current is false
+  title: string;           // Required (2+ chars)
+  company?: string;        // Optional
+  description?: string;    // Optional
+  start_date: string;      // ISO8601, required
+  end_date?: string;       // ISO8601, required if is_current is false
   is_current?: boolean;    // Default: false
-  description?: string;
   display_order?: number;
 }
 ```
@@ -850,13 +833,14 @@ interface ExperienceCreateRequest {
 **Response:**
 ```typescript
 {
-  id: string;              // UUID of created experience
+  experience_id: string;   // UUID of created experience
 }
 ```
 
 **Validation:**
+- `title`: At least 2 characters
 - Cannot set both `is_current: true` AND provide `end_date`
-- `end_date` is required if `is_current` is false
+- `end_date` must be after `start_date` if provided
 
 ---
 
@@ -878,15 +862,23 @@ await serv('experiences.update', {
 interface ExperienceUpdateRequest {
   experience_id: string;   // Required (path param)
   title?: string;
-  company?: string;
-  location?: string | null;
-  start_date?: string;
+  company?: string | null;
+  description?: string | null;
+  start_date?: string;     // ISO8601
   end_date?: string | null;
   is_current?: boolean;
-  description?: string | null;
   display_order?: number;
 }
 ```
+
+**Response:** `204 No Content`
+
+**Errors:**
+| Code | Description |
+|------|-------------|
+| 400 | Invalid date validation or experience ID format |
+| 403 | Not your experience |
+| 404 | Experience not found |
 
 ---
 
@@ -899,6 +891,22 @@ await serv('experiences.delete', {
   experience_id: 'uuid-here'
 });
 ```
+
+**Response:** `204 No Content`
+
+---
+
+#### `experiences.listByUsername`
+
+Get another user's work experiences. **No authentication required.**
+
+```typescript
+const experiences = await serv('experiences.listByUsername', {
+  username: 'jane_doe'
+});
+```
+
+**Response:** `Experience[]`
 
 ---
 
@@ -919,12 +927,10 @@ const interests = await serv('interests.list');
 Interest[]
 
 interface Interest {
-  id: string;                  // Interest ID
-  user_id: string;
-  category_id: string;
+  category_id: string;           // Category UUID
   category_name: string;
   category_slug: string;
-  proficiency_level?: 1 | 2 | 3 | 4 | 5;
+  proficiency_level: 1 | 2 | 3 | 4 | 5;  // Proficiency level
   created_at: string;
 }
 ```
@@ -936,18 +942,28 @@ interface Interest {
 Add interest.
 
 ```typescript
-const result = await serv('interests.create', {
+await serv('interests.create', {
   category_id: 'category-uuid',
-  proficiency_level: 4           // Optional: 1-5
+  proficiency_level: 4           // Optional: 1-5, default: 1
 });
 ```
 
-**Response:**
+**Request:**
 ```typescript
-{
-  id: string;                    // Interest ID
+interface InterestCreateRequest {
+  category_id: string;           // Required
+  proficiency_level?: 1 | 2 | 3 | 4 | 5;  // Default: 1
 }
 ```
+
+**Response:** `201 Created` (empty body)
+
+**Errors:**
+| Code | Description |
+|------|-------------|
+| 400 | Invalid category_id format or proficiency level |
+| 404 | Category not found |
+| 409 | Interest already exists |
 
 ---
 
@@ -966,9 +982,11 @@ await serv('interests.update', {
 ```typescript
 interface InterestUpdateRequest {
   category_id: string;           // Required (path param)
-  proficiency_level: 1 | 2 | 3 | 4 | 5;
+  proficiency_level: 1 | 2 | 3 | 4 | 5;  // Required
 }
 ```
+
+**Response:** `204 No Content`
 
 ---
 
@@ -981,6 +999,28 @@ await serv('interests.delete', {
   category_id: 'category-uuid'   // Use category_id, not interest_id
 });
 ```
+
+**Response:** `204 No Content`
+
+**Errors:**
+| Code | Description |
+|------|-------------|
+| 400 | Invalid category_id format |
+| 404 | Interest not found |
+
+---
+
+#### `interests.listByUsername`
+
+Get another user's interests. **No authentication required.**
+
+```typescript
+const interests = await serv('interests.listByUsername', {
+  username: 'jane_doe'
+});
+```
+
+**Response:** `Interest[]`
 
 ---
 
@@ -1047,14 +1087,17 @@ const result = await serv('categories.create', {
 
 #### `categories.update` (Admin)
 
-Update category.
+Update category. Uses **PATCH** method.
 
 ```typescript
 await serv('categories.update', {
   category_id: 'uuid',
-  name: 'Full Stack Development'
+  name: 'Full Stack Development',
+  is_active: true
 });
 ```
+
+**Response:** `204 No Content`
 
 ---
 
@@ -1067,6 +1110,49 @@ await serv('categories.delete', {
   category_id: 'uuid'
 });
 ```
+
+**Response:** `204 No Content`
+
+**Side Effects:**
+- Deletes category icon from disk
+
+---
+
+#### `categories.iconUpload` (Admin)
+
+Upload category icon.
+
+```typescript
+const result = await serv('categories.iconUpload', {
+  category_id: 'uuid',
+  file: imageFile
+});
+```
+
+**Response:**
+```typescript
+{
+  icon_url: string;  // e.g., "/media/category/{category_id}.png"
+}
+```
+
+**Validation:**
+- Max size: 1 MB
+- Allowed types: PNG, JPEG, JPG, GIF, WEBP, SVG
+
+---
+
+#### `categories.iconDelete` (Admin)
+
+Delete category icon.
+
+```typescript
+await serv('categories.iconDelete', {
+  category_id: 'uuid'
+});
+```
+
+**Response:** `204 No Content`
 
 ---
 
@@ -1084,7 +1170,6 @@ Job postings - the core of Underboss.
 **Payment Types:**
 - `fixed` - Fixed price
 - `hourly` - Hourly rate
-- `milestone` - Milestone-based
 - `negotiable` - To be negotiated
 
 #### `paps.list`
@@ -1095,30 +1180,24 @@ List/search jobs with filters.
 const result = await serv('paps.list', {
   // Filters
   status: 'published',
-  category_ids: ['uuid1', 'uuid2'],
-  owner_id: 'user-uuid',
+  category_id: 'uuid',             // Filter by category
+  owner_username: 'john_doe',      // Partial match on owner username
 
   // Location search
-  location_lat: 37.7749,
-  location_lng: -122.4194,
-  radius_km: 25,
+  lat: 37.7749,
+  lng: -122.4194,
+  max_distance: 25,                // km
 
   // Text search
-  search: 'developer',
+  title_search: 'developer',       // Search in title and description
 
   // Payment filter
-  min_payment: 100,
-  max_payment: 1000,
-  payment_currency: 'USD',
-
-  // Pagination & sorting
-  sort_by: 'created_at',        // 'created_at', 'payment_amount', 'distance'
-  sort_order: 'desc',           // 'asc', 'desc'
-  limit: 20,
-  offset: 0
+  min_price: 100,
+  max_price: 1000,
+  payment_type: 'fixed'
 });
 
-console.log(`Found ${result.total} jobs`);
+console.log(`Found ${result.total_count} jobs`);
 result.paps.forEach(job => {
   console.log(job.title, job.payment_amount);
 });
@@ -1128,60 +1207,55 @@ result.paps.forEach(job => {
 ```typescript
 interface PapsListParams {
   status?: 'draft' | 'open' | 'published' | 'closed' | 'cancelled';
-  owner_id?: string;
-  category_ids?: string[];
-  location_lat?: number;
-  location_lng?: number;
-  radius_km?: number;
-  search?: string;
-  min_payment?: number;
-  max_payment?: number;
-  payment_currency?: string;
-  sort_by?: 'created_at' | 'payment_amount' | 'distance';
-  sort_order?: 'asc' | 'desc';
-  limit?: number;
-  offset?: number;
+  category_id?: string;
+  lat?: number;
+  lng?: number;
+  max_distance?: number;           // km, requires lat/lng
+  min_price?: number;
+  max_price?: number;
+  payment_type?: 'fixed' | 'hourly' | 'negotiable';
+  owner_username?: string;         // Partial match
+  title_search?: string;           // Search in title and description
 }
 ```
+
+**Notes:**
+- Admins see ALL paps (no limit)
+- Non-admin users see up to 1000 paps, ranked by interest match score
 
 **Response:**
 ```typescript
 interface PapsListResponse {
   paps: Paps[];
-  total: number;
-  limit: number;
-  offset: number;
+  total_count: number;
 }
 
 interface Paps {
-  id: string;                       // UUID (was paps_id)
+  id: string;                       // UUID
   owner_id: string;
   owner_username: string;
   title: string;
-  subtitle: string | null;          // NEW
+  subtitle: string | null;
   description: string;
   status: PapsStatus;
   location_address: string | null;
   location_lat: number | null;
   location_lng: number | null;
-  location_timezone: string | null; // NEW
-  start_datetime: string | null;    // NEW: When job starts
-  end_datetime: string | null;      // NEW: When job ends
-  estimated_duration_minutes: number | null; // NEW
+  location_timezone: string | null;
+  start_datetime: string | null;    // When job starts
+  end_datetime: string | null;      // When job ends
+  estimated_duration_minutes: number | null;
   payment_amount: number | null;
-  payment_currency: string;
-  payment_type: PaymentType;        // NEW: 'fixed', 'hourly', etc.
-  max_applicants: number | null;    // NEW
-  max_assignees: number | null;     // NEW
-  is_public: boolean;               // NEW
-  publish_at: string | null;        // NEW: Scheduled publish time
+  payment_currency: string;         // e.g., "USD"
+  payment_type: 'fixed' | 'hourly' | 'negotiable';
+  max_applicants: number | null;
+  max_assignees: number | null;
+  is_public: boolean;
+  publish_at: string | null;        // Scheduled publish time
+  expires_at: string | null;
   created_at: string;
   updated_at: string;
-  published_at: string | null;
-  expires_at: string | null;
-  categories: string[];
-  media_count: number;
-  distance_km?: number;
+  categories: Category[];           // Associated categories
 }
 ```
 
@@ -1200,17 +1274,8 @@ const job = await serv('paps.get', {
 **Response:**
 ```typescript
 interface PapsDetail extends Paps {
-  owner_profile: {
-    first_name: string | null;
-    last_name: string | null;
-    avatar_url: string | null;
-  };
-  media: MediaItem[];
-  schedule: PapsSchedule[];
-  application_count: number;
-  comment_count: number;
-  is_owner: boolean;
-  has_applied: boolean;
+  comments_count: number;          // Number of comments
+  applications_count: number;      // Number of applications (SPAPs)
 }
 ```
 
@@ -1222,35 +1287,53 @@ Create a job posting.
 
 ```typescript
 const result = await serv('paps.create', {
-  title: 'Need React Native Developer',
-  subtitle: 'Mobile app project',           // Optional
-  description: 'Looking for an experienced React Native developer...',
-  payment_amount: 5000,
-  payment_currency: 'USD',
-  payment_type: 'fixed',                    // 'fixed', 'hourly', 'milestone', 'negotiable'
-  status: 'draft',
+  title: 'Need React Native Developer',      // Required: 5+ chars
+  description: 'Looking for an experienced React Native developer...',  // Required: 20+ chars
+  payment_amount: 5000,                      // Required: > 0
+  payment_currency: 'USD',                   // Optional, default: 'USD'
+  payment_type: 'fixed',                     // 'fixed', 'hourly', 'negotiable'
+  status: 'draft',                           // 'draft', 'published', etc.
+  subtitle: 'Mobile app project',            // Optional
   location_address: 'San Francisco, CA',
   location_lat: 37.7749,
   location_lng: -122.4194,
-  location_timezone: 'America/Los_Angeles', // Optional
-  start_datetime: '2025-02-01T09:00:00Z',   // Optional
-  end_datetime: '2025-02-28T17:00:00Z',     // Optional
+  location_timezone: 'America/Los_Angeles',
+  start_datetime: '2025-02-01T09:00:00Z',    // Required for 'published' status
+  end_datetime: '2025-02-28T17:00:00Z',      // Must be after start_datetime
   estimated_duration_minutes: 2400,          // 40 hours
-  max_applicants: 10,                       // Optional
-  max_assignees: 1,                         // Optional
-  is_public: true,                          // Default: true
-  category_ids: ['uuid1', 'uuid2'],
+  max_applicants: 10,                        // 1-100, default: 10
+  max_assignees: 1,                          // Must not exceed max_applicants
+  is_public: true,                           // Default: true
+  categories: ['uuid1', { category_id: 'uuid2', is_primary: true }],  // Optional
+  publish_at: '2025-01-15T00:00:00Z',        // Scheduled publish time
   expires_at: '2025-12-31T23:59:59Z'
 });
 
-console.log('Created job:', result.id);
+console.log('Created job:', result.paps_id);
 ```
+
+**Response:**
+```typescript
+{
+  paps_id: string;   // UUID of created job
+}
+```
+
+**Validation:**
+- `title`: At least 5 characters
+- `description`: At least 20 characters
+- `payment_amount`: Must be positive
+- `max_applicants`: 1-100
+- `max_assignees`: Must not exceed max_applicants
+- `location_lat`/`location_lng`: Both required if one is provided
+- `end_datetime`: Must be after start_datetime
+- `start_datetime`: Required for published status
 
 ---
 
 #### `paps.update`
 
-Update job posting.
+Update job posting. Uses **PUT** method.
 
 ```typescript
 await serv('paps.update', {
@@ -1261,6 +1344,17 @@ await serv('paps.update', {
 });
 ```
 
+**Request:** Same fields as `paps.create` (all optional)
+
+**Response:** `204 No Content`
+
+**Errors:**
+| Code | Description |
+|------|-------------|
+| 400 | Invalid PAP ID format or validation failed |
+| 403 | Not owner or admin |
+| 404 | PAPS not found |
+
 ---
 
 #### `paps.updateStatus`
@@ -1268,30 +1362,63 @@ await serv('paps.update', {
 Update only the status of a PAPS.
 
 ```typescript
-await serv('paps.updateStatus', {
+const result = await serv('paps.updateStatus', {
   paps_id: 'uuid',
   status: 'closed'
 });
+console.log('New status:', result.status);
 ```
 
 **Request:**
 ```typescript
 interface PapsStatusUpdateRequest {
-  status: PapsStatus;
+  status: 'draft' | 'open' | 'published' | 'closed' | 'cancelled';
 }
 ```
+
+**Response:**
+```typescript
+{
+  status: string;   // The new status
+}
+```
+
+**Valid Transitions:**
+- `draft` → `published` or `open`
+- `published`/`open` → `closed` (deletes remaining SPAPs)
+- `published`/`open` → `cancelled`
+- `closed` → `published`/`open` (if max_assignees not reached)
+- `cancelled` → Cannot be modified
+
+**Side Effects:**
+- When closing/cancelling: All pending SPAPs are deleted, their chat threads deleted
 
 ---
 
 #### `paps.delete`
 
-Delete job posting.
+Soft delete job posting.
 
 ```typescript
 await serv('paps.delete', {
   paps_id: 'uuid'
 });
 ```
+
+**Response:** `204 No Content`
+
+**Side Effects:**
+- Soft delete (sets deleted_at timestamp)
+- Deletes all media files from disk (PAPS, SPAP, ASAP media)
+- Deletes all SPAPs and ASAPs for this PAPS
+- Deletes all comments
+
+**Errors:**
+| Code | Description |
+|------|-------------|
+| 400 | Cannot delete PAPS with active assignments or invalid ID |
+| 403 | Not owner or admin |
+| 404 | PAPS not found |
 
 ---
 
@@ -1310,25 +1437,28 @@ const result = await serv('paps.media.list', {
 **Response:**
 ```typescript
 {
-  media: MediaItem[];
+  paps_id: string;
   media_count: number;
+  media: MediaItem[];
 }
 
 interface MediaItem {
   media_id: string;
-  url: string;
+  media_url: string;                 // e.g., "/media/post/{media_id}.jpg"
   media_type: 'image' | 'video' | 'document';
-  filename: string | null;
-  file_size: number | null;
-  created_at: string;
+  file_size_bytes: number;
+  mime_type: string;                 // e.g., "image/jpeg"
+  display_order: number;
 }
 ```
+
+**Note:** Media files are served statically. Use `getMediaUrl(media_url)` to get full URL.
 
 ---
 
 #### `paps.media.upload`
 
-Upload media to job.
+Upload media to job. Supports multiple files.
 
 ```typescript
 const files = [imageFile1, imageFile2];  // Array of Blob/File
@@ -1342,10 +1472,17 @@ const result = await serv('paps.media.upload', {
 **Response:**
 ```typescript
 {
-  media: MediaItem[];
+  uploaded_media: MediaItem[];
   count: number;
 }
 ```
+
+**Validation:**
+- Allowed types: PNG, JPEG, JPG, GIF, WEBP, MP4, MOV, PDF
+- Max size: 50 MB per file
+- Images are compressed automatically
+
+**Note:** Media files are served statically at `/media/post/{media_id}.{ext}`.
 
 ---
 
@@ -1355,29 +1492,32 @@ Delete media from job.
 
 ```typescript
 await serv('paps.media.delete', {
-  paps_id: 'uuid',
   media_id: 'media-uuid'
 });
 ```
+
+**Response:** `204 No Content`
+
+**Side Effects:**
+- Deletes file from disk
 
 ---
 
 ### PAPS Schedule Endpoints
 
 **Recurrence Rules:**
-- `none` - One-time schedule
-- `daily` - Every day
-- `weekly` - Every week
-- `biweekly` - Every two weeks
-- `monthly` - Every month
-- `custom` - Custom cron expression
+- `DAILY` - Every day
+- `WEEKLY` - Every week
+- `MONTHLY` - Every month
+- `YEARLY` - Every year
+- `CRON` - Custom cron expression
 
 #### `paps.schedule.list`
 
-Get job schedule. **Note:** Uses `/schedules` path (plural).
+Get job schedules.
 
 ```typescript
-const schedule = await serv('paps.schedule.list', {
+const schedules = await serv('paps.schedule.list', {
   paps_id: 'uuid'
 });
 ```
@@ -1387,13 +1527,13 @@ const schedule = await serv('paps.schedule.list', {
 PapsSchedule[]
 
 interface PapsSchedule {
-  id: string;                      // Schedule ID
+  schedule_id: string;               // UUID
   paps_id: string;
-  recurrence_rule: RecurrenceRule; // 'none', 'daily', 'weekly', etc.
-  cron_expression: string | null;  // For 'custom' rule
-  start_date: string | null;       // YYYY-MM-DD
-  end_date: string | null;         // YYYY-MM-DD
-  next_run_at: string | null;      // Next scheduled run (ISO8601)
+  recurrence_rule: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CRON';
+  cron_expression: string | null;    // For 'CRON' rule
+  start_date: string | null;         // ISO8601
+  end_date: string | null;           // ISO8601
+  next_run_at: string | null;        // Next scheduled run (ISO8601)
   is_active: boolean;
   created_at: string;
   updated_at?: string;
@@ -1404,62 +1544,99 @@ interface PapsSchedule {
 
 #### `paps.schedule.get`
 
-Get schedule details.
+Get specific schedule details.
 
 ```typescript
 const schedule = await serv('paps.schedule.get', {
-  paps_id: 'uuid'
+  paps_id: 'paps-uuid',
+  schedule_id: 'schedule-uuid'
 });
 ```
+
+**Response:** `PapsSchedule`
 
 ---
 
 #### `paps.schedule.create`
 
-Add schedule entry.
+Create schedule entry.
 
 ```typescript
 const result = await serv('paps.schedule.create', {
   paps_id: 'uuid',
-  recurrence_rule: 'weekly',
-  start_date: '2025-03-01',
-  end_date: '2025-06-30',
+  recurrence_rule: 'WEEKLY',
+  start_date: '2025-03-01T00:00:00Z',
+  end_date: '2025-06-30T00:00:00Z',
   is_active: true
 });
 
 // Or with custom cron
 const customResult = await serv('paps.schedule.create', {
   paps_id: 'uuid',
-  recurrence_rule: 'custom',
+  recurrence_rule: 'CRON',
   cron_expression: '0 9 * * 1-5',  // 9 AM weekdays
-  start_date: '2025-03-01'
+  start_date: '2025-03-01T00:00:00Z'
 });
+
+console.log('Created schedule:', result.schedule_id);
 ```
 
 **Request:**
 ```typescript
 interface ScheduleCreateRequest {
-  recurrence_rule: RecurrenceRule;
-  cron_expression?: string;        // Required if recurrence_rule is 'custom'
-  start_date?: string;             // YYYY-MM-DD
-  end_date?: string;               // YYYY-MM-DD
-  is_active?: boolean;             // Default: true
+  recurrence_rule: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CRON';
+  cron_expression?: string;        // Required if recurrence_rule is 'CRON'
+  start_date?: string;             // ISO8601, defaults to current date
+  end_date?: string;               // ISO8601, must be >= start_date
+  next_run_at?: string;            // ISO8601, computed if not provided
 }
 ```
+
+**Response:**
+```typescript
+{
+  schedule_id: string;
+}
+```
+
+**Validation:**
+- `recurrence_rule`: Must be one of: DAILY, WEEKLY, MONTHLY, YEARLY, CRON (case-insensitive input)
+- `cron_expression`: Required when recurrence_rule is 'CRON'
+- `end_date`: Must be after or equal to start_date
 
 ---
 
 #### `paps.schedule.update`
 
-Update schedule.
+Update schedule. Uses **PUT** method.
 
 ```typescript
 await serv('paps.schedule.update', {
-  paps_id: 'uuid',
-  recurrence_rule: 'biweekly',
+  paps_id: 'paps-uuid',
+  schedule_id: 'schedule-uuid',
+  recurrence_rule: 'MONTHLY',
   is_active: false
 });
 ```
+
+**Request:** Same fields as `paps.schedule.create` plus `schedule_id` (all optional except IDs)
+
+**Response:** `204 No Content`
+
+---
+
+#### `paps.schedule.delete`
+
+Delete schedule.
+
+```typescript
+await serv('paps.schedule.delete', {
+  paps_id: 'paps-uuid',
+  schedule_id: 'schedule-uuid'
+});
+```
+
+**Response:** `204 No Content`
 
 ---
 
@@ -1499,41 +1676,32 @@ Job applications from workers.
 
 **Application Statuses:**
 - `pending` - Waiting for review
-- `accepted` - Application accepted
+- `accepted` - Application accepted (creates ASAP)
 - `rejected` - Application rejected
-- `withdrawn` - Applicant withdrew
 
-#### `spap.list`
+#### `spap.my`
 
-List user's applications.
+Get current user's applications.
 
 ```typescript
-const result = await serv('spap.list', {
-  status: 'pending',             // Optional filter
-  role: 'applicant',             // 'applicant' or 'owner'
-  paps_id: 'uuid',               // Optional: filter by job
-  limit: 20,
-  offset: 0
-});
+const result = await serv('spap.my');
+console.log('My applications:', result.applications);
 ```
 
 **Response:**
 ```typescript
 {
-  spaps: Spap[];
-  total: number;
-  limit: number;
-  offset: number;
+  applications: Spap[];
+  count: number;
 }
 
 interface Spap {
-  spap_id: string;
+  id: string;                  // SPAP UUID
   paps_id: string;
   paps_title: string;
   applicant_id: string;
-  applicant_username: string;
+  status: 'pending' | 'accepted' | 'rejected';
   message: string | null;
-  status: SpapStatus;
   created_at: string;
   updated_at: string;
 }
@@ -1541,9 +1709,29 @@ interface Spap {
 
 ---
 
+#### `spap.listByPaps`
+
+Get all applications for a PAPS. **Must be PAPS owner or admin.**
+
+```typescript
+const result = await serv('spap.listByPaps', {
+  paps_id: 'uuid'
+});
+```
+
+**Response:**
+```typescript
+{
+  applications: Spap[];
+  count: number;
+}
+```
+
+---
+
 #### `spap.get`
 
-Get application details.
+Get application details. **Must be applicant, PAPS owner, or admin.**
 
 ```typescript
 const app = await serv('spap.get', {
@@ -1551,52 +1739,193 @@ const app = await serv('spap.get', {
 });
 ```
 
+**Response:**
+```typescript
+{
+  id: string;
+  paps_id: string;
+  applicant_id: string;
+  status: string;
+  message: string | null;
+  created_at: string;
+  updated_at: string;
+  chat_thread_id: string | null;
+}
+```
+
 ---
 
-#### `spap.create`
+#### `spap.apply`
 
 Apply for a job.
 
 ```typescript
-const result = await serv('spap.create', {
+const result = await serv('spap.apply', {
   paps_id: 'job-uuid',
-  message: 'I would love to work on this project!'
+  message: 'I would love to work on this project!',
+  title: 'My Application',                    // Optional
+  subtitle: 'Experienced developer',          // Optional
+  proposed_payment: 450,                      // Optional: >= 0
+  location_address: 'Remote',                 // Optional
+  location_lat: 37.7749,                      // Optional
+  location_lng: -122.4194,                    // Optional
+  location_timezone: 'America/Los_Angeles'   // Optional
 });
 
 console.log('Applied:', result.spap_id);
+console.log('Chat thread:', result.chat_thread_id);
 ```
+
+**Response:**
+```typescript
+{
+  spap_id: string;
+  chat_thread_id: string;  // Chat thread created with PAPS owner
+}
+```
+
+**Validation:**
+- Cannot apply to your own PAPS
+- Cannot apply twice to same PAPS
+- Cannot apply if already assigned to this PAPS
+- PAPS must be in "open" or "published" status
+- Maximum applicants must not be reached
+
+**Side Effects:**
+- Creates a chat thread between applicant and owner
 
 ---
 
-#### `spap.update`
+#### `spap.accept`
 
-Update application (accept/reject).
+Accept an application. **PAPS owner only.**
 
 ```typescript
-// Job owner accepts application
-await serv('spap.update', {
-  spap_id: 'uuid',
-  status: 'accepted'
+const result = await serv('spap.accept', {
+  spap_id: 'uuid'
 });
 
-// Applicant withdraws
-await serv('spap.update', {
-  spap_id: 'uuid',
-  status: 'withdrawn'
-});
+console.log('Created assignment:', result.asap_id);
 ```
+
+**Response:**
+```typescript
+{
+  asap_id: string;   // Created assignment UUID
+}
+```
+
+**Side Effects:**
+- Creates an ASAP (assignment)
+- Transfers chat thread from SPAP to ASAP
+- Deletes the SPAP
+- If max_assignees reached: closes PAPS and deletes remaining SPAPs
+- If multiple assignees: creates group chat
 
 ---
 
-#### `spap.delete`
+#### `spap.reject`
 
-Delete/withdraw application.
+Reject an application. **PAPS owner only.**
 
 ```typescript
-await serv('spap.delete', {
+await serv('spap.reject', {
   spap_id: 'uuid'
 });
 ```
+
+**Response:** `204 No Content`
+
+**Side Effects:**
+- Deletes the SPAP and all its media
+- Deletes the associated chat thread
+
+---
+
+#### `spap.withdraw`
+
+Withdraw application. **Applicant only.**
+
+```typescript
+await serv('spap.withdraw', {
+  spap_id: 'uuid'
+});
+```
+
+**Response:** `204 No Content`
+
+**Side Effects:**
+- Deletes all SPAP media files from disk
+- Deletes associated chat thread
+
+**Note:** Cannot withdraw an accepted application.
+
+---
+
+#### `spap.media.list`
+
+Get application media.
+
+```typescript
+const result = await serv('spap.media.list', {
+  spap_id: 'uuid'
+});
+```
+
+**Response:**
+```typescript
+{
+  spap_id: string;
+  media_count: number;
+  media: MediaItem[];
+}
+```
+
+---
+
+#### `spap.media.upload`
+
+Upload application media. **Applicant only, pending status only.**
+
+```typescript
+const result = await serv('spap.media.upload', {
+  spap_id: 'uuid',
+  files: [file1, file2]
+});
+```
+
+**Validation:**
+- Allowed types: PNG, JPEG, JPG, GIF, WEBP, PDF
+- Max size: 10 MB
+- Application must be in pending status
+
+---
+
+#### `spap.media.delete`
+
+Delete application media.
+
+```typescript
+await serv('spap.media.delete', {
+  media_id: 'media-uuid'
+});
+```
+
+**Response:** `204 No Content`
+
+---
+
+#### `spap.chat`
+
+Get chat thread for application.
+
+```typescript
+const thread = await serv('spap.chat', {
+  spap_id: 'uuid'
+});
+```
+
+**Response:** Chat thread object
 
 ---
 
@@ -1605,22 +1934,62 @@ await serv('spap.delete', {
 Active job assignments after application acceptance.
 
 **Assignment Statuses:**
-- `pending` - Assignment created, not started
+- `active` - Assignment created, ready to start
 - `in_progress` - Work in progress
-- `completed` - Work completed
+- `completed` - Work completed (triggers payment)
 - `cancelled` - Assignment cancelled
 - `disputed` - Payment/work dispute
 
-#### `asap.list`
+#### `asap.my`
 
-List assignments.
+Get current user's assignments (as worker or owner).
 
 ```typescript
-const result = await serv('asap.list', {
-  status: 'in_progress',
-  role: 'worker',                // 'worker' or 'owner'
-  limit: 20
+const result = await serv('asap.my');
+console.log('As worker:', result.as_worker);
+console.log('As owner:', result.as_owner);
+```
+
+**Response:**
+```typescript
+{
+  as_worker: Asap[];           // Assignments where user is the worker
+  as_owner: Asap[];            // Assignments where user owns the PAPS
+  total_as_worker: number;
+  total_as_owner: number;
+}
+
+interface Asap {
+  asap_id: string;
+  paps_id: string;
+  paps_title: string;
+  accepted_user_id: string;    // Worker ID
+  owner_id: string;
+  status: 'active' | 'in_progress' | 'completed' | 'cancelled' | 'disputed';
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+```
+
+---
+
+#### `asap.listByPaps`
+
+Get assignments for a PAPS. **Must be PAPS owner or admin.**
+
+```typescript
+const result = await serv('asap.listByPaps', {
+  paps_id: 'uuid'
 });
+```
+
+**Response:**
+```typescript
+{
+  assignments: Asap[];
+  count: number;
+}
 ```
 
 ---
@@ -1641,52 +2010,205 @@ interface AsapDetail {
   asap_id: string;
   paps_id: string;
   paps_title: string;
+  accepted_user_id: string;
+  accepted_username: string;
   owner_id: string;
   owner_username: string;
-  worker_id: string;
-  worker_username: string;
-  status: AsapStatus;
+  status: string;
+  created_at: string;
   started_at: string | null;
   completed_at: string | null;
-  created_at: string;
-  updated_at: string;
-  payment_status: string;
+}
+```
+
+---
+
+#### `asap.updateStatus`
+
+Update assignment status.
+
+```typescript
+// Start work
+await serv('asap.updateStatus', {
+  asap_id: 'uuid',
+  status: 'in_progress'
+});
+
+// Complete work (triggers payment creation)
+await serv('asap.updateStatus', {
+  asap_id: 'uuid',
+  status: 'completed'
+});
+```
+
+**Request:**
+```typescript
+interface AsapStatusUpdateRequest {
+  status: 'active' | 'in_progress' | 'completed' | 'cancelled' | 'disputed';
+}
+```
+
+**Response:** `204 No Content`
+
+**Permission Rules:**
+- `in_progress`: Worker or owner can start
+- `completed`: Only owner can mark as completed
+- `cancelled`: Only owner or admin can cancel
+- `disputed`: Either party can dispute
+- `active`: Only admin can revert to active
+
+**Side Effects:**
+- If status set to "completed" and PAPS has payment_amount:
+  - Automatically creates payment record
+  - Payer: PAPS owner, Payee: Worker
+  - Amount/Currency: From PAPS
+
+---
+
+#### `asap.delete`
+
+Delete assignment. **Owner or admin only.**
+
+```typescript
+await serv('asap.delete', {
+  asap_id: 'uuid'
+});
+```
+
+**Response:** `204 No Content`
+
+**Side Effects:**
+- Deletes all ASAP media files from disk
+- Cascades to delete chat threads
+
+**Note:** Cannot delete completed assignments.
+
+---
+
+#### `asap.media.list`
+
+Get assignment media.
+
+```typescript
+const result = await serv('asap.media.list', {
+  asap_id: 'uuid'
+});
+```
+
+**Response:**
+```typescript
+{
+  asap_id: string;
+  media_count: number;
   media: MediaItem[];
 }
 ```
 
 ---
 
-#### `asap.create`
+#### `asap.media.upload`
 
-Create assignment (after accepting application).
+Upload assignment media (proof of work). **PAPS owner only.**
 
 ```typescript
-const result = await serv('asap.create', {
-  paps_id: 'job-uuid',
-  accepted_user_id: 'worker-uuid'
+const result = await serv('asap.media.upload', {
+  asap_id: 'uuid',
+  files: [file1, file2]
 });
+```
+
+**Validation:**
+- Allowed types: PNG, JPEG, JPG, GIF, WEBP, MP4, MOV, PDF
+- Max size: 50 MB
+
+---
+
+#### `asap.media.delete`
+
+Delete assignment media. **PAPS owner or admin only.**
+
+```typescript
+await serv('asap.media.delete', {
+  media_id: 'media-uuid'
+});
+```
+
+**Response:** `204 No Content`
+
+---
+
+#### `asap.rate`
+
+Rate user for completed assignment.
+
+```typescript
+const result = await serv('asap.rate', {
+  asap_id: 'uuid',
+  score: 5        // 1-5
+});
+```
+
+**Response:**
+```typescript
+{
+  message: string;      // "Rating submitted successfully"
+  rated_user_id: string;
+  score: number;
+}
+```
+
+**Validation:**
+- ASAP must be completed
+- Owner rates worker, worker rates owner (bidirectional)
+- Individual ratings are NOT stored - only the moving average is updated
+
+---
+
+#### `asap.canRate`
+
+Check if current user can rate this ASAP.
+
+```typescript
+const result = await serv('asap.canRate', {
+  asap_id: 'uuid'
+});
+
+if (result.can_rate) {
+  // Show rating UI
+  console.log('User to rate:', result.user_to_rate_id);
+}
+```
+
+**Response:**
+```typescript
+// If can rate:
+{
+  can_rate: true;
+  user_to_rate_id: string;
+  is_owner: boolean;
+  is_worker: boolean;
+}
+
+// If cannot rate:
+{
+  can_rate: false;
+  reason: string;  // e.g., "Assignment not yet completed"
+}
 ```
 
 ---
 
-#### `asap.update`
+#### `asap.chat`
 
-Update assignment status.
+Get chat thread for assignment.
 
 ```typescript
-// Start work
-await serv('asap.update', {
-  asap_id: 'uuid',
-  status: 'in_progress'
-});
-
-// Complete work
-await serv('asap.update', {
-  asap_id: 'uuid',
-  status: 'completed'
+const thread = await serv('asap.chat', {
+  asap_id: 'uuid'
 });
 ```
+
+**Response:** Chat thread object
 
 ---
 
@@ -1701,18 +2223,42 @@ await serv('asap.update', {
 - `cancelled` - Payment cancelled
 
 **Payment Methods:**
-- `card` - Credit/debit card
-- `bank_transfer` - Bank transfer
-- `wallet` - Digital wallet
+- `transfer` - Bank transfer
 - `cash` - Cash payment
+- `check` - Check payment
 - `crypto` - Cryptocurrency
+- `paypal` - PayPal
+- `stripe` - Stripe
+- `other` - Other method
 
 **Currencies:**
-- `USD`, `EUR`, `GBP`, `CAD`, `AUD`, `JPY`, `CNY`, `INR`, `BRL`, `MXN`
+- `USD`, `EUR`, `GBP`, `CAD`, `AUD`, `JPY`, `CNY`
+
+#### `payments.my`
+
+Get current user's payments (as payer or payee).
+
+```typescript
+const result = await serv('payments.my');
+console.log('Sent:', result.sent);
+console.log('Received:', result.received);
+```
+
+**Response:**
+```typescript
+{
+  payments: Payment[];         // All payments
+  sent: Payment[];             // Payments where user is payer
+  received: Payment[];         // Payments where user is payee
+  total_count: number;
+}
+```
+
+---
 
 #### `payments.listForPaps`
 
-Get payments for a job.
+Get payments for a job. **Must be PAPS owner or admin.**
 
 ```typescript
 const result = await serv('payments.listForPaps', {
@@ -1722,37 +2268,10 @@ const result = await serv('payments.listForPaps', {
 
 **Response:**
 ```typescript
-interface PaymentListByPapsResponse {
+{
+  paps_id: string;
   payments: Payment[];
-  total: number;
-}
-```
-
----
-
-#### `payments.my`
-
-Get current user's payments.
-
-```typescript
-// All my payments
-const payments = await serv('payments.my');
-
-// Filter by role
-const received = await serv('payments.my', {
-  role: 'payee'                  // Payments I received
-});
-
-const sent = await serv('payments.my', {
-  role: 'payer'                  // Payments I made
-});
-```
-
-**Response:**
-```typescript
-interface PaymentMyResponse {
-  payments: Payment[];
-  total: number;
+  count: number;
 }
 ```
 
@@ -1760,7 +2279,7 @@ interface PaymentMyResponse {
 
 #### `payments.create`
 
-Create payment.
+Create payment for a job. **Must be PAPS owner.**
 
 ```typescript
 const result = await serv('payments.create', {
@@ -1768,18 +2287,27 @@ const result = await serv('payments.create', {
   payee_id: 'worker-uuid',
   amount: 500,
   currency: 'USD',
-  payment_method: 'card'
+  payment_method: 'transfer'
 });
+
+console.log('Created payment:', result.payment_id);
 ```
 
 **Request:**
 ```typescript
 interface PaymentCreateRequest {
-  paps_id: string;               // Required
+  paps_id: string;               // Required (path param)
   payee_id: string;              // Required (who receives)
   amount: number;                // Required, > 0
-  currency?: Currency;           // Default: 'USD'
-  payment_method?: PaymentMethod; // Default: 'card'
+  currency?: string;             // Default: 'USD'
+  payment_method?: string;       // 'transfer', 'cash', 'check', 'crypto', 'paypal', 'stripe', 'other'
+}
+```
+
+**Response:**
+```typescript
+{
+  payment_id: string;
 }
 ```
 
@@ -1787,7 +2315,7 @@ interface PaymentCreateRequest {
 
 #### `payments.get`
 
-Get payment details.
+Get payment details. **Must be payer, payee, or admin.**
 
 ```typescript
 const payment = await serv('payments.get', {
@@ -1798,15 +2326,16 @@ const payment = await serv('payments.get', {
 **Response:**
 ```typescript
 interface Payment {
-  id: string;                    // UUID
+  payment_id: string;
   paps_id: string;
   payer_id: string;
   payee_id: string;
   amount: number;
   currency: string;
-  status: PaymentStatus;
-  payment_method: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'refunded' | 'cancelled';
+  payment_method: string | null;
   transaction_id: string | null;
+  external_reference: string | null;
   created_at: string;
   paid_at: string | null;        // When payment completed
 }
@@ -1814,36 +2343,50 @@ interface Payment {
 
 ---
 
-#### `payments.update`
-
-Update payment (for processing integrations).
-
-```typescript
-await serv('payments.update', {
-  payment_id: 'uuid',
-  transaction_id: 'stripe-txn-123'
-});
-```
-
----
-
 #### `payments.updateStatus`
 
-Update payment status.
+Update payment status. **Must be payer or admin.**
 
 ```typescript
 await serv('payments.updateStatus', {
   payment_id: 'uuid',
-  status: 'completed'
+  status: 'completed',
+  transaction_id: 'stripe-txn-123',     // Optional
+  external_reference: 'ref-456'         // Optional
 });
 ```
 
 **Request:**
 ```typescript
 interface PaymentStatusUpdateRequest {
-  status: PaymentStatus;         // 'pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled'
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'refunded' | 'cancelled';
+  transaction_id?: string;
+  external_reference?: string;
 }
 ```
+
+**Response:** `204 No Content`
+
+**Side Effects:**
+- If status set to "completed": sets paid_at timestamp
+
+**Note:** Cannot update completed/refunded/cancelled payments (except admin).
+
+---
+
+#### `payments.delete`
+
+Delete payment record. **Must be payer or admin.**
+
+```typescript
+await serv('payments.delete', {
+  payment_id: 'uuid'
+});
+```
+
+**Response:** `204 No Content`
+
+**Note:** Non-admins can only delete pending payments.
 
 ---
 
@@ -1853,13 +2396,13 @@ User ratings after ASAP (assignment) completion. **Important:** Individual ratin
 
 **How ratings work:**
 1. An ASAP is completed
-2. Either party can rate the other via `POST /asap/{asap_id}/rate`
+2. Either party can rate the other via `asap.rate` endpoint
 3. Owner rates worker, worker rates owner (bidirectional)
 4. The rated user's `rating_average` and `rating_count` are updated
 
 #### `ratings.forUser`
 
-Get user's rating summary.
+Get user's rating summary. **Requires authentication.**
 
 ```typescript
 const result = await serv('ratings.forUser', {
@@ -1883,56 +2426,24 @@ interface UserRating {
 
 #### `ratings.my`
 
-Get current user's rating summary.
+Get current user's rating summary. Same as `profile.rating`.
 
 ```typescript
 const myRating = await serv('ratings.my');
 console.log('My rating:', myRating.rating_average);
 ```
 
-**Response:** `UserRating`
-
----
-
-#### `ratings.create` (via ASAP)
-
-Rate a user after ASAP completion. **Note:** Use `asap.rate` endpoint instead.
-
+**Response:**
 ```typescript
-// Better: Use asap.rate directly
-const result = await serv('asap.rate', {
-  asap_id: 'asap-uuid',
-  score: 5                       // 1-5
-});
-```
-
-**Request:**
-```typescript
-interface RatingCreateRequest {
-  score: 1 | 2 | 3 | 4 | 5;     // Required
+{
+  rating_average: number;
+  rating_count: number;
 }
 ```
 
-**Validation:**
-- ASAP must be completed
-- Must be owner or worker of the ASAP
-- Can only rate once per ASAP per direction
-
 ---
 
-#### `asap.canRate`
-
-Check if current user can rate an ASAP.
-
-```typescript
-const { can_rate, reason } = await serv('asap.canRate', {
-  asap_id: 'uuid'
-});
-
-if (can_rate) {
-  // Show rating UI
-}
-```
+**Note:** To submit a rating, use the `asap.rate` endpoint (see ASAP Endpoints section).
 
 ---
 
@@ -1952,22 +2463,21 @@ Get comments for a job.
 
 ```typescript
 const result = await serv('comments.list', {
-  paps_id: 'job-uuid',
-  parent_id: null,               // null = top-level only
-  limit: 20,
-  offset: 0
+  paps_id: 'job-uuid'
 });
 ```
 
 **Response:**
 ```typescript
 {
+  paps_id: string;
   comments: Comment[];
-  total: number;
+  count: number;                 // Comments in this response
+  total_count: number;           // Total comments including replies
 }
 
 interface Comment {
-  id: string;                    // UUID
+  comment_id: string;            // UUID
   paps_id: string;
   user_id: string;
   username: string;
@@ -1975,11 +2485,12 @@ interface Comment {
   parent_id: string | null;      // For replies
   content: string;
   reply_count: number;
-  is_deleted: boolean;
   created_at: string;
   updated_at: string | null;
 }
 ```
+
+**Note:** Instagram-style comments - only top-level comments can have replies (max depth = 1).
 
 ---
 
@@ -1994,19 +2505,21 @@ const result = await serv('comments.create', {
   content: 'Great opportunity!'
 });
 
-// Reply to comment (alternative method)
-const reply = await serv('comments.create', {
-  paps_id: 'job-uuid',
-  content: 'Thanks for your interest!',
-  parent_id: 'comment-uuid'      // Makes it a reply
-});
+console.log('Created comment:', result.comment_id);
+```
+
+**Request:**
+```typescript
+{
+  paps_id: string;              // Path param
+  content: string;              // 1-2000 chars
+}
 ```
 
 **Response:**
 ```typescript
 {
-  id: string;                    // New comment UUID
-  message: string;
+  comment_id: string;           // New comment UUID
 }
 ```
 
@@ -2017,44 +2530,65 @@ const reply = await serv('comments.create', {
 Get replies to a comment.
 
 ```typescript
-const replies = await serv('comments.replies.list', {
-  comment_id: 'parent-uuid',
-  limit: 20
+const result = await serv('comments.replies.list', {
+  comment_id: 'parent-uuid'
 });
 ```
+
+**Response:**
+```typescript
+{
+  parent_comment_id: string;
+  replies: Comment[];
+  count: number;
+}
+```
+
+**Note:** Cannot get replies of a reply (only top-level comments have replies).
 
 ---
 
 #### `comments.replies.create`
 
-Add reply to a comment (preferred over using parent_id).
+Reply to a comment.
 
 ```typescript
-const reply = await serv('comments.replies.create', {
+const result = await serv('comments.replies.create', {
   comment_id: 'parent-uuid',
   content: 'This is a reply!'
 });
 ```
 
+**Response:**
+```typescript
+{
+  comment_id: string;   // New reply UUID
+}
+```
+
+**Note:** Only top-level comments accept replies. Replies cannot have further replies.
+
 ---
 
 #### `comments.thread`
 
-Get full comment thread with nested replies.
+Get comment with all its replies.
 
 ```typescript
-const thread = await serv('comments.thread', {
+const result = await serv('comments.thread', {
   comment_id: 'uuid'
 });
 
-// Returns comment with all replies nested
-console.log(thread.comment.replies);
+console.log('Comment:', result.comment);
+console.log('Replies:', result.replies);
 ```
 
 **Response:**
 ```typescript
-interface CommentThreadResponse {
-  comment: CommentThread;        // Comment with nested replies[]
+{
+  comment: Comment;
+  replies: Comment[];
+  is_reply: boolean;
 }
 ```
 
@@ -2070,11 +2604,13 @@ const comment = await serv('comments.get', {
 });
 ```
 
+**Response:** `Comment`
+
 ---
 
 #### `comments.update`
 
-Edit comment (owner only).
+Edit comment. Uses **PUT** method. **Author or admin only.**
 
 ```typescript
 await serv('comments.update', {
@@ -2083,17 +2619,32 @@ await serv('comments.update', {
 });
 ```
 
+**Request:**
+```typescript
+{
+  content: string;   // 1-2000 chars
+}
+```
+
+**Response:** `204 No Content`
+
 ---
 
 #### `comments.delete`
 
-Delete comment (soft delete - owner only).
+Soft delete comment. **Author, PAPS owner, or admin only.**
 
 ```typescript
 await serv('comments.delete', {
   comment_id: 'uuid'
 });
 ```
+
+**Response:** `204 No Content`
+
+**Side Effects:**
+- Soft delete (sets deleted_at timestamp)
+- Also soft deletes all replies if this is a parent comment
 
 ---
 
@@ -2464,7 +3015,7 @@ type AsapStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'dispu
 
 type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded' | 'cancelled';
 
-type PaymentType = 'fixed' | 'hourly' | 'milestone' | 'negotiable';
+type PaymentType = 'fixed' | 'hourly' | 'negotiable';
 ```
 
 ### Chat/Message Types
@@ -2480,15 +3031,15 @@ type ParticipantRole = 'owner' | 'participant' | 'admin';
 ### Schedule Types
 
 ```typescript
-type RecurrenceRule = 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
+type RecurrenceRule = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'CRON';
 ```
 
 ### Payment Types
 
 ```typescript
-type PaymentMethod = 'card' | 'bank_transfer' | 'wallet' | 'cash' | 'crypto';
+type PaymentMethod = 'transfer' | 'cash' | 'check' | 'crypto' | 'paypal' | 'stripe' | 'other';
 
-type Currency = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'JPY' | 'CNY' | 'INR' | 'BRL' | 'MXN';
+type Currency = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'JPY' | 'CNY';
 ```
 
 ### Import All Types
@@ -2941,83 +3492,139 @@ serv('myself')
 ### Profile
 ```typescript
 serv('profile.get')
+serv('profile.getByUsername', { username })
 serv('profile.update', { first_name, last_name, bio })
-serv('avatar.upload', { file })
-serv('avatar.get')
-serv('avatar.getByUsername', { username })
+serv('profile.patch', { first_name })  // Partial update
+serv('profile.avatar.upload', { file })
+serv('profile.avatar.delete')
+serv('profile.rating')
 ```
 
 ### Experiences
 ```typescript
 serv('experiences.list')
+serv('experiences.listByUsername', { username })
 serv('experiences.create', { title, company_name, start_date })
 serv('experiences.update', { experience_id, title })
 serv('experiences.delete', { experience_id })
 ```
 
-### Jobs
+### Interests
 ```typescript
-serv('paps.list', { status, limit })
+serv('interests.list')
+serv('interests.listByUsername', { username })
+serv('interests.create', { category_id, proficiency_level })
+serv('interests.update', { category_id, proficiency_level })
+serv('interests.delete', { category_id })
+```
+
+### Jobs (PAPS)
+```typescript
+serv('paps.list', { status, payment_type, limit, offset })
 serv('paps.get', { paps_id })
-serv('paps.create', { title, description, payment_amount })
-serv('paps.update', { paps_id, ... })
+serv('paps.create', { title, description, payment_type, payment_amount })
+serv('paps.update', { paps_id, ... })         // PUT - full replace
+serv('paps.updateStatus', { paps_id, status })
 serv('paps.delete', { paps_id })
+// Media
+serv('paps.media.list', { paps_id })
+serv('paps.media.upload', { paps_id, file })
+serv('paps.media.delete', { paps_id, media_id })
+// Schedules
+serv('paps.schedules.list', { paps_id })
+serv('paps.schedules.get', { paps_id, schedule_id })
+serv('paps.schedules.create', { paps_id, ... })
+serv('paps.schedules.update', { paps_id, schedule_id, ... })
+serv('paps.schedules.delete', { paps_id, schedule_id })
+// Categories
+serv('paps.categories.list', { paps_id })
+serv('paps.categories.add', { paps_id, category_id })
+serv('paps.categories.remove', { paps_id, category_id })
 ```
 
-### Applications
+### Applications (SPAP)
 ```typescript
-serv('spap.list', { status })
-serv('spap.create', { paps_id, message })
-serv('spap.update', { spap_id, status })
+serv('spap.my')                           // My applications
+serv('spap.listForPaps', { paps_id })     // Applications for a PAPS
+serv('spap.get', { spap_id })
+serv('spap.apply', { paps_id, message })  // Apply for job
+serv('spap.accept', { spap_id })          // Accept application (owner)
+serv('spap.reject', { spap_id, reason })  // Reject application (owner)
+serv('spap.withdraw', { spap_id })        // Withdraw application (applicant)
+serv('spap.chat', { spap_id })            // Get chat thread
 ```
 
-### Assignments
+### Assignments (ASAP)
 ```typescript
-serv('asap.list', { status })
-serv('asap.create', { paps_id, accepted_user_id })
-serv('asap.update', { asap_id, status })
+serv('asap.my')                              // My assignments
+serv('asap.listForPaps', { paps_id })        // Assignments for a PAPS
+serv('asap.get', { asap_id })
+serv('asap.updateStatus', { asap_id, status })  // Update status
+serv('asap.media', { asap_id })              // Get media
+serv('asap.chat', { asap_id })               // Get chat thread
+serv('asap.canRate', { asap_id })            // Check if can rate
+serv('asap.rate', { asap_id, score })        // Submit rating
 ```
 
 ### Payments
 ```typescript
-serv('payments.my', { role })
-serv('payments.create', { paps_id, payee_id, amount, currency })
+serv('payments.my')
+serv('payments.listForPaps', { paps_id })
+serv('payments.create', { paps_id, payee_id, amount, currency, payment_method })
 serv('payments.get', { payment_id })
+serv('payments.updateStatus', { payment_id, status })
+serv('payments.delete', { payment_id })
 ```
 
 ### Ratings
 ```typescript
 serv('ratings.forUser', { user_id })
-serv('ratings.create', { paps_id, rated_user_id, rating, review })
+serv('ratings.my')
+// To submit rating, use asap.rate endpoint
 ```
 
 ### Comments
 ```typescript
 serv('comments.list', { paps_id })
 serv('comments.create', { paps_id, content })
+serv('comments.get', { comment_id })
+serv('comments.update', { comment_id, content })
 serv('comments.delete', { comment_id })
+serv('comments.replies.list', { comment_id })
+serv('comments.replies.create', { comment_id, content })
+serv('comments.thread', { comment_id })
 ```
 
 ### Chat
 ```typescript
 serv('chat.list')
 serv('chat.create', { participant_ids, initial_message })
-serv('chat.messages.list', { thread_id })
+serv('chat.get', { thread_id })
+serv('chat.leave', { thread_id })
+serv('chat.messages.list', { thread_id, limit, offset })
 serv('chat.messages.send', { thread_id, content })
-serv('chat.messages.read', { thread_id })
+serv('chat.messages.update', { thread_id, message_id, content })
+serv('chat.messages.markRead', { thread_id, message_id })
+serv('chat.markAllRead', { thread_id })
+serv('chat.unreadCount', { thread_id })
 ```
 
 ### Categories
 ```typescript
 serv('categories.list')
 serv('categories.get', { category_id })
+serv('categories.create', { name, description })  // Admin
+serv('categories.update', { category_id, ... })   // Admin
+serv('categories.delete', { category_id })        // Admin
+serv('categories.iconUpload', { category_id, file })  // Admin
+serv('categories.iconDelete', { category_id })    // Admin
 ```
 
 ### System
 ```typescript
-serv('system.uptime')
-serv('system.info')       // Admin
-serv('system.stats')      // Admin
+serv('system.uptime')     // Public
+serv('system.info')       // Auth required
+serv('system.stats')      // Auth required
 ```
 
 ---
