@@ -181,6 +181,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
   }, [pap.id]);
 
   const openModal = () => {
+    console.log('Opening modal, onPress:', !!onPress);
     if (onPress) {
       onPress();
     } else {
@@ -275,17 +276,16 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
       <Modal
         visible={modalVisible}
         animationType="slide"
-        transparent
+        transparent={true}
+        statusBarTranslucent={true}
         onRequestClose={() => setModalVisible(false)}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setModalVisible(false)}
-        >
+        <View style={styles.modalOverlay}>
           <Pressable
-            style={styles.modalContainer}
-            onPress={(e) => e.stopPropagation()}
-          >
+            style={styles.modalBackdrop}
+            onPress={() => setModalVisible(false)}
+          />
+          <View style={styles.modalContainer}>
             <SafeAreaView style={styles.modalSafeArea} edges={['bottom']}>
               {/* Modal Header */}
               <View style={styles.modalHeader}>
@@ -522,8 +522,8 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 </TouchableOpacity>
               </View>
             </SafeAreaView>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -652,12 +652,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
   modalContainer: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '92%',
-    minHeight: '70%',
+    height: '90%',
+    overflow: 'hidden',
   },
   modalSafeArea: {
     flex: 1,
