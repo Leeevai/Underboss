@@ -8,7 +8,7 @@
  * Each function shows how to use a specific endpoint.
  */
 
-import { serv } from './index.new';
+import { serv, getMediaUrl } from './index';
 
 // =============================================================================
 // SAMPLE DATA
@@ -17,6 +17,29 @@ import { serv } from './index.new';
 const SAMPLE_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const sampleFile = new Blob(['test'], { type: 'image/png' });
 const sampleFiles = [new Blob(['test1'], { type: 'image/png' })];
+
+// =============================================================================
+// SYSTEM ENDPOINTS
+// =============================================================================
+
+/** GET /uptime (public) */
+async function testSystemUptime() {
+  const result = await serv('system.uptime');
+  console.log('App:', result.app, 'Up:', result.up);
+}
+
+/** GET /info (authenticated) */
+async function testSystemInfo() {
+  const info = await serv('system.info');
+  console.log('App:', info.app);
+  console.log('Git:', info.git);
+}
+
+/** GET /stats (authenticated) */
+async function testSystemStats() {
+  const stats = await serv('system.stats');
+  console.log('Pool stats:', stats.pool_statistics);
+}
 
 // =============================================================================
 // AUTH ENDPOINTS
@@ -30,7 +53,7 @@ async function testRegister() {
     password: 'SecurePass123!',
     phone: '+1234567890', // optional
   });
-  console.log('User ID:', result.userId);
+  console.log('User ID:', result.user_id);
 }
 
 /** POST /login - Auto-saves token, returns UserInfo */
@@ -46,7 +69,7 @@ async function testLogin() {
 /** GET /who-am-i */
 async function testWhoAmI() {
   const result = await serv('whoami');
-  console.log('Username:', result.username);
+  console.log('Username:', result.user);
 }
 
 /** GET /myself - Returns clean UserInfo */
@@ -64,24 +87,49 @@ async function testMyself() {
 async function testProfileGet() {
   const profile = await serv('profile.get');
   console.log('Name:', profile.first_name, profile.last_name);
+  console.log('Avatar:', profile.avatar_url);
 }
 
-/** PUT /profile */
+/** PUT /profile - Full replace */
 async function testProfileUpdate() {
-  const profile = await serv('profile.update', {
+  await serv('profile.update', {
     first_name: 'John',
     last_name: 'Doe',
     bio: 'Software developer',
     location_lat: 37.7749,
     location_lng: -122.4194,
   });
-  console.log('Updated:', profile.first_name);
+  console.log('Profile updated (PUT)');
+}
+
+/** PATCH /profile - Partial update */
+async function testProfilePatch() {
+  await serv('profile.patch', {
+    bio: 'Updated bio only',
+  });
+  console.log('Profile patched');
 }
 
 /** GET /user/{username}/profile */
 async function testProfileByUsername() {
   const profile = await serv('profile.getByUsername', { username: 'johndoe' });
   console.log('Profile:', profile.display_name);
+}
+
+/** PATCH /user/{username}/profile */
+async function testProfileUpdateByUsername() {
+  await serv('profile.updateByUsername', {
+    username: 'johndoe',
+    bio: 'Updated via username',
+  });
+  console.log('Profile updated by username');
+}
+
+/** GET /profile/rating */
+async function testProfileRating() {
+  const rating = await serv('profile.rating');
+  console.log('Average:', rating.rating_average);
+  console.log('Count:', rating.rating_count);
 }
 
 // =============================================================================
@@ -104,8 +152,6 @@ async function testAvatarFetch() {
   const profile = await serv('profile.get');
   
   if (profile.avatar_url) {
-    // Use getMediaUrl helper to construct full URL
-    const { getMediaUrl } = await import('./serv');
     const avatarUrl = getMediaUrl(profile.avatar_url);
     
     if (avatarUrl) {
@@ -126,7 +172,6 @@ async function testAvatarByUsername() {
   const profile = await serv('profile.getByUsername', { username: 'johndoe' });
   
   if (profile.avatar_url) {
-    const { getMediaUrl } = await import('./serv');
     const avatarUrl = getMediaUrl(profile.avatar_url);
     
     if (avatarUrl) {
@@ -153,28 +198,37 @@ async function testExperiencesList() {
   console.log('Experiences:', experiences.length);
 }
 
+/** GET /user/{username}/profile/experiences */
+async function testExperiencesListByUsername() {
+  const experiences = await serv('experiences.listByUsername', { username: 'johndoe' });
+  console.log('User experiences:', experiences.length);
+}
+
 /** POST /profile/experiences */
 async function testExperiencesCreate() {
   const result = await serv('experiences.create', {
-    job_title: 'Senior Developer',
+    title: 'Senior Developer',
     company_name: 'Tech Corp',
     start_date: '2020-01-15',
     end_date: '2023-06-30',
     description: 'Led development team',
+    is_current: false,
   });
   console.log('Created experience:', result.experience_id);
 }
 
-/** PUT /profile/experiences/{id} */
+/** PATCH /profile/experiences/{experience_id} */
 async function testExperiencesUpdate() {
   await serv('experiences.update', {
     experience_id: SAMPLE_UUID,
-    job_title: 'Lead Developer',
+    title: 'Lead Developer',
+    is_current: true,
+    end_date: null,
   });
   console.log('Updated');
 }
 
-/** DELETE /profile/experiences/{id} */
+/** DELETE /profile/experiences/{experience_id} */
 async function testExperiencesDelete() {
   await serv('experiences.delete', { experience_id: SAMPLE_UUID });
   console.log('Deleted');
@@ -190,18 +244,33 @@ async function testInterestsList() {
   console.log('Interests:', interests.length);
 }
 
+/** GET /user/{username}/profile/interests */
+async function testInterestsListByUsername() {
+  const interests = await serv('interests.listByUsername', { username: 'johndoe' });
+  console.log('User interests:', interests.length);
+}
+
 /** POST /profile/interests */
 async function testInterestsCreate() {
   const result = await serv('interests.create', {
     category_id: SAMPLE_UUID,
     proficiency_level: 4,
   });
-  console.log('Created interest:', result.interest_id);
+  console.log('Created interest');
 }
 
-/** DELETE /profile/interests/{id} */
+/** PATCH /profile/interests/{category_id} */
+async function testInterestsUpdate() {
+  await serv('interests.update', {
+    category_id: SAMPLE_UUID,
+    proficiency_level: 5,
+  });
+  console.log('Updated interest');
+}
+
+/** DELETE /profile/interests/{category_id} */
 async function testInterestsDelete() {
-  await serv('interests.delete', { interest_id: SAMPLE_UUID });
+  await serv('interests.delete', { category_id: SAMPLE_UUID });
   console.log('Deleted');
 }
 
@@ -215,7 +284,7 @@ async function testCategoriesList() {
   console.log('Categories:', categories.length);
 }
 
-/** GET /categories/{id} */
+/** GET /categories/{category_id} */
 async function testCategoriesGet() {
   const category = await serv('categories.get', { category_id: SAMPLE_UUID });
   console.log('Category:', category.name);
@@ -231,7 +300,7 @@ async function testCategoriesCreate() {
   console.log('Created:', result.category_id);
 }
 
-/** PUT /categories/{id} (Admin) */
+/** PUT /categories/{category_id} (Admin) */
 async function testCategoriesUpdate() {
   await serv('categories.update', {
     category_id: SAMPLE_UUID,
@@ -240,10 +309,31 @@ async function testCategoriesUpdate() {
   console.log('Updated');
 }
 
-/** DELETE /categories/{id} (Admin) */
+/** DELETE /categories/{category_id} (Admin) */
 async function testCategoriesDelete() {
   await serv('categories.delete', { category_id: SAMPLE_UUID });
   console.log('Deleted');
+}
+
+/** POST /categories/{category_id}/icon (Admin) */
+async function testCategoriesIconUpload() {
+  const result = await serv('categories.iconUpload', {
+    category_id: SAMPLE_UUID,
+    file: sampleFile,
+  });
+  console.log('Icon uploaded:', result.icon_url);
+}
+
+/** GET /categories/{category_id}/icon (Public) */
+async function testCategoriesIconGet() {
+  const result = await serv('categories.iconGet', { category_id: SAMPLE_UUID });
+  console.log('Icon URL:', result);
+}
+
+/** DELETE /categories/{category_id}/icon (Admin) */
+async function testCategoriesIconDelete() {
+  await serv('categories.iconDelete', { category_id: SAMPLE_UUID });
+  console.log('Icon deleted');
 }
 
 // =============================================================================
@@ -254,6 +344,7 @@ async function testCategoriesDelete() {
 async function testPapsList() {
   const result = await serv('paps.list', {
     status: 'published',
+    payment_type: 'fixed',
     location_lat: 37.7749,
     location_lng: -122.4194,
     radius_km: 25,
@@ -261,11 +352,12 @@ async function testPapsList() {
     sort_by: 'created_at',
     sort_order: 'desc',
     limit: 20,
+    offset: 0,
   });
   console.log('Found:', result.total, 'jobs');
 }
 
-/** GET /paps/{id} */
+/** GET /paps/{paps_id} */
 async function testPapsGet() {
   const paps = await serv('paps.get', { paps_id: SAMPLE_UUID });
   console.log('Job:', paps.title);
@@ -277,9 +369,10 @@ async function testPapsCreate() {
   const result = await serv('paps.create', {
     title: 'Need React Developer',
     description: 'Looking for an experienced React developer for a 3-month project.',
+    payment_type: 'fixed',
     payment_amount: 5000,
     payment_currency: 'USD',
-    status: 'published',
+    status: 'draft',
     location_address: 'San Francisco, CA',
     location_lat: 37.7749,
     location_lng: -122.4194,
@@ -288,47 +381,76 @@ async function testPapsCreate() {
   console.log('Created PAPS:', result.paps_id);
 }
 
-/** PUT /paps/{id} */
+/** PUT /paps/{paps_id} */
 async function testPapsUpdate() {
   await serv('paps.update', {
     paps_id: SAMPLE_UUID,
     title: 'Updated Job Title',
+    description: 'Updated description with sufficient length for validation.',
     payment_amount: 6000,
   });
   console.log('Updated');
 }
 
-/** DELETE /paps/{id} */
+/** PUT /paps/{paps_id}/status */
+async function testPapsUpdateStatus() {
+  await serv('paps.updateStatus', {
+    paps_id: SAMPLE_UUID,
+    status: 'published',
+  });
+  console.log('Status updated to published');
+}
+
+/** DELETE /paps/{paps_id} */
 async function testPapsDelete() {
   await serv('paps.delete', { paps_id: SAMPLE_UUID });
   console.log('Deleted');
 }
 
 // =============================================================================
+// PAPS CATEGORIES ENDPOINTS
+// =============================================================================
+
+/** POST /paps/{paps_id}/categories/{category_id} */
+async function testPapsCategoriesAdd() {
+  await serv('paps.categories.add', {
+    paps_id: SAMPLE_UUID,
+    category_id: SAMPLE_UUID,
+  });
+  console.log('Category added to PAPS');
+}
+
+/** DELETE /paps/{paps_id}/categories/{category_id} */
+async function testPapsCategoriesRemove() {
+  await serv('paps.categories.remove', {
+    paps_id: SAMPLE_UUID,
+    category_id: SAMPLE_UUID,
+  });
+  console.log('Category removed from PAPS');
+}
+
+// =============================================================================
 // PAPS MEDIA ENDPOINTS
 // =============================================================================
 
-/** GET /paps/{id}/media */
+/** GET /paps/{paps_id}/media */
 async function testPapsMediaList() {
   const result = await serv('paps.media.list', { paps_id: SAMPLE_UUID });
-  console.log('Media count:', result.media_count);
+  console.log('Media count:', result.media?.length || 0);
 }
 
-/** POST /paps/{id}/media */
+/** POST /paps/{paps_id}/media */
 async function testPapsMediaUpload() {
   const result = await serv('paps.media.upload', {
     paps_id: SAMPLE_UUID,
     files: sampleFiles,
   });
-  console.log('Uploaded:', result.count, 'files');
+  console.log('Uploaded:', result.uploaded?.length || 0, 'files');
 }
 
-/** DELETE /paps/{id}/media/{media_id} */
+/** DELETE /paps/media/{media_id} */
 async function testPapsMediaDelete() {
-  await serv('paps.media.delete', { 
-    paps_id: SAMPLE_UUID, 
-    media_id: SAMPLE_UUID 
-  });
+  await serv('paps.media.delete', { media_id: SAMPLE_UUID });
   console.log('Deleted');
 }
 
@@ -336,22 +458,51 @@ async function testPapsMediaDelete() {
 // PAPS SCHEDULE ENDPOINTS
 // =============================================================================
 
-/** GET /paps/{id}/schedule */
+/** GET /paps/{paps_id}/schedules */
 async function testPapsScheduleList() {
-  const schedule = await serv('paps.schedule.list', { paps_id: SAMPLE_UUID });
-  console.log('Schedule entries:', schedule.length);
+  const schedules = await serv('paps.schedule.list', { paps_id: SAMPLE_UUID });
+  console.log('Schedule entries:', schedules.length);
 }
 
-/** POST /paps/{id}/schedule */
+/** GET /paps/{paps_id}/schedules/{schedule_id} */
+async function testPapsScheduleGet() {
+  const schedule = await serv('paps.schedule.get', {
+    paps_id: SAMPLE_UUID,
+    schedule_id: SAMPLE_UUID,
+  });
+  console.log('Schedule:', schedule.start_datetime);
+}
+
+/** POST /paps/{paps_id}/schedules */
 async function testPapsScheduleCreate() {
   const result = await serv('paps.schedule.create', {
     paps_id: SAMPLE_UUID,
-    start_time: '2024-03-01T09:00:00Z',
-    end_time: '2024-03-01T17:00:00Z',
-    is_recurring: true,
-    recurrence_pattern: 'weekly',
+    start_datetime: '2024-03-01T09:00:00Z',
+    end_datetime: '2024-03-01T17:00:00Z',
+    recurrence_rule: 'WEEKLY',
+    recurrence_end_date: '2024-06-01',
   });
   console.log('Created schedule:', result.schedule_id);
+}
+
+/** PUT /paps/{paps_id}/schedules/{schedule_id} */
+async function testPapsScheduleUpdate() {
+  await serv('paps.schedule.update', {
+    paps_id: SAMPLE_UUID,
+    schedule_id: SAMPLE_UUID,
+    start_datetime: '2024-03-01T10:00:00Z',
+    end_datetime: '2024-03-01T18:00:00Z',
+  });
+  console.log('Schedule updated');
+}
+
+/** DELETE /paps/{paps_id}/schedules/{schedule_id} */
+async function testPapsScheduleDelete() {
+  await serv('paps.schedule.delete', {
+    paps_id: SAMPLE_UUID,
+    schedule_id: SAMPLE_UUID,
+  });
+  console.log('Schedule deleted');
 }
 
 // =============================================================================
@@ -361,13 +512,13 @@ async function testPapsScheduleCreate() {
 /** GET /spap/my - Get current user's applications */
 async function testSpapMy() {
   const result = await serv('spap.my');
-  console.log('My applications:', result.applications.length);
+  console.log('My applications:', result.applications?.length || 0);
 }
 
 /** GET /paps/{paps_id}/applications - Get applications for a PAPS (owner only) */
 async function testSpapListByPaps() {
   const result = await serv('spap.listByPaps', { paps_id: SAMPLE_UUID });
-  console.log('Applications:', result.applications.length);
+  console.log('Applications:', result.applications?.length || 0);
 }
 
 /** GET /spap/{spap_id} - Get specific application */
@@ -394,7 +545,7 @@ async function testSpapAccept() {
 
 /** PUT /spap/{spap_id}/reject - Reject application (owner only) */
 async function testSpapReject() {
-  await serv('spap.reject', { spap_id: SAMPLE_UUID });
+  await serv('spap.reject', { spap_id: SAMPLE_UUID, reason: 'Position filled' });
   console.log('Application rejected');
 }
 
@@ -404,6 +555,33 @@ async function testSpapWithdraw() {
   console.log('Application withdrawn');
 }
 
+/** GET /spap/{spap_id}/media */
+async function testSpapMediaList() {
+  const result = await serv('spap.media.list', { spap_id: SAMPLE_UUID });
+  console.log('SPAP media:', result.media?.length || 0);
+}
+
+/** POST /spap/{spap_id}/media */
+async function testSpapMediaUpload() {
+  const result = await serv('spap.media.upload', {
+    spap_id: SAMPLE_UUID,
+    files: sampleFiles,
+  });
+  console.log('Uploaded SPAP media');
+}
+
+/** DELETE /spap/media/{media_id} */
+async function testSpapMediaDelete() {
+  await serv('spap.media.delete', { media_id: SAMPLE_UUID });
+  console.log('SPAP media deleted');
+}
+
+/** GET /spap/{spap_id}/chat */
+async function testSpapChat() {
+  const thread = await serv('spap.chat', { spap_id: SAMPLE_UUID });
+  console.log('SPAP chat thread:', thread.thread_id);
+}
+
 // =============================================================================
 // ASAP (ASSIGNMENTS) ENDPOINTS
 // =============================================================================
@@ -411,14 +589,14 @@ async function testSpapWithdraw() {
 /** GET /asap - Get current user's assignments */
 async function testAsapMy() {
   const result = await serv('asap.my');
-  console.log('As worker:', result.as_worker.length);
-  console.log('As owner:', result.as_owner.length);
+  console.log('As worker:', result.as_worker?.length || 0);
+  console.log('As owner:', result.as_owner?.length || 0);
 }
 
 /** GET /paps/{paps_id}/assignments - Get assignments for a PAPS (owner only) */
 async function testAsapListByPaps() {
   const result = await serv('asap.listByPaps', { paps_id: SAMPLE_UUID });
-  console.log('Assignments:', result.assignments.length);
+  console.log('Assignments:', result.assignments?.length || 0);
 }
 
 /** GET /asap/{asap_id} - Get specific assignment */
@@ -442,6 +620,27 @@ async function testAsapDelete() {
   console.log('Assignment deleted');
 }
 
+/** GET /asap/{asap_id}/media */
+async function testAsapMediaList() {
+  const result = await serv('asap.media.list', { asap_id: SAMPLE_UUID });
+  console.log('ASAP media:', result.media?.length || 0);
+}
+
+/** POST /asap/{asap_id}/media */
+async function testAsapMediaUpload() {
+  const result = await serv('asap.media.upload', {
+    asap_id: SAMPLE_UUID,
+    files: sampleFiles,
+  });
+  console.log('Uploaded ASAP media');
+}
+
+/** DELETE /asap/media/{media_id} */
+async function testAsapMediaDelete() {
+  await serv('asap.media.delete', { media_id: SAMPLE_UUID });
+  console.log('ASAP media deleted');
+}
+
 /** POST /asap/{asap_id}/rate - Rate user for completed assignment */
 async function testAsapRate() {
   const result = await serv('asap.rate', {
@@ -455,102 +654,103 @@ async function testAsapRate() {
 async function testAsapCanRate() {
   const result = await serv('asap.canRate', { asap_id: SAMPLE_UUID });
   console.log('Can rate:', result.can_rate);
+  if (result.can_rate) {
+    console.log('User to rate:', result.user_to_rate_id);
+  }
+}
+
+/** GET /asap/{asap_id}/chat */
+async function testAsapChat() {
+  const thread = await serv('asap.chat', { asap_id: SAMPLE_UUID });
+  console.log('ASAP chat thread:', thread.thread_id);
 }
 
 // =============================================================================
 // PAYMENTS ENDPOINTS
 // =============================================================================
 
-/** GET /paps/{id}/payments */
-async function testPaymentsForPaps() {
-  const result = await serv('payments.listForPaps', { paps_id: SAMPLE_UUID });
-  console.log('Payments:', result.payments.length);
+/** GET /payments - Get current user's payments */
+async function testPaymentsMy() {
+  const result = await serv('payments.my');
+  console.log('Sent payments:', result.sent?.length || 0);
+  console.log('Received payments:', result.received?.length || 0);
 }
 
-/** POST /paps/{id}/payments */
+/** GET /paps/{paps_id}/payments */
+async function testPaymentsListForPaps() {
+  const result = await serv('payments.listForPaps', { paps_id: SAMPLE_UUID });
+  console.log('Payments for PAPS:', result.payments?.length || 0);
+}
+
+/** POST /paps/{paps_id}/payments */
 async function testPaymentsCreate() {
   const result = await serv('payments.create', {
     paps_id: SAMPLE_UUID,
     payee_id: SAMPLE_UUID,
     amount: 500,
     currency: 'USD',
-    payment_method: 'card',
+    payment_method: 'transfer',
   });
   console.log('Created payment:', result.payment_id);
 }
 
-/** GET /payments/{id} */
+/** GET /payments/{payment_id} */
 async function testPaymentsGet() {
   const payment = await serv('payments.get', { payment_id: SAMPLE_UUID });
   console.log('Payment:', payment.amount, payment.currency);
+  console.log('Status:', payment.status);
 }
 
-/** PATCH /payments/{id} */
-async function testPaymentsUpdate() {
-  await serv('payments.update', {
+/** PUT /payments/{payment_id}/status */
+async function testPaymentsUpdateStatus() {
+  await serv('payments.updateStatus', {
     payment_id: SAMPLE_UUID,
     status: 'completed',
+    transaction_id: 'txn_12345',
   });
   console.log('Payment completed');
 }
 
-/** GET /user/payments */
-async function testPaymentsMy() {
-  const result = await serv('payments.my', { role: 'payee' });
-  console.log('My payments:', result.payments.length);
+/** DELETE /payments/{payment_id} */
+async function testPaymentsDelete() {
+  await serv('payments.delete', { payment_id: SAMPLE_UUID });
+  console.log('Payment deleted');
 }
 
 // =============================================================================
 // RATINGS ENDPOINTS
 // =============================================================================
 
-/** GET /ratings/{user_id} */
+/** GET /users/{user_id}/rating */
 async function testRatingsForUser() {
   const result = await serv('ratings.forUser', { user_id: SAMPLE_UUID });
-  console.log('Average rating:', result.average_rating);
+  console.log('Average rating:', result.rating_average);
+  console.log('Rating count:', result.rating_count);
 }
 
-/** POST /ratings */
-async function testRatingsCreate() {
-  const result = await serv('ratings.create', {
-    paps_id: SAMPLE_UUID,
-    rated_user_id: SAMPLE_UUID,
-    rating: 5,
-    review: 'Excellent work!',
-  });
-  console.log('Created rating:', result.rating_id);
+/** GET /profile/rating - Same as profile.rating */
+async function testRatingsMy() {
+  const result = await serv('ratings.my');
+  console.log('My average:', result.rating_average);
+  console.log('My count:', result.rating_count);
 }
 
-/** PATCH /ratings/{id} */
-async function testRatingsUpdate() {
-  await serv('ratings.update', {
-    rating_id: SAMPLE_UUID,
-    rating: 4,
-    review: 'Good work',
-  });
-  console.log('Updated');
-}
-
-/** DELETE /ratings/{id} */
-async function testRatingsDelete() {
-  await serv('ratings.delete', { rating_id: SAMPLE_UUID });
-  console.log('Deleted');
-}
+// Note: To submit a rating, use asap.rate endpoint (see ASAP section)
 
 // =============================================================================
 // COMMENTS ENDPOINTS
 // =============================================================================
 
-/** GET /paps/{id}/comments */
+/** GET /paps/{paps_id}/comments */
 async function testCommentsList() {
   const result = await serv('comments.list', { 
     paps_id: SAMPLE_UUID,
-    limit: 20,
   });
-  console.log('Comments:', result.total);
+  console.log('Comments:', result.count);
+  console.log('Total with replies:', result.total_count);
 }
 
-/** POST /paps/{id}/comments */
+/** POST /paps/{paps_id}/comments */
 async function testCommentsCreate() {
   const result = await serv('comments.create', {
     paps_id: SAMPLE_UUID,
@@ -559,23 +759,14 @@ async function testCommentsCreate() {
   console.log('Created comment:', result.comment_id);
 }
 
-/** POST /paps/{id}/comments (reply) */
-async function testCommentsReply() {
-  const result = await serv('comments.create', {
-    paps_id: SAMPLE_UUID,
-    content: 'Thanks for your interest!',
-    parent_id: SAMPLE_UUID,
-  });
-  console.log('Created reply:', result.comment_id);
-}
-
-/** GET /comments/{id} */
+/** GET /comments/{comment_id} */
 async function testCommentsGet() {
   const comment = await serv('comments.get', { comment_id: SAMPLE_UUID });
   console.log('Comment:', comment.content);
+  console.log('By:', comment.username);
 }
 
-/** PATCH /comments/{id} */
+/** PUT /comments/{comment_id} */
 async function testCommentsUpdate() {
   await serv('comments.update', {
     comment_id: SAMPLE_UUID,
@@ -584,23 +775,45 @@ async function testCommentsUpdate() {
   console.log('Updated');
 }
 
-/** DELETE /comments/{id} */
+/** DELETE /comments/{comment_id} */
 async function testCommentsDelete() {
   await serv('comments.delete', { comment_id: SAMPLE_UUID });
   console.log('Deleted');
+}
+
+/** GET /comments/{comment_id}/replies */
+async function testCommentsRepliesList() {
+  const result = await serv('comments.replies.list', { comment_id: SAMPLE_UUID });
+  console.log('Replies:', result.count);
+}
+
+/** POST /comments/{comment_id}/replies */
+async function testCommentsRepliesCreate() {
+  const result = await serv('comments.replies.create', {
+    comment_id: SAMPLE_UUID,
+    content: 'Thanks for your interest!',
+  });
+  console.log('Created reply:', result.comment_id);
+}
+
+/** GET /comments/{comment_id}/thread */
+async function testCommentsThread() {
+  const result = await serv('comments.thread', { comment_id: SAMPLE_UUID });
+  console.log('Comment:', result.comment.content);
+  console.log('Replies:', result.replies.length);
 }
 
 // =============================================================================
 // CHAT ENDPOINTS
 // =============================================================================
 
-/** GET /chats */
+/** GET /chat */
 async function testChatList() {
-  const result = await serv('chat.list', { unread_only: true });
-  console.log('Threads:', result.threads.length);
+  const result = await serv('chat.list');
+  console.log('Threads:', result.threads?.length || 0);
 }
 
-/** POST /chats */
+/** POST /chat */
 async function testChatCreate() {
   const result = await serv('chat.create', {
     participant_ids: [SAMPLE_UUID],
@@ -610,23 +823,29 @@ async function testChatCreate() {
   console.log('Created thread:', result.thread_id);
 }
 
-/** GET /chats/{id} */
+/** GET /chat/{thread_id} */
 async function testChatGet() {
   const thread = await serv('chat.get', { thread_id: SAMPLE_UUID });
-  console.log('Participants:', thread.participants.length);
+  console.log('Participants:', thread.participants?.length || 0);
 }
 
-/** GET /chats/{id}/messages */
-async function testChatMessages() {
+/** DELETE /chat/{thread_id}/leave */
+async function testChatLeave() {
+  await serv('chat.leave', { thread_id: SAMPLE_UUID });
+  console.log('Left thread');
+}
+
+/** GET /chat/{thread_id}/messages */
+async function testChatMessagesList() {
   const result = await serv('chat.messages.list', {
     thread_id: SAMPLE_UUID,
     limit: 50,
   });
-  console.log('Messages:', result.total);
+  console.log('Messages:', result.messages?.length || 0);
 }
 
-/** POST /chats/{id}/messages */
-async function testChatSend() {
+/** POST /chat/{thread_id}/messages */
+async function testChatMessagesSend() {
   const result = await serv('chat.messages.send', {
     thread_id: SAMPLE_UUID,
     content: 'Hello!',
@@ -634,38 +853,35 @@ async function testChatSend() {
   console.log('Sent message:', result.message_id);
 }
 
-/** POST /chats/{id}/read */
-async function testChatMarkRead() {
-  await serv('chat.messages.read', { thread_id: SAMPLE_UUID });
-  console.log('Marked as read');
+/** PUT /chat/{thread_id}/messages/{message_id} */
+async function testChatMessagesUpdate() {
+  await serv('chat.messages.update', {
+    thread_id: SAMPLE_UUID,
+    message_id: SAMPLE_UUID,
+    content: 'Edited message',
+  });
+  console.log('Message updated');
 }
 
-/** DELETE /chats/{id} */
-async function testChatDelete() {
-  await serv('chat.delete', { thread_id: SAMPLE_UUID });
-  console.log('Deleted');
+/** PUT /chat/{thread_id}/messages/{message_id}/read */
+async function testChatMessagesMarkRead() {
+  await serv('chat.messages.markRead', {
+    thread_id: SAMPLE_UUID,
+    message_id: SAMPLE_UUID,
+  });
+  console.log('Message marked as read');
 }
 
-// =============================================================================
-// SYSTEM ENDPOINTS
-// =============================================================================
-
-/** GET /uptime (no auth) */
-async function testSystemUptime() {
-  const result = await serv('system.uptime');
-  console.log('App:', result.app, 'Up:', result.up);
+/** PUT /chat/{thread_id}/read */
+async function testChatMarkAllRead() {
+  await serv('chat.markAllRead', { thread_id: SAMPLE_UUID });
+  console.log('All messages marked as read');
 }
 
-/** GET /info (admin) */
-async function testSystemInfo() {
-  const info = await serv('system.info');
-  console.log('Version:', info.version);
-}
-
-/** GET /stats (admin) */
-async function testSystemStats() {
-  const stats = await serv('system.stats');
-  console.log('Stats:', stats.pool_statistics);
+/** GET /chat/{thread_id}/unread */
+async function testChatUnreadCount() {
+  const result = await serv('chat.unreadCount', { thread_id: SAMPLE_UUID });
+  console.log('Unread count:', result.unread_count);
 }
 
 // =============================================================================
@@ -674,8 +890,9 @@ async function testSystemStats() {
 
 /** GET /users (admin) */
 async function testAdminUsersList() {
-  const users = await serv('admin.users.list');
-  console.log('Users:', users.length);
+  const result = await serv('admin.users.list');
+  console.log('Users:', result.users?.length || 0);
+  console.log('Total:', result.total);
 }
 
 /** POST /users (admin) */
@@ -689,13 +906,13 @@ async function testAdminUsersCreate() {
   console.log('Created user:', result.user_id);
 }
 
-/** GET /users/{id} (admin) */
+/** GET /users/{user_id} (admin) */
 async function testAdminUsersGet() {
-  const user = await serv('admin.users.get', { user_id: SAMPLE_UUID });
-  console.log('User:', user.login);
+  const result = await serv('admin.users.get', { user_id: SAMPLE_UUID });
+  console.log('User:', result.user.login);
 }
 
-/** PATCH /users/{id} (admin) */
+/** PATCH /users/{user_id} (admin) */
 async function testAdminUsersUpdate() {
   await serv('admin.users.update', {
     user_id: SAMPLE_UUID,
@@ -704,7 +921,21 @@ async function testAdminUsersUpdate() {
   console.log('Updated');
 }
 
-/** DELETE /users/{id} (admin) */
+/** PUT /users/{user_id} (admin) */
+async function testAdminUsersReplace() {
+  await serv('admin.users.replace', {
+    user_id: SAMPLE_UUID,
+    auth: {
+      login: 'updateduser',
+      password: 'NewPassword123!',
+      email: 'updated@example.com',
+      isadmin: false,
+    },
+  });
+  console.log('Replaced');
+}
+
+/** DELETE /users/{user_id} (admin) */
 async function testAdminUsersDelete() {
   await serv('admin.users.delete', { user_id: SAMPLE_UUID });
   console.log('Deleted');
@@ -715,91 +946,138 @@ async function testAdminUsersDelete() {
 // =============================================================================
 
 export {
+  // System
+  testSystemUptime,
+  testSystemInfo,
+  testSystemStats,
+  
   // Auth
   testRegister,
   testLogin,
   testWhoAmI,
   testMyself,
+  
   // Profile
   testProfileGet,
   testProfileUpdate,
+  testProfilePatch,
   testProfileByUsername,
+  testProfileUpdateByUsername,
+  testProfileRating,
+  
   // Avatar
   testAvatarUpload,
   testAvatarFetch,
-  testAvatarDelete,
   testAvatarByUsername,
+  testAvatarDelete,
+  
   // Experiences
   testExperiencesList,
+  testExperiencesListByUsername,
   testExperiencesCreate,
   testExperiencesUpdate,
   testExperiencesDelete,
+  
   // Interests
   testInterestsList,
+  testInterestsListByUsername,
   testInterestsCreate,
+  testInterestsUpdate,
   testInterestsDelete,
+  
   // Categories
   testCategoriesList,
   testCategoriesGet,
   testCategoriesCreate,
   testCategoriesUpdate,
   testCategoriesDelete,
+  testCategoriesIconUpload,
+  testCategoriesIconGet,
+  testCategoriesIconDelete,
+  
   // PAPS
   testPapsList,
   testPapsGet,
   testPapsCreate,
   testPapsUpdate,
+  testPapsUpdateStatus,
   testPapsDelete,
+  testPapsCategoriesAdd,
+  testPapsCategoriesRemove,
   testPapsMediaList,
   testPapsMediaUpload,
   testPapsMediaDelete,
   testPapsScheduleList,
+  testPapsScheduleGet,
   testPapsScheduleCreate,
+  testPapsScheduleUpdate,
+  testPapsScheduleDelete,
+  
   // SPAP
-  testSpapList,
+  testSpapMy,
+  testSpapListByPaps,
   testSpapGet,
-  testSpapCreate,
-  testSpapUpdate,
-  testSpapDelete,
+  testSpapApply,
+  testSpapAccept,
+  testSpapReject,
+  testSpapWithdraw,
+  testSpapMediaList,
+  testSpapMediaUpload,
+  testSpapMediaDelete,
+  testSpapChat,
+  
   // ASAP
-  testAsapList,
+  testAsapMy,
+  testAsapListByPaps,
   testAsapGet,
-  testAsapCreate,
-  testAsapUpdate,
+  testAsapUpdateStatus,
+  testAsapDelete,
+  testAsapMediaList,
+  testAsapMediaUpload,
+  testAsapMediaDelete,
+  testAsapRate,
+  testAsapCanRate,
+  testAsapChat,
+  
   // Payments
-  testPaymentsForPaps,
+  testPaymentsMy,
+  testPaymentsListForPaps,
   testPaymentsCreate,
   testPaymentsGet,
-  testPaymentsUpdate,
-  testPaymentsMy,
+  testPaymentsUpdateStatus,
+  testPaymentsDelete,
+  
   // Ratings
   testRatingsForUser,
-  testRatingsCreate,
-  testRatingsUpdate,
-  testRatingsDelete,
+  testRatingsMy,
+  
   // Comments
   testCommentsList,
   testCommentsCreate,
-  testCommentsReply,
   testCommentsGet,
   testCommentsUpdate,
   testCommentsDelete,
+  testCommentsRepliesList,
+  testCommentsRepliesCreate,
+  testCommentsThread,
+  
   // Chat
   testChatList,
   testChatCreate,
   testChatGet,
-  testChatMessages,
-  testChatSend,
-  testChatMarkRead,
-  testChatDelete,
-  // System
-  testSystemUptime,
-  testSystemInfo,
-  testSystemStats,
+  testChatLeave,
+  testChatMessagesList,
+  testChatMessagesSend,
+  testChatMessagesUpdate,
+  testChatMessagesMarkRead,
+  testChatMarkAllRead,
+  testChatUnreadCount,
+  
   // Admin
   testAdminUsersList,
   testAdminUsersCreate,
   testAdminUsersGet,
   testAdminUsersUpdate,
+  testAdminUsersReplace,
   testAdminUsersDelete,
 };
