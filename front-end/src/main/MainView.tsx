@@ -11,7 +11,7 @@ import ProfilePage from '../pages/ProfilePage';
 import SettingsPage from '../pages/SettingsPage';
 import ModifyProfil from '../pages/ModifyProfil.tsx';
 import Post from '../posting/posting_page'
-import Calendar from '../calendar/Calendar'
+import CalendarScreen from '../pages/calendarTEMP'
 
 
 // import MessagePage from '../pages/messagePage';
@@ -111,7 +111,7 @@ function MainTabs() {
       />
       <Tab.Screen
   name="Calendar"
-  component={Calendar}
+  component={CalendarScreen}
   options={{
     title: 'Calendar',
     tabBarIcon: ({ color, size, focused }) => (
