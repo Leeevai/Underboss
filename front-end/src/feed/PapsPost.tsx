@@ -12,8 +12,8 @@ import {
   Image,
   StyleSheet,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Modal,
-  Pressable,
   ScrollView,
   ActivityIndicator,
   Alert,
@@ -279,15 +279,11 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
         transparent={true}
         onRequestClose={() => setModalVisible(false)}
       >
-        <Pressable 
-          style={styles.modalOverlay}
-          onPress={() => setModalVisible(false)}
-        >
-          <Pressable 
-            style={styles.modalSheet}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
+        <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.modalSheet}>
+                <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <View style={styles.modalDragIndicator} />
@@ -523,8 +519,10 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 </TouchableOpacity>
               </View>
             </SafeAreaView>
-          </Pressable>
-        </Pressable>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </>
   );
