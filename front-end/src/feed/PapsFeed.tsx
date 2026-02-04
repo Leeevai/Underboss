@@ -8,7 +8,7 @@
  * - You Might Like (recommendations)
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -22,10 +22,16 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { serv, ApiError } from '../serve';
 import type { Paps } from '../serve/paps';
 import PapsPost from './PapsPost';
 import UnderbossBar from '../header/underbossbar';
+import {
+  useFeaturedPaps,
+  useNewestPaps,
+  useNearbyPaps,
+  useRecommendedPaps,
+} from '../cache/paps';
+
 
 // =============================================================================
 // TYPES
@@ -194,137 +200,22 @@ export default function PapsFeed() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
 
-  // Section data
-  const [featuredPaps, setFeaturedPaps] = useState<Paps[]>([]);
-  const [featuredLoading, setFeaturedLoading] = useState(true);
-  const [featuredError, setFeaturedError] = useState<string | undefined>();
-
-  const [newestPaps, setNewestPaps] = useState<Paps[]>([]);
-  const [newestLoading, setNewestLoading] = useState(true);
-  const [newestError, setNewestError] = useState<string | undefined>();
-
-  const [nearbyPaps, setNearbyPaps] = useState<Paps[]>([]);
-  const [nearbyLoading, setNearbyLoading] = useState(true);
-  const [nearbyError, setNearbyError] = useState<string | undefined>();
-
-  const [recommendedPaps, setRecommendedPaps] = useState<Paps[]>([]);
-  const [recommendedLoading, setRecommendedLoading] = useState(true);
-  const [recommendedError, setRecommendedError] = useState<string | undefined>();
+  // Use cached data from Jotai atoms
+  const { paps: featuredPaps, loading: featuredLoading, error: featuredError, refresh: refreshFeatured } = useFeaturedPaps();
+  const { paps: newestPaps, loading: newestLoading, error: newestError, refresh: refreshNewest } = useNewestPaps();
+  const { paps: nearbyPaps, loading: nearbyLoading, error: nearbyError, refresh: refreshNearby } = useNearbyPaps();
+  const { paps: recommendedPaps, loading: recommendedLoading, error: recommendedError, refresh: refreshRecommended } = useRecommendedPaps();
 
   // ========================================================================
-  // DATA FETCHING
+  // DATA FETCHING - handled by cache, just need refresh
   // ========================================================================
 
-  const fetchFeatured = useCallback(async () => {
-    setFeaturedLoading(true);
-    setFeaturedError(undefined);
-    try {
-      // Fetch high-value jobs as "featured"
-      const response = await serv('paps.list', {
-        limit: 5,
-        status: 'published',
-      });
-      // Sort by payment amount for featured
-      const sorted = (response.paps || []).sort(
-        (a: Paps, b: Paps) => (b.payment_amount || 0) - (a.payment_amount || 0)
-      );
-      setFeaturedPaps(sorted.slice(0, 5));
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load featured jobs';
-      setFeaturedError(msg);
-    } finally {
-      setFeaturedLoading(false);
-    }
-  }, []);
-
-  const fetchNewest = useCallback(async () => {
-    setNewestLoading(true);
-    setNewestError(undefined);
-    try {
-      const response = await serv('paps.list', {
-        limit: 10,
-        status: 'published',
-      });
-      // Sort by created_at descending
-      const sorted = (response.paps || []).sort(
-        (a: Paps, b: Paps) => 
-          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-      );
-      setNewestPaps(sorted);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load newest jobs';
-      setNewestError(msg);
-    } finally {
-      setNewestLoading(false);
-    }
-  }, []);
-
-  const fetchNearby = useCallback(async () => {
-    setNearbyLoading(true);
-    setNearbyError(undefined);
-    try {
-      // TODO: Get user's location from device
-      // For now, use a default location (can be updated later)
-      const response = await serv('paps.list', {
-        limit: 10,
-        status: 'published',
-        // lat: userLat,
-        // lng: userLng,
-        // max_distance: 50, // km
-      });
-      // Filter to jobs with location data
-      const withLocation = (response.paps || []).filter(
-        (p: Paps) => p.location_lat && p.location_lng
-      );
-      setNearbyPaps(withLocation.slice(0, 10));
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load nearby jobs';
-      setNearbyError(msg);
-    } finally {
-      setNearbyLoading(false);
-    }
-  }, []);
-
-  const fetchRecommended = useCallback(async () => {
-    setRecommendedLoading(true);
-    setRecommendedError(undefined);
-    try {
-      // TODO: Implement actual recommendation algorithm
-      // For now, fetch a mix based on categories
-      const response = await serv('paps.list', {
-        limit: 10,
-        status: 'published',
-      });
-      // Shuffle for variety
-      const shuffled = (response.paps || []).sort(() => Math.random() - 0.5);
-      setRecommendedPaps(shuffled.slice(0, 10));
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load recommendations';
-      setRecommendedError(msg);
-    } finally {
-      setRecommendedLoading(false);
-    }
-  }, []);
-
-  // Initial fetch
-  useEffect(() => {
-    fetchFeatured();
-    fetchNewest();
-    fetchNearby();
-    fetchRecommended();
-  }, [fetchFeatured, fetchNewest, fetchNearby, fetchRecommended]);
-
-  // Pull to refresh
+  // Pull to refresh - triggers a single fetch that updates all derived atoms
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([
-      fetchFeatured(),
-      fetchNewest(),
-      fetchNearby(),
-      fetchRecommended(),
-    ]);
+    await refreshFeatured(); // This refreshes the base atom, all derived atoms update automatically
     setRefreshing(false);
-  }, [fetchFeatured, fetchNewest, fetchNearby, fetchRecommended]);
+  }, [refreshFeatured]);
 
   // ========================================================================
   // SEARCH HANDLER
@@ -420,8 +311,8 @@ export default function PapsFeed() {
             paps={featuredPaps}
             variant="featured"
             loading={featuredLoading}
-            error={featuredError}
-            onRetry={fetchFeatured}
+            error={featuredError || undefined}
+            onRetry={refreshFeatured}
             emptyMessage="No featured jobs available"
           />
         </View>
@@ -439,8 +330,8 @@ export default function PapsFeed() {
             paps={newestPaps}
             variant="standard"
             loading={newestLoading}
-            error={newestError}
-            onRetry={fetchNewest}
+            error={newestError || undefined}
+            onRetry={refreshNewest}
             emptyMessage="No new jobs posted yet"
           />
         </View>
@@ -458,8 +349,8 @@ export default function PapsFeed() {
             paps={nearbyPaps}
             variant="standard"
             loading={nearbyLoading}
-            error={nearbyError}
-            onRetry={fetchNearby}
+            error={nearbyError || undefined}
+            onRetry={refreshNearby}
             emptyMessage="No jobs found nearby"
           />
         </View>
@@ -477,8 +368,8 @@ export default function PapsFeed() {
             paps={recommendedPaps}
             variant="compact"
             loading={recommendedLoading}
-            error={recommendedError}
-            onRetry={fetchRecommended}
+            error={recommendedError || undefined}
+            onRetry={refreshRecommended}
             emptyMessage="No recommendations yet"
           />
         </View>

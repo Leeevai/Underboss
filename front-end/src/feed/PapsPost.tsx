@@ -12,7 +12,6 @@ import {
   Image,
   StyleSheet,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   Modal,
   ScrollView,
   ActivityIndicator,
@@ -21,10 +20,12 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { serv, getMediaUrl } from '../serve';
+import { serv } from '../serve';
 import type { Paps, PapsDetail } from '../serve/paps';
 import type { MediaItem } from '../serve/common/types';
 import MediaViewer from '../common/MediaViewer';
+import { useAvatarUrl } from '../cache/profiles';
+import { getCategoryColorByName } from '../cache/categories';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -108,32 +109,30 @@ const CARD_SIZES = {
 
 export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPostProps) {
   const [modalVisible, setModalVisible] = useState(false);
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [papsDetail, setPapsDetail] = useState<PapsDetail | null>(null);
   const [papsMedia, setPapsMedia] = useState<MediaItem[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [applying, setApplying] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
 
-  const cardSize = CARD_SIZES[variant];
-  const primaryCategory = pap.categories?.[0];
-  const categoryName = typeof primaryCategory === 'object' 
-    ? primaryCategory?.name 
-    : primaryCategory;
+  // Get avatar from cache (auto-fetches if not cached)
+  const { avatarUrl: avatarUri } = useAvatarUrl(pap.owner_username);
 
-  // Fetch avatar on mount
-  useEffect(() => {
-    const fetchAvatar = async () => {
-      if (!pap.owner_username) return;
-      try {
-        const profile = await serv('profile.getByUsername', { username: pap.owner_username });
-        setAvatarUri(getMediaUrl(profile.avatar_url));
-      } catch {
-        setAvatarUri(null);
-      }
-    };
-    fetchAvatar();
-  }, [pap.owner_username]);
+  const cardSize = CARD_SIZES[variant];
+  
+  // Get first category from pap.categories (for card view)
+  const firstCategory = pap.categories?.[0] as any;
+  const cardCategoryName = firstCategory 
+    ? (typeof firstCategory === 'object' ? (firstCategory?.category_name || firstCategory?.name) : firstCategory)
+    : null;
+  const cardCategoryColor = cardCategoryName ? getCategoryColorByName(cardCategoryName) : null;
+
+  // Get first category from papsDetail (for modal view - more complete data)
+  const modalFirstCategory = (papsDetail?.categories?.[0] || pap.categories?.[0]) as any;
+  const modalCategoryName = modalFirstCategory
+    ? (typeof modalFirstCategory === 'object' ? (modalFirstCategory?.category_name || modalFirstCategory?.name) : modalFirstCategory)
+    : null;
+  const modalCategoryColor = modalCategoryName ? getCategoryColorByName(modalCategoryName) : null;
 
   // Fetch details when modal opens
   useEffect(() => {
@@ -200,10 +199,10 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
         onPress={openModal}
         style={[styles.card, { width: cardSize.width, minHeight: cardSize.height }]}
       >
-        {/* Category Badge */}
-        {categoryName && (
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryBadgeText}>{categoryName}</Text>
+        {/* Category Badge - First category only */}
+        {cardCategoryName && cardCategoryColor && (
+          <View style={[styles.categoryBadge, { backgroundColor: cardCategoryColor.bg }]}>
+            <Text style={[styles.categoryBadgeText, { color: cardCategoryColor.text }]}>{cardCategoryName}</Text>
           </View>
         )}
 
@@ -279,11 +278,17 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
         transparent={true}
         onRequestClose={() => setModalVisible(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={styles.modalSheet}>
-                <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
+        <View style={styles.modalOverlay}>
+          {/* Backdrop - tap to dismiss */}
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setModalVisible(false)}
+          />
+          
+          {/* Modal Content - does not dismiss on tap */}
+          <View style={styles.modalSheet}>
+            <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <View style={styles.modalDragIndicator} />
@@ -313,9 +318,9 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 {/* Title & Category */}
                 <View style={styles.modalTitleSection}>
                   <Text style={styles.modalTitle}>{pap.title}</Text>
-                  {categoryName && (
-                    <View style={styles.modalCategoryBadge}>
-                      <Text style={styles.modalCategoryText}>{categoryName}</Text>
+                  {modalCategoryName && modalCategoryColor && (
+                    <View style={[styles.modalCategoryBadge, { backgroundColor: modalCategoryColor.bg }]}>
+                      <Text style={[styles.modalCategoryText, { color: modalCategoryColor.text }]}>{modalCategoryName}</Text>
                     </View>
                   )}
                 </View>
@@ -527,10 +532,8 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 </TouchableOpacity>
               </View>
             </SafeAreaView>
-              </View>
-            </TouchableWithoutFeedback>
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       </Modal>
     </>
   );
@@ -556,20 +559,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#EDF2F7',
   },
+  categoryBadgeContainer: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    zIndex: 1,
+    maxWidth: '80%',
+  },
   categoryBadge: {
     position: 'absolute',
     top: 12,
     left: 12,
     backgroundColor: '#E6FFFA',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
     zIndex: 1,
+  },
+  categoryBadgeMore: {
+    backgroundColor: '#EDF2F7',
   },
   categoryBadgeText: {
     color: '#319795',
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '600',
   },
   cardContent: {
     flex: 1,
@@ -744,8 +760,12 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     marginBottom: 12,
   },
+  modalCategoryList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   modalCategoryBadge: {
-    alignSelf: 'flex-start',
     backgroundColor: '#E6FFFA',
     paddingHorizontal: 12,
     paddingVertical: 5,
