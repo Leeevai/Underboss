@@ -11,7 +11,7 @@ import ProfilePage from '../pages/ProfilePage';
 import SettingsPage from '../pages/SettingsPage';
 import ModifyProfil from '../pages/ModifyProfil.tsx';
 import Post from '../posting/posting_page'
-import CalendarScreen from '../pages/calendarTEMP'
+import CalendarScreen from '../calendar/calendarTEMP.tsx'
 
 
 // import MessagePage from '../pages/messagePage';
