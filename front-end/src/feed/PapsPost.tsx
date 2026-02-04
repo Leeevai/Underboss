@@ -275,31 +275,38 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
       <Modal
         visible={modalVisible}
         animationType="slide"
-        presentationStyle="pageSheet"
+        transparent={true}
         onRequestClose={() => setModalVisible(false)}
       >
-        <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
-          {/* Modal Header */}
-          <View style={styles.modalHeader}>
-            <View style={styles.modalDragIndicator} />
-            <Text style={styles.modalHeaderTitle}>Job Details</Text>
-            <TouchableOpacity
-              style={styles.modalCloseBtn}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.modalCloseBtnText}>✕</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity 
+            style={styles.modalBackdrop} 
+            activeOpacity={1}
+            onPress={() => setModalVisible(false)}
+          />
+          <View style={styles.modalSheet}>
+            <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <View style={styles.modalDragIndicator} />
+                <Text style={styles.modalHeaderTitle}>Job Details</Text>
+                <TouchableOpacity
+                  style={styles.modalCloseBtn}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.modalCloseBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
 
-          {/* Modal Content - Scrollable */}
-          <ScrollView
-            style={styles.modalScroll}
-            contentContainerStyle={styles.modalScrollContent}
-            showsVerticalScrollIndicator={false}
-            bounces={true}
-          >
-            {/* Title & Category */}
-            <View style={styles.modalTitleSection}>
+              {/* Modal Content - Scrollable */}
+              <ScrollView
+                style={styles.modalScroll}
+                contentContainerStyle={styles.modalScrollContent}
+                showsVerticalScrollIndicator={false}
+                bounces={true}
+              >
+                {/* Title & Category */}
+                <View style={styles.modalTitleSection}>
                   <Text style={styles.modalTitle}>{pap.title}</Text>
                   {categoryName && (
                     <View style={styles.modalCategoryBadge}>
@@ -514,7 +521,9 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 </TouchableOpacity>
               </View>
             </SafeAreaView>
-          </Modal>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -637,6 +646,25 @@ const styles = StyleSheet.create({
   },
 
   // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '92%',
+    minHeight: '60%',
+  },
   modalContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',
