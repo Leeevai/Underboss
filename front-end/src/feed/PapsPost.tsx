@@ -277,7 +277,6 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
         visible={modalVisible}
         animationType="slide"
         transparent={true}
-        presentationStyle="overFullScreen"
         onRequestClose={() => setModalVisible(false)}
       >
         <Pressable 
@@ -652,18 +651,25 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   modalSheet: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '92%',
-    minHeight: '60%',
+    borderRadius: 20,
+    width: '100%',
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
   modalContainer: {
-    flex: 1,
     backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
   },
   modalHeader: {
     alignItems: 'center',
