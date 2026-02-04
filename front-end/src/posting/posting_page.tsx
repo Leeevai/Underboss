@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { serv, ApiError, UserProfile } from '../serve';
 import { PapsCreateRequest } from '../serve/paps/types';
+import UnderbossBar from '../header/underbossbar';
 
 
-
-
+type PaymentType = 'fixed' | 'hourly' | 'negotiable'
+type PapsStatus = 'draft' | 'published' | 'closed' | 'cancelled'
 const Post = () => {
 	const [user, setUser] = useState<UserProfile | null>(null)
 	const [form, setForm] = useState<Partial<PapsCreateRequest>>({
@@ -41,66 +42,230 @@ const Post = () => {
 	}
 
 	return (
-		<KeyboardAvoidingView 
-			behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-			style={{ flex: 1 }}
-		>
-			<ScrollView contentContainerStyle={styles.container}>
-				<View style={styles.header}>
-					<Text style={styles.title}></Text>
-				</View>
+  <KeyboardAvoidingView
+    style={styles.screen}
+    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+  >
+    <UnderbossBar />
 
-				<View style={styles.formContainer}>
-					<View style={styles.section}>
-						<View style={styles.infoRow}>
-							<Text style={styles.label}>Title - mandatory</Text>
-							<TextInput
-								style={styles.value}
-                placeholder="Nice job"
-                placeholderTextColor="#A0AEC0"
-                value={form.title}
-								onChangeText={(text) => setForm(prev => ({ ...prev, title: text }))}
-							/>
-						</View>
-						<View style={styles.infoRow}>
-							<Text style={styles.label}>Description  - mandatory</Text>
-							<TextInput
-								style={styles.value}
-                placeholder="Amasing work, fortune awaits you !"
-                placeholderTextColor="#A0AEC0"
-                value={form.description}
-								onChangeText={(text) => setForm(prev => ({ ...prev, description: text }))}
-                numberOfLines={4}
-							/>
-						</View>
-            <View style={styles.infoRow}>
-                <Text style={styles.label}>Payement amount</Text>
-              <TextInput
-                style={styles.value}
-               
-                value={form.payment_amount?.toString()}
-                onChangeText={(price) => setForm(prev => ({ ...prev, payment_amount: Number(price) }))}
-                keyboardType="numeric"
-              />
-            </View>
-					</View>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={styles.container}
+    >
+      {/* HEADER */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Create a Paps</Text>
+      </View>
 
-					
+      {/* FORM */}
+      <View style={styles.formContainer}>
 
-					
+        {/* BASICS */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Basics</Text>
 
-					<TouchableOpacity style={styles.saveButton} onPress={sendPaps}>
-						<Text style={styles.saveButtonText}>Save</Text>
-					</TouchableOpacity>
-          <TouchableOpacity style={styles.saveButton} onPress={emptyform}>
-						<Text style={styles.saveButtonText}>cancelButton</Text>
-					</TouchableOpacity>
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Title *</Text>
+            <TextInput
+              style={styles.value}
+              placeholder="Build my landing page"
+              placeholderTextColor="#A0AEC0"
+              value={form.title}
+              onChangeText={(title) =>
+                setForm(p => ({ ...p, title }))
+              }
+            />
+          </View>
 
-					
-				</View>
-			</ScrollView>
-		</KeyboardAvoidingView>
-	)
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Subtitle</Text>
+            <TextInput
+              style={styles.value}
+              placeholder="Fast & clean work"
+              placeholderTextColor="#A0AEC0"
+              value={form.subtitle}
+              onChangeText={(subtitle) =>
+                setForm(p => ({ ...p, subtitle }))
+              }
+            />
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Description *</Text>
+            <TextInput
+              style={[styles.value, styles.textArea]}
+              placeholder="Describe the job in detail..."
+              placeholderTextColor="#A0AEC0"
+              value={form.description}
+              onChangeText={(description) =>
+                setForm(p => ({ ...p, description }))
+              }
+              multiline
+            />
+          </View>
+        </View>
+
+        {/* PAYMENT */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Payment</Text>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Amount *</Text>
+            <TextInput
+              style={styles.value}
+              keyboardType="numeric"
+              value={form.payment_amount?.toString()}
+              onChangeText={(v) =>
+                setForm(p => ({
+                  ...p,
+                  payment_amount: Number(v),
+                }))
+              }
+            />
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Currency</Text>
+            <TextInput
+              style={styles.value}
+              placeholder="USD"
+              value={form.payment_currency}
+              onChangeText={(payment_currency) =>
+                setForm(p => ({ ...p, payment_currency }))
+              }
+            />
+          </View>
+        </View>
+
+        {/* LIMITS */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Limits</Text>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Max applicants</Text>
+            <TextInput
+              style={styles.value}
+              keyboardType="numeric"
+              placeholder="More than 0..."
+              placeholderTextColor="#A0AEC0"
+              value={form.max_applicants?.toString()}
+              onChangeText={(v) =>
+                setForm(p => ({ ...p, max_applicants: Number(v) }))
+              }
+            />
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Max assignees</Text>
+            <TextInput
+              style={styles.value}
+              keyboardType="numeric"
+              value={form.max_assignees?.toString()}
+              placeholder="Must not exceed a billion..."
+              placeholderTextColor="#A0AEC0"
+              onChangeText={(v) =>
+                setForm(p => ({ ...p, max_assignees: Number(v) }))
+              }
+            />
+          </View>
+        </View>
+
+        {/* LOCATION */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Location</Text>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Address</Text>
+            <TextInput
+              style={styles.value}
+              placeholder="Paris, France"
+              placeholderTextColor="#A0AEC0"
+              value={form.location_address}
+              onChangeText={(location_address) =>
+                setForm(p => ({ ...p, location_address }))
+              }
+            />
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Latitude</Text>
+            <TextInput
+              style={styles.value}
+              keyboardType="numeric"
+              value={form.location_lat?.toString()}
+              placeholder="12.345678"
+              placeholderTextColor="#A0AEC0"
+              onChangeText={(v) =>
+                setForm(p => ({ ...p, location_lat: Number(v) }))
+              }
+            />
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Longitude</Text>
+            <TextInput
+              style={styles.value}
+              keyboardType="numeric"
+              placeholder="-98.765432"
+              placeholderTextColor="#A0AEC0"
+              value={form.location_lng?.toString()}
+              onChangeText={(v) =>
+                setForm(p => ({ ...p, location_lng: Number(v) }))
+              }
+            />
+          </View>
+        </View>
+
+        {/* VISIBILITY */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Visibility</Text>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Public</Text>
+            <TouchableOpacity
+              onPress={() =>
+                setForm(p => ({ ...p, is_public: !p.is_public }))
+              }
+            >
+              <Text style={styles.value}>
+                {form.is_public ? 'Yes' : 'No'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Status</Text>
+            <TextInput
+              style={styles.value}
+              placeholder="draft"
+              value={form.status}
+              onChangeText={(status) =>
+                setForm(p => ({ ...p, status: status as any }))
+              }
+            />
+          </View>
+        </View>
+
+        {/* ACTIONS */}
+        <TouchableOpacity
+          style={styles.saveButton}
+          onPress={sendPaps}
+        >
+          <Text style={styles.saveButtonText}>Publish</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={emptyform}
+        >
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+
+      </View>
+    </ScrollView>
+  </KeyboardAvoidingView>
+)
 }
 
 const styles = StyleSheet.create({
@@ -230,7 +395,7 @@ const styles = StyleSheet.create({
         textAlignVertical: 'top' },
 
 	saveButton: { 
-		backgroundColor: '#48BB78', 
+		backgroundColor: '#4867bb', 
 		padding: 16, 
 		borderRadius: 12, 
 		alignItems: 'center', 
