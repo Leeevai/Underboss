@@ -296,7 +296,14 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 </TouchableOpacity>
               </View>
 
-              {/* Modal Content - Scrollable */}
+              {/* Loading State */}
+              {loadingDetail ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#3182CE" />
+                  <Text style={styles.loadingText}>Loading job details...</Text>
+                </View>
+              ) : (
+              /* Modal Content - Scrollable */
               <ScrollView
                 style={styles.modalScroll}
                 contentContainerStyle={styles.modalScrollContent}
@@ -492,6 +499,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 {/* Bottom spacing */}
                 <View style={styles.bottomSpacer} />
               </ScrollView>
+              )}
 
               {/* Footer Actions */}
               <View style={styles.modalFooter}>
@@ -648,26 +656,27 @@ const styles = StyleSheet.create({
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
   modalSheet: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 24,
     width: '100%',
-    maxHeight: '90%',
+    maxHeight: '95%',
+    minHeight: '70%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOpacity: 0.3,
+    shadowRadius: 30,
+    elevation: 20,
+    overflow: 'hidden',
   },
   modalContainer: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    overflow: 'hidden',
   },
   modalHeader: {
     alignItems: 'center',
@@ -701,27 +710,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalCloseBtnText: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#718096',
-    fontWeight: '300',
+    fontWeight: '400',
   },
   modalScroll: {
     flex: 1,
   },
   modalScrollContent: {
-    padding: 20,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 60,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    color: '#718096',
   },
 
   // Modal content sections
   modalTitleSection: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '800',
     color: '#1A202C',
-    lineHeight: 30,
-    marginBottom: 8,
+    lineHeight: 36,
+    marginBottom: 12,
   },
   modalCategoryBadge: {
     alignSelf: 'flex-start',
@@ -759,54 +780,57 @@ const styles = StyleSheet.create({
   // Info boxes
   infoBoxRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 24,
+    gap: 12,
+    marginBottom: 28,
   },
   infoBox: {
     flex: 1,
-    backgroundColor: '#F7FAFC',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: '#F0FFF4',
+    borderRadius: 16,
+    padding: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#C6F6D5',
   },
   infoBoxIcon: {
-    fontSize: 20,
-    marginBottom: 6,
+    fontSize: 28,
+    marginBottom: 8,
   },
   infoBoxLabel: {
-    fontSize: 10,
-    color: '#718096',
-    fontWeight: '600',
+    fontSize: 11,
+    color: '#38A169',
+    fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   infoBoxValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2D3748',
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#22543D',
     textAlign: 'center',
   },
   infoBoxSub: {
-    fontSize: 10,
-    color: '#A0AEC0',
-    marginTop: 2,
+    fontSize: 11,
+    color: '#48BB78',
+    marginTop: 4,
+    fontWeight: '500',
   },
 
   // Sections
   modalSection: {
-    marginBottom: 24,
+    marginBottom: 28,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: '#2D3748',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   descriptionText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#4A5568',
-    lineHeight: 22,
+    lineHeight: 26,
   },
 
   // Schedule
@@ -921,10 +945,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     padding: 20,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#718096',
   },
 
   // Footer
