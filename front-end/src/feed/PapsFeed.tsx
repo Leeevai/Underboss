@@ -1,716 +1,97 @@
-/**
- * PapsFeed - Home page with multiple PAPS sections
- * 
- * Displays job postings in organized horizontal scrollable sections:
- * - Featured Jobs
- * - Newest Paps
- * - Near You (location-based)
- * - You Might Like (recommendations)
- */
-
-import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  ScrollView,
-  FlatList,
-  ActivityIndicator,
-  Text,
-  StyleSheet,
-  RefreshControl,
-  TextInput,
-  TouchableOpacity,
-  Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect, useState } from 'react'
+import { View, FlatList, ActivityIndicator, Text, StyleSheet, RefreshControl, TouchableWithoutFeedback, TextInput } from 'react-native'
 import { serv, ApiError } from '../serve';
-import type { Paps } from '../serve/paps';
 import PapsPost from './PapsPost';
 import UnderbossBar from '../header/underbossbar';
 
-// =============================================================================
-// TYPES
-// =============================================================================
-
-// =============================================================================
-// SECTION HEADER COMPONENT
-// =============================================================================
-
-function SectionHeader({
-  title,
-  subtitle,
-  icon,
-  onSeeAll,
-  count,
-}: {
-  title: string;
-  subtitle?: string;
-  icon: string;
-  onSeeAll?: () => void;
-  count?: number;
-}) {
-  return (
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionHeaderLeft}>
-        <Text style={styles.sectionIcon}>{icon}</Text>
-        <View>
-          <Text style={styles.sectionTitle}>{title}</Text>
-          {subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}
-        </View>
-      </View>
-      {onSeeAll && (
-        <TouchableOpacity style={styles.seeAllBtn} onPress={onSeeAll}>
-          <Text style={styles.seeAllText}>See All</Text>
-          {count !== undefined && (
-            <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>{count}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
-// =============================================================================
-// HORIZONTAL PAPS LIST COMPONENT
-// =============================================================================
-
-function HorizontalPapsList({
-  paps,
-  variant,
-  loading,
-  error,
-  onRetry,
-  emptyMessage = 'No jobs available',
-}: {
-  paps: Paps[];
-  variant: 'compact' | 'standard' | 'featured';
-  loading: boolean;
-  error?: string;
-  onRetry?: () => void;
-  emptyMessage?: string;
-}) {
-  if (loading) {
-    return (
-      <View style={styles.listLoading}>
-        <ActivityIndicator size="small" color="#3182CE" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.listError}>
-        <Text style={styles.errorText}>{error}</Text>
-        {onRetry && (
-          <TouchableOpacity style={styles.retryBtn} onPress={onRetry}>
-            <Text style={styles.retryBtnText}>Retry</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    );
-  }
-
-  if (paps.length === 0) {
-    return (
-      <View style={styles.listEmpty}>
-        <Text style={styles.emptyIcon}>📭</Text>
-        <Text style={styles.emptyText}>{emptyMessage}</Text>
-      </View>
-    );
-  }
-
-  return (
-    <FlatList
-      data={paps}
-      keyExtractor={(item, index) => item?.id?.toString() || `pap-${index}`}
-      renderItem={({ item }) => <PapsPost pap={item} variant={variant} />}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.listContent}
-      snapToAlignment="start"
-      decelerationRate="fast"
-    />
-  );
-}
-
-// =============================================================================
-// QUICK CATEGORY FILTERS
-// =============================================================================
-
-const QUICK_CATEGORIES = [
-  { id: 'all', label: 'All', icon: '🔥' },
-  { id: 'nearby', label: 'Nearby', icon: '📍' },
-  { id: 'urgent', label: 'Urgent', icon: '⚡' },
-  { id: 'high-pay', label: 'High Pay', icon: '💰' },
-  { id: 'remote', label: 'Remote', icon: '🏠' },
-];
-
-function QuickFilters({
-  selected,
-  onSelect,
-}: {
-  selected: string;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.filtersContainer}
-      contentContainerStyle={styles.filtersContent}
-    >
-      {QUICK_CATEGORIES.map((cat) => (
-        <TouchableOpacity
-          key={cat.id}
-          style={[
-            styles.filterChip,
-            selected === cat.id && styles.filterChipActive,
-          ]}
-          onPress={() => onSelect(cat.id)}
-        >
-          <Text style={styles.filterIcon}>{cat.icon}</Text>
-          <Text
-            style={[
-              styles.filterLabel,
-              selected === cat.id && styles.filterLabelActive,
-            ]}
-          >
-            {cat.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
-}
-
-// =============================================================================
-// MAIN FEED COMPONENT
-// =============================================================================
-
 export default function PapsFeed() {
-  const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [paps, setPaps] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState('')
 
-  // Section data
-  const [featuredPaps, setFeaturedPaps] = useState<Paps[]>([]);
-  const [featuredLoading, setFeaturedLoading] = useState(true);
-  const [featuredError, setFeaturedError] = useState<string | undefined>();
-
-  const [newestPaps, setNewestPaps] = useState<Paps[]>([]);
-  const [newestLoading, setNewestLoading] = useState(true);
-  const [newestError, setNewestError] = useState<string | undefined>();
-
-  const [nearbyPaps, setNearbyPaps] = useState<Paps[]>([]);
-  const [nearbyLoading, setNearbyLoading] = useState(true);
-  const [nearbyError, setNearbyError] = useState<string | undefined>();
-
-  const [recommendedPaps, setRecommendedPaps] = useState<Paps[]>([]);
-  const [recommendedLoading, setRecommendedLoading] = useState(true);
-  const [recommendedError, setRecommendedError] = useState<string | undefined>();
-
-  // ========================================================================
-  // DATA FETCHING
-  // ========================================================================
-
-  const fetchFeatured = useCallback(async () => {
-    setFeaturedLoading(true);
-    setFeaturedError(undefined);
+  const fetchPaps = async () => {
     try {
-      // Fetch high-value jobs as "featured"
-      const response = await serv('paps.list', {
-        limit: 5,
-        status: 'published',
-      });
-      // Sort by payment amount for featured
-      const sorted = (response.paps || []).sort(
-        (a: Paps, b: Paps) => (b.payment_amount || 0) - (a.payment_amount || 0)
-      );
-      setFeaturedPaps(sorted.slice(0, 5));
+      const response = await serv('paps.list')
+      // serv returns { paps: [], total_count: number }
+      console.log('Fetched paps response:', response)
+      console.log('First pap:', response.paps?.[0])
+      setPaps(response.paps)
+      setError('')
     } catch (err) {
-      const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load featured jobs';
-      setFeaturedError(msg);
+      console.error('Failed to fetch paps', err)
+      const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load feed.'
+      setError(msg)
     } finally {
-      setFeaturedLoading(false);
+      setLoading(false)
+      setRefreshing(false)
     }
-  }, []);
+  }
 
-  const fetchNewest = useCallback(async () => {
-    setNewestLoading(true);
-    setNewestError(undefined);
-    try {
-      const response = await serv('paps.list', {
-        limit: 10,
-        status: 'published',
-      });
-      // Sort by created_at descending
-      const sorted = (response.paps || []).sort(
-        (a: Paps, b: Paps) => 
-          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-      );
-      setNewestPaps(sorted);
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load newest jobs';
-      setNewestError(msg);
-    } finally {
-      setNewestLoading(false);
-    }
-  }, []);
-
-  const fetchNearby = useCallback(async () => {
-    setNearbyLoading(true);
-    setNearbyError(undefined);
-    try {
-      // TODO: Get user's location from device
-      // For now, use a default location (can be updated later)
-      const response = await serv('paps.list', {
-        limit: 10,
-        status: 'published',
-        // lat: userLat,
-        // lng: userLng,
-        // max_distance: 50, // km
-      });
-      // Filter to jobs with location data
-      const withLocation = (response.paps || []).filter(
-        (p: Paps) => p.location_lat && p.location_lng
-      );
-      setNearbyPaps(withLocation.slice(0, 10));
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load nearby jobs';
-      setNearbyError(msg);
-    } finally {
-      setNearbyLoading(false);
-    }
-  }, []);
-
-  const fetchRecommended = useCallback(async () => {
-    setRecommendedLoading(true);
-    setRecommendedError(undefined);
-    try {
-      // TODO: Implement actual recommendation algorithm
-      // For now, fetch a mix based on categories
-      const response = await serv('paps.list', {
-        limit: 10,
-        status: 'published',
-      });
-      // Shuffle for variety
-      const shuffled = (response.paps || []).sort(() => Math.random() - 0.5);
-      setRecommendedPaps(shuffled.slice(0, 10));
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load recommendations';
-      setRecommendedError(msg);
-    } finally {
-      setRecommendedLoading(false);
-    }
-  }, []);
-
-  // Initial fetch
   useEffect(() => {
-    fetchFeatured();
-    fetchNewest();
-    fetchNearby();
-    fetchRecommended();
-  }, [fetchFeatured, fetchNewest, fetchNearby, fetchRecommended]);
+    fetchPaps()
+  }, [])
 
-  // Pull to refresh
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await Promise.all([
-      fetchFeatured(),
-      fetchNewest(),
-      fetchNearby(),
-      fetchRecommended(),
-    ]);
-    setRefreshing(false);
-  }, [fetchFeatured, fetchNewest, fetchNearby, fetchRecommended]);
+  const onRefresh = () => {
+    setRefreshing(true)
+    fetchPaps()
+  }
 
-  // ========================================================================
-  // SEARCH HANDLER
-  // ========================================================================
-
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) return;
-    
-    // TODO: Navigate to search results page
-    console.log('Searching for:', searchQuery);
-  }, [searchQuery]);
-
-  // ========================================================================
-  // CHECK IF ALL LOADING
-  // ========================================================================
-
-  const isInitialLoading = 
-    featuredLoading && newestLoading && nearbyLoading && recommendedLoading &&
-    featuredPaps.length === 0 && newestPaps.length === 0;
-
-  // ========================================================================
-  // RENDER
-  // ========================================================================
-
-  if (isInitialLoading) {
+  if (loading && !refreshing) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <UnderbossBar />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3182CE" />
-          <Text style={styles.loadingMainText}>Loading Jobs...</Text>
-        </View>
-      </SafeAreaView>
-    );
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    )
+  }
+
+  if (error && paps.length === 0) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>{error}</Text>
+        <Text onPress={fetchPaps} style={styles.retryText}>Tap to Retry</Text>
+      </View>
+    )
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <UnderbossBar />
-
-      {/* Main Scrollable Content */}
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+    <View style={styles.container}>
+      <View><UnderbossBar /></View>
+      <View style ={{ padding: 10, borderBottomWidth: 1, borderBottomColor: '#ccc', }}>
+        <TextInput style = {{borderWidth: 1, borderColor : '#646464',borderRadius:30, margin:10, backgroundColor : '#ecf1f2', color:'#5074b2'}} placeholder = '🔍 Research a job ...' ></TextInput>
+      </View>
+      <FlatList
+        data={paps}
+        keyExtractor={(item, index) => item?.id?.toString() || `pap-${index}`}
+        renderItem={({ item }) => <PapsPost pap={item} />}
+        horizontal={true}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#3182CE"
-            colors={['#3182CE']}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh}/>
         }
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchInputWrapper}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search for jobs..."
-              placeholderTextColor="#A0AEC0"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onSubmitEditing={handleSearch}
-              returnKeyType="search"
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                style={styles.clearBtn}
-                onPress={() => setSearchQuery('')}
-              >
-                <Text style={styles.clearBtnText}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Quick Filters */}
-        <QuickFilters selected={activeFilter} onSelect={setActiveFilter} />
-
-        {/* Featured Jobs Section */}
-        <View style={styles.section}>
-          <SectionHeader
-            title="Featured Jobs"
-            subtitle="Top opportunities"
-            icon="⭐"
-            onSeeAll={() => console.log('See all featured')}
-            count={featuredPaps.length}
-          />
-          <HorizontalPapsList
-            paps={featuredPaps}
-            variant="featured"
-            loading={featuredLoading}
-            error={featuredError}
-            onRetry={fetchFeatured}
-            emptyMessage="No featured jobs available"
-          />
-        </View>
-
-        {/* Newest Paps Section */}
-        <View style={styles.section}>
-          <SectionHeader
-            title="Newest Paps"
-            subtitle="Just posted"
-            icon="🆕"
-            onSeeAll={() => console.log('See all newest')}
-            count={newestPaps.length}
-          />
-          <HorizontalPapsList
-            paps={newestPaps}
-            variant="standard"
-            loading={newestLoading}
-            error={newestError}
-            onRetry={fetchNewest}
-            emptyMessage="No new jobs posted yet"
-          />
-        </View>
-
-        {/* Near You Section */}
-        <View style={styles.section}>
-          <SectionHeader
-            title="Near You"
-            subtitle="Jobs in your area"
-            icon="📍"
-            onSeeAll={() => console.log('See all nearby')}
-            count={nearbyPaps.length}
-          />
-          <HorizontalPapsList
-            paps={nearbyPaps}
-            variant="standard"
-            loading={nearbyLoading}
-            error={nearbyError}
-            onRetry={fetchNearby}
-            emptyMessage="No jobs found nearby"
-          />
-        </View>
-
-        {/* Recommended Section */}
-        <View style={styles.section}>
-          <SectionHeader
-            title="You Might Like"
-            subtitle="Based on your interests"
-            icon="💡"
-            onSeeAll={() => console.log('See all recommended')}
-            count={recommendedPaps.length}
-          />
-          <HorizontalPapsList
-            paps={recommendedPaps}
-            variant="compact"
-            loading={recommendedLoading}
-            error={recommendedError}
-            onRetry={fetchRecommended}
-            emptyMessage="No recommendations yet"
-          />
-        </View>
-
-        {/* Bottom padding */}
-        <View style={styles.bottomPadding} />
-      </ScrollView>
-    </SafeAreaView>
-  );
+        contentContainerStyle={{ paddingBottom: 20 }}
+      />
+      
+    </View>
+  )
 }
-
-// =============================================================================
-// STYLES
-// =============================================================================
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7FAFC',
+    backgroundColor: '#dce9e9' // White background for that clean look
+    
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingTop: 8,
-  },
-
-  // Loading state
-  loadingContainer: {
+  center: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingMainText: {
-    fontSize: 16,
-    color: '#718096',
-    fontWeight: '500',
-  },
-
-  // Search
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  searchInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 14 : 8,
-    shadowColor: '#1A202C',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#EDF2F7',
-  },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#2D3748',
-    padding: 0,
-  },
-  clearBtn: {
-    padding: 4,
-    marginLeft: 8,
-  },
-  clearBtnText: {
-    fontSize: 14,
-    color: '#A0AEC0',
-  },
-
-  // Quick Filters
-  filtersContainer: {
-    marginBottom: 8,
-  },
-  filtersContent: {
-    paddingHorizontal: 12,
-    gap: 8,
-    flexDirection: 'row',
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    marginHorizontal: 4,
-    shadowColor: '#1A202C',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-    borderWidth: 1,
-    borderColor: '#EDF2F7',
-  },
-  filterChipActive: {
-    backgroundColor: '#3182CE',
-    borderColor: '#3182CE',
-  },
-  filterIcon: {
-    fontSize: 14,
-    marginRight: 6,
-  },
-  filterLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4A5568',
-  },
-  filterLabelActive: {
-    color: '#FFFFFF',
-  },
-
-  // Section
-  section: {
-    marginTop: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  sectionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  sectionIcon: {
-    fontSize: 22,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A202C',
-  },
-  sectionSubtitle: {
-    fontSize: 12,
-    color: '#718096',
-    marginTop: 2,
-  },
-  seeAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  seeAllText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3182CE',
-  },
-  countBadge: {
-    backgroundColor: '#EBF8FF',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  countBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#3182CE',
-  },
-
-  // List states
-  listContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  listLoading: {
-    height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#718096',
-  },
-  listError: {
-    height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    gap: 12,
+    alignItems: 'center'
   },
   errorText: {
-    fontSize: 14,
-    color: '#E53E3E',
-    textAlign: 'center',
+    color: 'red',
+    marginBottom: 10
   },
-  retryBtn: {
-    backgroundColor: '#FED7D7',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#C53030',
-  },
-  listEmpty: {
-    height: 180,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EDF2F7',
-    borderStyle: 'dashed',
-  },
-  emptyIcon: {
-    fontSize: 32,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#A0AEC0',
-    fontWeight: '500',
-  },
-  bottomPadding: {
-    height: 100,
-  },
-});
+  retryText: {
+    color: 'blue',
+    fontWeight: 'bold'
+  }
+})

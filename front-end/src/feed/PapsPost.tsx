@@ -1,971 +1,708 @@
-/**
- * PapsPost - Job posting card component
- * 
- * Displays a PAPS (job) as a card with modal details view
- * Supports images, videos, and documents via MediaViewer
- */
+import React, { useState,useEffect } from 'react';
+import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, Pressable, ScrollView, FlatList } from 'react-native';
+import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
+import { serv, getMediaUrl,PapsDetail,MediaItem } from '../serve';
+import type { Paps } from '../serve/paps';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { serv, getMediaUrl } from '../serve';
-import type { Paps, PapsDetail } from '../serve/paps';
-import type { MediaItem } from '../serve/common/types';
-import MediaViewer from '../common/MediaViewer';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// =============================================================================
-// TYPES
-// =============================================================================
+// Get screen width for full-width images
+const { width } = Dimensions.get('window')
 
 interface PapsPostProps {
-  /** PAPS data to display */
-  pap: Paps;
-  /** Card size variant */
-  variant?: 'compact' | 'standard' | 'featured';
-  /** Callback when card is pressed */
-  onPress?: () => void;
+  pap: Paps
 }
 
-// =============================================================================
-// HELPERS
-// =============================================================================
 
-function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency || 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatPaymentType(type: string): string {
-  switch (type) {
-    case 'fixed': return 'Fixed';
-    case 'hourly': return '/hr';
-    case 'negotiable': return 'Negotiable';
-    default: return '';
-  }
-}
-
-function formatRelativeTime(dateStr: string | null): string {
-  if (!dateStr) return 'Recently';
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  return `${Math.floor(diffDays / 30)} months ago`;
-}
-
-function getStatusColor(status: string): { bg: string; text: string } {
-  switch (status) {
-    case 'published':
-    case 'open':
-      return { bg: '#C6F6D5', text: '#22543D' };
-    case 'closed':
-      return { bg: '#FED7D7', text: '#822727' };
-    case 'cancelled':
-      return { bg: '#E2E8F0', text: '#4A5568' };
-    case 'draft':
-    default:
-      return { bg: '#FEFCBF', text: '#744210' };
-  }
-}
-
-// =============================================================================
-// CARD SIZE CONFIGURATIONS
-// =============================================================================
-
-const CARD_SIZES = {
-  compact: { width: 260, height: 180, titleLines: 1, descLines: 1 },
-  standard: { width: 300, height: 260, titleLines: 2, descLines: 2 },
-  featured: { width: SCREEN_WIDTH - 32, height: 320, titleLines: 2, descLines: 3 },
-};
-
-// =============================================================================
-// MAIN COMPONENT
-// =============================================================================
-
-export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPostProps) {
+export default function PapsPost({ pap }: PapsPostProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
-  const [papsDetail, setPapsDetail] = useState<PapsDetail | null>(null);
+  const [papsDetail, setPapsDetail] = useState<any>(null);
   const [papsMedia, setPapsMedia] = useState<MediaItem[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [applying, setApplying] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
-
-  const cardSize = CARD_SIZES[variant];
-  const primaryCategory = pap.categories?.[0];
-  const categoryName = typeof primaryCategory === 'object' 
-    ? primaryCategory?.name 
-    : primaryCategory;
-
-  // Fetch avatar on mount
+  
   useEffect(() => {
     const fetchAvatar = async () => {
       if (!pap.owner_username) return;
+  
       try {
+        // Fetch user profile to get avatar_url
         const profile = await serv('profile.getByUsername', { username: pap.owner_username });
-        setAvatarUri(getMediaUrl(profile.avatar_url));
-      } catch {
-        setAvatarUri(null);
+        
+        // Convert media path to full URL
+        const mediaUrl = getMediaUrl(profile.avatar_url);
+        setAvatarUri(mediaUrl); // React Native Image component handles the fetch
+        
+      } catch (error: any) {
+        // Silently handle 404 errors (user has no avatar/profile)
+        if (error?.status !== 404) {
+          console.error("Error fetching avatar:", error);
+        }
+        setAvatarUri(null); // Fallback to initials
       }
     };
+  
     fetchAvatar();
   }, [pap.owner_username]);
 
-  // Fetch details when modal opens
+  // Fetch full PAPS details when modal opens
   useEffect(() => {
-    if (!modalVisible || !pap.id) return;
-
-    const fetchDetails = async () => {
+    const fetchPapsDetails = async () => {
+      if (!modalVisible) return;
+      
+      if (!pap.id) {
+        console.error("No id available:", pap);
+        return;
+      }
+      
       setLoadingDetail(true);
       try {
-        const [details, mediaResponse] = await Promise.all([
-          serv('paps.get', { paps_id: pap.id }),
-          serv('paps.media.list', { paps_id: pap.id }),
-        ]);
+        console.log("Fetching PAPS details for ID:", pap.id);
+        const details = await serv('paps.get', { paps_id: pap.id });
         setPapsDetail(details);
-        setPapsMedia(mediaResponse.media || []);
-      } catch (error) {
-        console.error('Error fetching PAPS details:', error);
+      } catch (error: any) {
+        console.error("Error fetching PAPS details:", error);
       } finally {
         setLoadingDetail(false);
       }
     };
-    fetchDetails();
+    fetchPapsDetails();
+    fetchPapsMedia();
   }, [modalVisible, pap.id]);
 
-  // Handle apply
-  const handleApply = useCallback(async () => {
+  const fetchPapsMedia = async () => {
+    if (!pap.id) return;
+    serv('paps.media.list', { paps_id: pap.id })
+      .then((response) => {
+        setPapsMedia(response.media || []);
+      })
+      .catch((error) => {
+        console.error("Error fetching PAPS media:", error);
+      });
+  };
+  // Handle apply for job
+  const handleApply = async () => {
     setApplying(true);
     try {
-      await serv('spap.apply', {
+      await serv('spap.apply', { 
         paps_id: pap.id,
-        message: 'I am interested in this job opportunity.',
+        message: 'I am interested in this job opportunity.'
       });
       setHasApplied(true);
-      Alert.alert('Success', 'Your application has been submitted!', [
-        { text: 'OK', onPress: () => setModalVisible(false) },
-      ]);
+      Alert.alert(
+        'Success',
+        'Your application has been submitted successfully!',
+        [{ text: 'OK', onPress: () => setModalVisible(false) }]
+      );
     } catch (error: any) {
+      console.error('Error applying to job:', error);
       Alert.alert(
         'Error',
-        error?.getUserMessage?.() || 'Failed to submit application.',
+        error.getUserMessage ? error.getUserMessage() : 'Failed to submit application. Please try again.',
         [{ text: 'OK' }]
       );
     } finally {
       setApplying(false);
     }
-  }, [pap.id]);
-
-  const openModal = () => {
-    console.log('Opening modal, onPress:', !!onPress);
-    if (onPress) {
-      onPress();
-    } else {
-      setModalVisible(true);
-    }
   };
-
-  // ==========================================================================
-  // RENDER CARD
-  // ==========================================================================
-
+  
   return (
-    <>
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={openModal}
-        style={[styles.card, { width: cardSize.width, minHeight: cardSize.height }]}
-      >
-        {/* Category Badge */}
-        {categoryName && (
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryBadgeText}>{categoryName}</Text>
-          </View>
-        )}
-
-        {/* Card Content */}
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle} numberOfLines={cardSize.titleLines}>
-            {pap.title}
-          </Text>
-          
-          <Text style={styles.cardDescription} numberOfLines={cardSize.descLines}>
-            {pap.description}
-          </Text>
-
-          {/* Meta Info */}
-          <View style={styles.metaContainer}>
-            {pap.location_address && (
-              <View style={styles.metaItem}>
-                <Text style={styles.metaIcon}>📍</Text>
-                <Text style={styles.metaText} numberOfLines={1}>
-                  {pap.location_address}
-                </Text>
-              </View>
-            )}
-            
-            <View style={styles.metaItem}>
-              <Text style={styles.metaIcon}>💰</Text>
-              <Text style={styles.metaText}>
-                {formatCurrency(pap.payment_amount, pap.payment_currency)}
-                {pap.payment_type !== 'fixed' && ` ${formatPaymentType(pap.payment_type)}`}
-              </Text>
+    <View id="global view for post" style={{ flexDirection: 'column' }}>
+      <View style={{ flex: 1, backgroundColor: '#792c2c13' }}>
+        <View style={styles.container}>
+          <View style={styles.cardHeader}>
+            <View style={styles.categoryTag}>
+              <Text style={styles.categoryText}>Put here the category</Text>
             </View>
-
-            {pap.estimated_duration_minutes && (
-              <View style={styles.metaItem}>
-                <Text style={styles.metaIcon}>⏱️</Text>
-                <Text style={styles.metaText}>
-                  ~{Math.round(pap.estimated_duration_minutes / 60)}h
-                </Text>
-              </View>
-            )}
           </View>
-        </View>
 
-        {/* Card Footer */}
-        <View style={styles.cardFooter}>
-          <View style={styles.userInfo}>
-            <View style={styles.avatarSmall}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatarSmallImage} />
-              ) : (
-                <Text style={styles.avatarSmallInitial}>
-                  {pap.owner_username?.charAt(0)?.toUpperCase() || '?'}
-                </Text>
-              )}
-            </View>
-            <Text style={styles.username} numberOfLines={1}>
-              @{pap.owner_username}
+          <View style={styles.cardBody}>
+            <Text style={styles.cardTitle}>{pap.title}</Text>
+            <Text style={styles.cardDescription} numberOfLines={2}>
+              {pap.description}
             </Text>
+
+            <View style={styles.cardMeta}>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaIcon}>📍</Text>
+                <Text style={styles.metaText}>{pap.location_address}</Text>
+                <Text></Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaIcon}>🕒</Text>
+                <Text style={styles.metaText}>{'To be decided with the boss'}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaIcon}>💰</Text>
+                <Text style={styles.metaText}>{pap.payment_amount} {pap.payment_currency}</Text>
+              </View>
+            </View>
           </View>
-          
-          <View style={styles.actionArea}>
-            <Text style={styles.timeAgo}>{formatRelativeTime(pap.created_at)}</Text>
+
+          <View style={styles.cardFooter}>
+            <Text style={styles.footerUser}>User @{pap.owner_username}</Text>
+            <TouchableOpacity
+              style={styles.applyButton}
+              onPress={() => {
+                console.log('Opening modal for pap:', pap.id);
+                setModalVisible(true);
+              }}
+            >
+              <Text style={styles.applyButtonText}>More info</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </TouchableOpacity>
+      </View>
+      <View style={{ flex: 2 }}></View>
 
-      {/* =================================================================== */}
-      {/* DETAIL MODAL */}
-      {/* =================================================================== */}
+      {/* Modal for more info - moved outside the card container */}
       <Modal
-        visible={modalVisible}
         animationType="slide"
         transparent={true}
+        visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
+        presentationStyle="overFullScreen"
       >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity 
-            style={styles.modalBackdrop} 
-            activeOpacity={1}
-            onPress={() => setModalVisible(false)}
-          />
-          <View style={styles.modalSheet}>
-            <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
-              {/* Modal Header */}
-              <View style={styles.modalHeader}>
-                <View style={styles.modalDragIndicator} />
-                <Text style={styles.modalHeaderTitle}>Job Details</Text>
-                <TouchableOpacity
-                  style={styles.modalCloseBtn}
-                  onPress={() => setModalVisible(false)}
-                >
-                  <Text style={styles.modalCloseBtnText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Modal Content - Scrollable */}
-              <ScrollView
-                style={styles.modalScroll}
-                contentContainerStyle={styles.modalScrollContent}
-                showsVerticalScrollIndicator={false}
-                bounces={true}
-              >
-                {/* Title & Category */}
-                <View style={styles.modalTitleSection}>
-                  <Text style={styles.modalTitle}>{pap.title}</Text>
-                  {categoryName && (
-                    <View style={styles.modalCategoryBadge}>
-                      <Text style={styles.modalCategoryText}>{categoryName}</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Posted Time & Status */}
-                <View style={styles.modalMetaRow}>
-                  <Text style={styles.modalMetaText}>
-                    Posted {formatRelativeTime(pap.created_at)}
-                  </Text>
-                  <View style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusColor(pap.status).bg }
-                  ]}>
-                    <Text style={[
-                      styles.statusBadgeText,
-                      { color: getStatusColor(pap.status).text }
-                    ]}>
-                      {pap.status.charAt(0).toUpperCase() + pap.status.slice(1)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Media Section */}
-                {papsMedia.length > 0 && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>
-                      Media ({papsMedia.length})
-                    </Text>
-                    <MediaViewer
-                      media={papsMedia}
-                      size="medium"
-                      layout="carousel"
-                      maxVisible={5}
-                    />
-                  </View>
-                )}
-
-                {/* Quick Info Boxes */}
-                <View style={styles.infoBoxRow}>
-                  <View style={styles.infoBox}>
-                    <Text style={styles.infoBoxIcon}>💰</Text>
-                    <Text style={styles.infoBoxLabel}>Payment</Text>
-                    <Text style={styles.infoBoxValue}>
-                      {formatCurrency(pap.payment_amount, pap.payment_currency)}
-                    </Text>
-                    <Text style={styles.infoBoxSub}>
-                      {formatPaymentType(pap.payment_type)}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.infoBox}>
-                    <Text style={styles.infoBoxIcon}>📍</Text>
-                    <Text style={styles.infoBoxLabel}>Location</Text>
-                    <Text style={styles.infoBoxValue} numberOfLines={2}>
-                      {pap.location_address || 'Remote'}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.infoBox}>
-                    <Text style={styles.infoBoxIcon}>👥</Text>
-                    <Text style={styles.infoBoxLabel}>Openings</Text>
-                    <Text style={styles.infoBoxValue}>
-                      {pap.max_assignees || 1}
-                    </Text>
-                    <Text style={styles.infoBoxSub}>
-                      of {pap.max_applicants || 10} max
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Description */}
-                <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Description</Text>
-                  <Text style={styles.descriptionText}>{pap.description}</Text>
-                </View>
-
-                {/* Schedule (if available) */}
-                {pap.start_datetime && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>Schedule</Text>
-                    <View style={styles.scheduleCard}>
-                      <View style={styles.scheduleRow}>
-                        <Text style={styles.scheduleLabel}>Start</Text>
-                        <Text style={styles.scheduleValue}>
-                          {new Date(pap.start_datetime).toLocaleDateString(undefined, {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </Text>
-                      </View>
-                      {pap.end_datetime && (
-                        <View style={styles.scheduleRow}>
-                          <Text style={styles.scheduleLabel}>End</Text>
-                          <Text style={styles.scheduleValue}>
-                            {new Date(pap.end_datetime).toLocaleDateString(undefined, {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </Text>
-                        </View>
-                      )}
-                      {pap.estimated_duration_minutes && (
-                        <View style={styles.scheduleRow}>
-                          <Text style={styles.scheduleLabel}>Duration</Text>
-                          <Text style={styles.scheduleValue}>
-                            ~{Math.round(pap.estimated_duration_minutes / 60)} hours
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                )}
-
-                {/* Posted By */}
-                <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Posted by</Text>
-                  <View style={styles.postedByCard}>
-                    <View style={styles.avatarMedium}>
-                      {avatarUri ? (
-                        <Image source={{ uri: avatarUri }} style={styles.avatarMediumImage} />
-                      ) : (
-                        <Text style={styles.avatarMediumInitial}>
-                          {pap.owner_username?.charAt(0)?.toUpperCase() || '?'}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={styles.postedByInfo}>
-                      <Text style={styles.postedByName}>@{pap.owner_username}</Text>
-                      {papsDetail && (
-                        <Text style={styles.postedByStats}>
-                          {papsDetail.applications_count || 0} applications • {papsDetail.comments_count || 0} comments
-                        </Text>
-                      )}
-                    </View>
-                    <TouchableOpacity style={styles.viewProfileBtn}>
-                      <Text style={styles.viewProfileBtnText}>View</Text>
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setModalVisible(false)}
+        >
+          <Pressable 
+            style={styles.modalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+                <SafeAreaView edges={['bottom', 'left', 'right']}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalHeaderTitle}>Job details</Text>
+                    <TouchableOpacity
+                      onPress={() => setModalVisible(false)}
+                      style={styles.modalCloseButton}
+                    >
+                      <Text style={styles.modalCloseText}>✕</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
 
-                {/* Additional Info */}
-                {loadingDetail ? (
-                  <View style={styles.loadingSection}>
-                    <ActivityIndicator size="small" color="#3182CE" />
-                    <Text style={styles.loadingText}>Loading details...</Text>
-                  </View>
-                ) : (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>Details</Text>
-                    <View style={styles.detailsList}>
-                      <View style={styles.detailItem}>
-                        <Text style={styles.detailLabel}>Job ID</Text>
-                        <Text style={styles.detailValue} numberOfLines={1}>
-                          {pap.id.slice(0, 8)}...
-                        </Text>
-                      </View>
-                      <View style={styles.detailItem}>
-                        <Text style={styles.detailLabel}>Visibility</Text>
-                        <Text style={styles.detailValue}>
-                          {pap.is_public ? 'Public' : 'Private'}
-                        </Text>
-                      </View>
-                      {pap.expires_at && (
-                        <View style={styles.detailItem}>
-                          <Text style={styles.detailLabel}>Expires</Text>
-                          <Text style={styles.detailValue}>
-                            {new Date(pap.expires_at).toLocaleDateString()}
+                  <ScrollView contentContainerStyle={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
+                    <View style={styles.modalTitleRow}>
+                      <Text style={styles.modalJobTitle}>{pap.title}</Text>
+                      {pap.categories && pap.categories.length > 0 && (
+                        <View style={styles.categoryTagSmall}>
+                          <Text style={styles.categoryTextSmall}>
+                            {typeof pap.categories[0] === 'string' 
+                              ? pap.categories[0] 
+                              : pap.categories[0].name || pap.categories[0]?.category_id || 'Category??'}
                           </Text>
                         </View>
                       )}
                     </View>
+
+                    <View style={styles.postedTimeRow}>
+                      <Text style={styles.postedTimeText}>🕒 Posted {pap.publish_at ? new Date(pap.publish_at).toLocaleDateString() : 'Unknown'}</Text>
+                    </View>
+
+                    {/* Medias */}
+                    {papsMedia.length > 0 ? (
+                      <View style={{ marginBottom: 24, padding:10, backgroundColor:'#d4e3e4'}}>
+                        <FlatList
+                          data={papsMedia}
+                          keyExtractor={(item, index) => item.media_id.toString() || `media-${index}`}
+                          horizontal
+                          showsHorizontalScrollIndicator={true}
+                          renderItem={({ item }) => {
+                            const mediaUrl = getMediaUrl(item.media_url);
+                            console.log("\n\n\nRendering media item:", item.media_url);
+                            if (item.media_type === 'image' && mediaUrl) {
+                              return (
+                                <Image
+                                  source={{ uri: mediaUrl }}
+                                  style={{ width: 300, height: 300, borderRadius: 12, marginRight: 12 }}
+                                  resizeMode="cover"
+                                />
+                                
+                              );
+                            } else if (item.media_type === 'video') {
+                              return (
+                                <View style={{ width: 300, height: 300, borderRadius: 12, marginRight: 12, backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Text>Video</Text>
+                                </View>
+                              );
+                            } else if (item.media_type === 'document') {
+                              return (
+                                <View style={{ width: 300, height: 300, borderRadius: 12, marginRight: 12, backgroundColor: '#ccc', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Text>PDF</Text>
+                                </View>
+                              );
+                            } else {
+                              return null;
+                            }
+                          }}
+                        />
+                      </View>
+                    ) : null}
+
+                    <View style={styles.infoBoxesRow}>
+                      <View style={styles.infoBox}>
+                        <Text style={styles.infoBoxIcon}>💰</Text>
+                        <View>
+                          <Text style={styles.infoBoxLabel}>Payment</Text>
+                          <Text style={styles.infoBoxValue}>{pap.payment_amount || 'TBD'} {pap.payment_currency}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.infoBox}>
+                        <Text style={styles.infoBoxIcon}>🕒</Text>
+                        <View>
+                          <Text style={styles.infoBoxLabel}>Starting day</Text>
+                          <Text style={styles.infoBoxValue}>To be decided</Text>
+                        </View>
+                      </View>
+                      <View style={styles.infoBox}>
+                        <Text style={styles.infoBoxIcon}>📍</Text>
+                        <Text></Text>
+                        <View>
+                          <Text style={styles.infoBoxLabel}>Location</Text>
+                          <Text style={styles.infoBoxValue} numberOfLines={2}>{pap.location_address || 'Remote'}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View style={styles.modalSection}>
+                      <Text style={styles.sectionTitle}>Description</Text>
+                      <Text style={styles.sectionText}>{pap.description}</Text>
+                    </View>
+
+                    {loadingDetail ? (
+                      <View style={styles.modalSection}>
+                        <Text style={styles.sectionText}>Loading additional details...</Text>
+                      </View>
+                    ) : papsDetail ? (
+                      <>
+                        {papsDetail.schedule && papsDetail.schedule.length > 0 && (
+                          <View style={styles.modalSection}>
+                            <Text style={styles.sectionTitle}>Schedule</Text>
+                            {papsDetail.schedule.map((sched: any, idx: number) => (
+                              <View key={idx} style={styles.scheduleItem}>
+                                <Text style={styles.sectionText}>
+                                  {new Date(sched.start_time).toLocaleString()} - {new Date(sched.end_time).toLocaleString()}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                        
+                        {papsDetail.media && papsDetail.media.length > 0 && (
+                          <View style={styles.modalSection}>
+                            <Text style={styles.sectionTitle}>Media ({papsDetail.media.length})</Text>
+                            <Text style={styles.sectionText}>This job has {papsDetail.media.length} attached media file(s)</Text>
+                          </View>
+                        )}
+                      </>
+                    ) : null}
+
+                    <View style={styles.modalSection}>
+                      <Text style={styles.sectionTitle}>Posted by</Text>
+                      <View style={styles.postedByCard}>
+                        <View style={styles.avatarCircle}>
+                          {avatarUri ? (
+                            <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+                          ) : (
+                            <Text style={styles.avatarInitial}>
+                              {pap.owner_username.charAt(0).toUpperCase()}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.postedByInfo}>
+                          <Text style={styles.postedByName}>{pap.owner_username}</Text>
+                          <Text style={styles.postedByStats}></Text>
+                        </View>
+                        <TouchableOpacity style={styles.viewProfileButton}>
+                          <Text style={styles.viewProfileText}>View profile</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={styles.modalSection}>
+                      <Text style={styles.sectionTitle}>Additional information</Text>
+                      <View style={styles.infoList}>
+                        <View style={styles.infoListItem}>
+                          <Text style={styles.infoListLabel}>Job ID</Text>
+                          <Text style={styles.infoListValue}>{pap.id}</Text>
+                        </View>
+                        <View style={styles.infoListItem}>
+                          <Text style={styles.infoListLabel}>Status</Text>
+                          <View style={styles.statusBadge}>
+                            <Text style={styles.statusBadgeText}>{pap.status}</Text>
+                          </View>
+                        </View>
+                        {papsDetail && (
+                          <>
+                            <View style={styles.infoListItem}>
+                              <Text style={styles.infoListLabel}>Applications</Text>
+                              <Text style={styles.infoListValue}>{papsDetail.application_count || 0}</Text>
+                            </View>
+                            <View style={styles.infoListItem}>
+                              <Text style={styles.infoListLabel}>Assignments</Text>
+                              <Text style={styles.infoListValue}>{papsDetail.assignment_count || 0}</Text>
+                            </View>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                  </ScrollView>
+
+                  <View style={styles.modalFooter}>
+                    <TouchableOpacity
+                      style={styles.closeActionBtn}
+                      onPress={() => setModalVisible(false)}
+                    >
+                      <Text style={styles.closeActionBtnText}>Close</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.applyActionBtn, (applying || hasApplied) && styles.applyActionBtnDisabled]}
+                      onPress={handleApply}
+                      disabled={applying || hasApplied}
+                    >
+                      <Text style={styles.applyActionBtnText}>
+                        {hasApplied ? '✓ Applied' : applying ? 'Applying...' : 'Apply for this job'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                )}
-
-                {/* Bottom spacing */}
-                <View style={styles.bottomSpacer} />
-              </ScrollView>
-
-              {/* Footer Actions */}
-              <View style={styles.modalFooter}>
-                <TouchableOpacity
-                  style={styles.closeBtn}
-                  onPress={() => setModalVisible(false)}
-                >
-                  <Text style={styles.closeBtnText}>Close</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.applyBtn,
-                    (applying || hasApplied) && styles.applyBtnDisabled,
-                  ]}
-                  onPress={handleApply}
-                  disabled={applying || hasApplied}
-                >
-                  {applying ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.applyBtnText}>
-                      {hasApplied ? '✓ Applied' : 'Apply Now'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </SafeAreaView>
-          </View>
-        </View>
-      </Modal>
-    </>
-  );
+                </SafeAreaView>
+              </Pressable>
+            </Pressable>
+          </Modal>
+    </View>
+  )
 }
 
-// =============================================================================
-// STYLES
-// =============================================================================
-
 const styles = StyleSheet.create({
-  // Card styles
-  card: {
-    backgroundColor: '#FFFFFF',
+  container: {
+    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
     marginHorizontal: 8,
-    marginVertical: 6,
-    shadowColor: '#1A202C',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    marginVertical: 8,
+    width: 280,
+    height: 300,
     borderWidth: 1,
-    borderColor: '#EDF2F7',
+    borderColor: '#F0F4F8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 3,
   },
-  categoryBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: '#E6FFFA',
+  cardHeader: {
+    marginBottom: 8,
+  },
+  categoryTag: {
+    backgroundColor: '#E6F6F4',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
-    zIndex: 1,
+    alignSelf: 'flex-start',
   },
-  categoryBadgeText: {
-    color: '#319795',
-    fontSize: 11,
+  categoryText: {
+    color: '#38A19F',
+    fontSize: 10,
     fontWeight: '700',
   },
-  cardContent: {
-    flex: 1,
-    marginTop: 28,
+  cardBody: {
+    marginBottom: 16,
   },
   cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: '#1A202C',
-    marginBottom: 6,
-    lineHeight: 22,
+    marginBottom: 8,
   },
   cardDescription: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#718096',
     lineHeight: 18,
     marginBottom: 12,
   },
-  metaContainer: {
+  cardMeta: {
     gap: 6,
   },
-  metaItem: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   metaIcon: {
-    fontSize: 13,
+    fontSize: 14,
   },
   metaText: {
     fontSize: 12,
     color: '#4A5568',
     fontWeight: '500',
-    flex: 1,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
     marginTop: 'auto',
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#EDF2F7',
+    borderTopColor: '#F7FAFC',
   },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  avatarSmall: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  avatarSmallImage: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarSmallInitial: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4A5568',
-  },
-  username: {
+  footerUser: {
     fontSize: 12,
     color: '#718096',
     fontWeight: '500',
-    flex: 1,
   },
-  actionArea: {
-    alignItems: 'flex-end',
+  applyButton: {
+    backgroundColor: '#3182CE',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
-  timeAgo: {
-    fontSize: 11,
-    color: '#A0AEC0',
-    fontWeight: '500',
+  applyButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
-
-  // Modal styles
+  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  modalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '92%',
-    minHeight: '60%',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  modalHeader: {
-    alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EDF2F7',
-  },
-  modalDragIndicator: {
-    width: 36,
-    height: 4,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 2,
-    marginBottom: 12,
-  },
-  modalHeaderTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A202C',
-  },
-  modalCloseBtn: {
-    position: 'absolute',
-    right: 16,
-    top: 24,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#EDF2F7',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  modalCloseBtnText: {
-    fontSize: 16,
-    color: '#718096',
-    fontWeight: '300',
-  },
-  modalScroll: {
-    flex: 1,
-  },
-  modalScrollContent: {
     padding: 20,
   },
-
-  // Modal content sections
-  modalTitleSection: {
-    marginBottom: 12,
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: '100%',
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#1A202C',
-    lineHeight: 30,
-    marginBottom: 8,
-  },
-  modalCategoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#E6FFFA',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  modalCategoryText: {
-    color: '#319795',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  modalMetaRow: {
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EDF2F7',
+  },
+  modalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#2D3748',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: '#A0AEC0',
+    fontWeight: '300',
+  },
+  modalScrollBody: {
+    padding: 30,
+
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  modalJobTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1A202C',
+    flex: 1,
+    marginRight: 10,
+  },
+  categoryTagSmall: {
+    backgroundColor: '#E6F6F4',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  categoryTextSmall: {
+    color: '#38A19F',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  postedTimeRow: {
     marginBottom: 20,
   },
-  modalMetaText: {
+  postedTimeText: {
     fontSize: 13,
     color: '#718096',
     fontWeight: '500',
   },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  // Info boxes
-  infoBoxRow: {
+  infoBoxesRow: {
     flexDirection: 'row',
     gap: 10,
     marginBottom: 24,
   },
   infoBox: {
     flex: 1,
-    backgroundColor: '#F7FAFC',
-    borderRadius: 12,
+    backgroundColor: '#E6F6F4',
     padding: 12,
+    borderRadius: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   infoBoxIcon: {
-    fontSize: 20,
-    marginBottom: 6,
+    fontSize: 16,
   },
   infoBoxLabel: {
     fontSize: 10,
     color: '#718096',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
+    fontWeight: '500',
   },
   infoBoxValue: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '800',
     color: '#2D3748',
-    textAlign: 'center',
   },
-  infoBoxSub: {
-    fontSize: 10,
-    color: '#A0AEC0',
-    marginTop: 2,
-  },
-
-  // Sections
   modalSection: {
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#2D3748',
     marginBottom: 12,
   },
-  descriptionText: {
+  sectionText: {
     fontSize: 14,
     color: '#4A5568',
     lineHeight: 22,
   },
-
-  // Schedule
-  scheduleCard: {
-    backgroundColor: '#F7FAFC',
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
-  },
-  scheduleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  scheduleLabel: {
-    fontSize: 13,
-    color: '#718096',
-    fontWeight: '500',
-  },
-  scheduleValue: {
-    fontSize: 13,
-    color: '#2D3748',
-    fontWeight: '600',
-  },
-
-  // Posted by
   postedByCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7FAFC',
+    backgroundColor: '#E6F6F4',
+    padding: 16,
     borderRadius: 12,
-    padding: 14,
-    gap: 12,
   },
-  avatarMedium: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#E2E8F0',
-    justifyContent: 'center',
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#A0AEC0',
     alignItems: 'center',
-    overflow: 'hidden',
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  avatarMediumImage: {
-    width: '100%',
-    height: '100%',
+  avatarInitial: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
-  avatarMediumInitial: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#4A5568',
+  avatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   postedByInfo: {
     flex: 1,
   },
   postedByName: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#2D3748',
-    marginBottom: 2,
   },
   postedByStats: {
     fontSize: 12,
     color: '#718096',
+    marginTop: 2,
   },
-  viewProfileBtn: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  viewProfileButton: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  viewProfileBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4A5568',
+  viewProfileText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2D3748',
   },
-
-  // Details list
-  detailsList: {
-    backgroundColor: '#F7FAFC',
-    borderRadius: 12,
-    overflow: 'hidden',
+  infoList: {
+    gap: 12,
   },
-  detailItem: {
+  infoListItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#EDF2F7',
+    borderBottomColor: '#F7FAFC',
   },
-  detailLabel: {
+  infoListLabel: {
     fontSize: 14,
     color: '#718096',
     fontWeight: '500',
   },
-  detailValue: {
+  infoListValue: {
     fontSize: 14,
+    fontWeight: '700',
     color: '#2D3748',
-    fontWeight: '600',
-    maxWidth: '60%',
-    textAlign: 'right',
   },
-
-  // Loading
-  loadingSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    padding: 20,
+  statusBadge: {
+    backgroundColor: '#C6F6D5',
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 20,
   },
-  loadingText: {
-    fontSize: 14,
-    color: '#718096',
+  statusBadgeText: {
+    color: '#38A169',
+    fontSize: 12,
+    fontWeight: '700',
   },
-
-  // Footer
   modalFooter: {
     flexDirection: 'row',
-    padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 8 : 16,
+    padding: 20,
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: '#EDF2F7',
-    backgroundColor: '#FFFFFF',
   },
-  closeBtn: {
+  closeActionBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#EDF2F7',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     alignItems: 'center',
   },
-  closeBtnText: {
+  closeActionBtnText: {
     fontSize: 15,
     fontWeight: '700',
     color: '#4A5568',
   },
-  applyBtn: {
-    flex: 2,
-    paddingVertical: 14,
-    borderRadius: 12,
+  applyActionBtn: {
+    flex: 1.5,
     backgroundColor: '#3182CE',
+    paddingVertical: 14,
+    borderRadius: 10,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  applyBtnDisabled: {
+  applyActionBtnDisabled: {
     backgroundColor: '#A0AEC0',
   },
-  applyBtnText: {
+  applyActionBtnText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#fff',
   },
-  bottomSpacer: {
-    height: 20,
+  scheduleItem: {
+    backgroundColor: '#F7FAFC',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
   },
-});
+})
