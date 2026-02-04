@@ -34,7 +34,7 @@ export default function UnderbossBar() {
                 <TouchableOpacity
                     style={styles.iconButton}
                     activeOpacity={0.6}
-                    onPress={() => navigation.navigate('Profile')}
+                    onPress={() => navigation.navigate('ProfilePage')}
                 >
                     <Text style={styles.iconEmoji}>👤</Text>
                 </TouchableOpacity>

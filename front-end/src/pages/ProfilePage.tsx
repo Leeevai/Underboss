@@ -3,23 +3,22 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import UnderbossBar from '../header/underbossbar';
 import ModifyProfil from './ModifyProfil.tsx';
 import { serv, ApiError,UserProfile } from '../serve';
+import { useNavigation } from '@react-navigation/native';
 
 
 export default function ProfilePage({ navigation }: any) {
     // État initial de l'utilisateur
     const [user, setUser] = useState<UserProfile>()
-      const [loading, setLoading] = useState(true)
-      const [refreshing, setRefreshing] = useState(false)
-      const [error, setError] = useState('')
+    const [loading, setLoading] = useState(true)
+    const [refreshing, setRefreshing] = useState(false)
+    const [error, setError] = useState('')
+
     const fetchProfile = async () => {
         try {
           const response = await serv('profile.get')
           console.log(response)
           // serv returns { paps: [], total_count: number }
           setUser(response)
-
-
-
           console.log(user)
           setError('')
         } catch (err) {
@@ -56,7 +55,7 @@ export default function ProfilePage({ navigation }: any) {
                     
                     <View style={styles.infoRow}>
                         <Text style={styles.label}>Name</Text>
-                        <Text style={styles.value}>{user?.last_name}</Text>
+                        <Text style={styles.value}>{user?.first_name}</Text>
                     </View>
 
                      <View style={styles.infoRow}>

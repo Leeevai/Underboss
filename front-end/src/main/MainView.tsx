@@ -3,6 +3,8 @@ import { View, StyleSheet, TouchableOpacity, Text, Button } from 'react-native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+
 import PapsFeed from '../feed/PapsFeed';
 import NotificationPage from '../pages/NotificationPage';
 import ProfilePage from '../pages/ProfilePage';
@@ -82,6 +84,7 @@ const Message = () => (
 
 
 function MainTabs() {
+  
   return (
     <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { height: 150 } }}>
       <Tab.Screen
@@ -105,10 +108,20 @@ function MainTabs() {
         options={{ title: 'Message' }}
       />
       <Tab.Screen
-        name="Calendar"
-        component={Calendar}
-        options={{ title: 'Calendar' }}
+  name="Calendar"
+  component={Calendar}
+  options={{
+    title: 'Calendar',
+    tabBarIcon: ({ color, size, focused }) => (
+      <Ionicons
+        name={focused ? 'calendar' : 'calendar-outline'}
+        size={size}
+        color={color}
       />
+    ),
+  }}
+/>
+
     </Tab.Navigator>
   );
 }
@@ -128,7 +141,7 @@ export default function MainView({ logoutUser }: MainViewProps) {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="Notification" component={NotificationPage} />
-          <Stack.Screen name="Profile" component={ProfilePage} />
+          <Stack.Screen name="ProfilePage" component={ProfilePage} />
           <Stack.Screen name="ModifyProfil" component={ModifyProfil} />
           <Stack.Screen name="Settings">
           
