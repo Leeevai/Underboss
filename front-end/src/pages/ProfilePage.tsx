@@ -1,8 +1,8 @@
 import React, { useState,useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import UnderbossBar from '../header/underbossbar';
 import ModifyProfil from './ModifyProfil.tsx';
-import { serv, ApiError,UserProfile } from '../serve';
+import { serv, ApiError, UserProfile, getMediaUrl } from '../serve';
 import { useNavigation } from '@react-navigation/native';
 
 
@@ -42,7 +42,14 @@ export default function ProfilePage({ navigation }: any) {
             <ScrollView contentContainerStyle={styles.container}>
                 
                 <View style={styles.header}>
-                    <View style={styles.avatarPlaceholder} />
+                    {user?.avatar_url ? (
+                        <Image 
+                            source={{ uri: getMediaUrl(user.avatar_url) ?? undefined }} 
+                            style={styles.avatar} 
+                        />
+                    ) : (
+                        <View style={styles.avatarPlaceholder} />
+                    )}
                     <Text style={styles.pseudo}>@{user?.username}</Text>
                     <View style={styles.ratingBadge}>
                         <Text style={styles.ratingText}>⭐</Text>
@@ -122,6 +129,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderBottomWidth: 1,
         borderBottomColor: '#E2E8F0',
+    },
+    avatar: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        marginBottom: 15,
     },
     avatarPlaceholder: {
         width: 100,
