@@ -3,8 +3,8 @@ import { baseUrl } from '../common/const'
 
 const styles = StyleSheet.create({
     header: {
-        backgroundColor: '#1E88E5',
-        padding: 8
+        backgroundColor: '#040507',
+        padding: 20
     },
     text: {
         color: 'white',
@@ -25,7 +25,6 @@ export default function Header({ username, isAuthenticated = false }: HeaderProp
     
     return (
         <View style={styles.header}>
-            <Text style={styles.text}>{msg}</Text>
         </View>
     )
 }
