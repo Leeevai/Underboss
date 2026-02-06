@@ -1,11 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Image, Modal, PermissionsAndroid } from 'react-native';
-import { serv, ApiError, PaymentType, PapsStatus, Currency, getMediaUrl } from '../serve';
+import { serv, ApiError, PaymentType, PapsStatus, Currency } from '../serve';
 import { PapsCreateRequest } from '../serve/paps/types';
-import { getCategoryColor } from '../cache/categories';
 import UnderbossBar from '../header/underbossbar';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
-import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
+import { useTheme, BRAND, createShadow } from '../common/theme';
+import { useActiveCategories } from '../cache';
 import { Calendar, DateData } from 'react-native-calendars';
 
 // Geolocation types for React Native
@@ -57,7 +57,6 @@ const POST_MODES: { value: 'draft' | 'scheduled' | 'publish'; label: string; ico
 ];
 
 const MAX_MEDIA_FILES = 10;
-const ALLOWED_MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime'];
 
 const DEFAULT_FORM: Partial<PapsCreateRequest> = {
   payment_amount: 0,
@@ -90,7 +89,7 @@ const Post = () => {
   const [loadingLocation, setLoadingLocation] = useState(false);
   
   // Categories from cache
-  const { categories, loading: categoriesLoading } = useActiveCategories();
+  const { categories } = useActiveCategories();
 
   // Open calendar for a specific field
   const openCalendar = (field: 'start' | 'end') => {
@@ -227,13 +226,14 @@ const Post = () => {
     });
   };
 
-  const setPrimaryCategory = (categoryId: string) => {
-    setSelectedCategories(prev => {
-      const next = prev.map(c => ({ ...c, isPrimary: c.id === categoryId }));
-      syncFormCategories(next);
-      return next;
-    });
-  };
+  // setPrimaryCategory is available but not currently used in UI
+  // const _setPrimaryCategory = (categoryId: string) => {
+  //   setSelectedCategories(prev => {
+  //     const next = prev.map(c => ({ ...c, isPrimary: c.id === categoryId }));
+  //     syncFormCategories(next);
+  //     return next;
+  //   });
+  // };
 
   const removeCategory = (categoryId: string) => {
     setSelectedCategories(prev => {
@@ -468,9 +468,7 @@ const Post = () => {
 
             <View style={styles.categoriesGrid}>
               {categories?.map((cat: any) => {
-                const isSelected = selectedCategories.some(c => c.id === cat.category_id);
                 const isPrimary = selectedCategories.some(c => c.id === cat.category_id && c.isPrimary);
-                const chipColor = getCategoryColor?.(cat) || '#E2E8F0';
                 return (
                   <TouchableOpacity
                     key={cat.category_id}
@@ -698,7 +696,7 @@ const Post = () => {
                 placeholder="e.g. 120"
                 placeholderTextColor={colors.inputPlaceholder}
                 value={form.estimated_duration_minutes?.toString() || ''}
-                onChangeText={(v) => handleDurationChange(parseInt(v) || 0)}
+                onChangeText={(v) => handleDurationChange(parseInt(v, 10) || 0)}
               />
             </View>
           </View>
@@ -716,7 +714,7 @@ const Post = () => {
                   placeholder="10"
                   placeholderTextColor={colors.inputPlaceholder}
                   value={form.max_applicants?.toString() || ''}
-                  onChangeText={(v) => setForm(p => ({ ...p, max_applicants: parseInt(v) || 10 }))}
+                  onChangeText={(v) => setForm(p => ({ ...p, max_applicants: parseInt(v, 10) || 10 }))}
                 />
               </View>
 
@@ -728,7 +726,7 @@ const Post = () => {
                   placeholder="1"
                   placeholderTextColor={colors.inputPlaceholder}
                   value={form.max_assignees?.toString() || ''}
-                  onChangeText={(v) => setForm(p => ({ ...p, max_assignees: parseInt(v) || 1 }))}
+                  onChangeText={(v) => setForm(p => ({ ...p, max_assignees: parseInt(v, 10) || 1 }))}
                 />
               </View>
             </View>
