@@ -1,163 +1,244 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Platform } from 'react-native';
 import UnderbossBar from '../header/underbossbar';
 import AppSettings from '../AppSettings';
-
-
+import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
 
 interface SettingsPageProps {
     logoutUser: () => void;
 }
 
+type ThemeMode = 'light' | 'dark' | 'system';
+
+const THEME_OPTIONS: { value: ThemeMode; label: string; icon: string }[] = [
+    { value: 'light', label: 'Light', icon: '☀️' },
+    { value: 'system', label: 'System', icon: '📱' },
+    { value: 'dark', label: 'Dark', icon: '🌙' },
+];
+
 export default function SettingsPage({ logoutUser }: SettingsPageProps) {
+    const { colors, isDark, mode, setMode } = useTheme();
+
+    const SettingRow = ({ 
+        label, 
+        value, 
+        rightContent 
+    }: { 
+        label: string; 
+        value?: string; 
+        rightContent?: React.ReactNode;
+    }) => (
+        <View style={[styles.settingRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.settingLabel, { color: colors.textSecondary }]}>{label}</Text>
+            {rightContent ? rightContent : (
+                <Text style={[styles.settingValue, { color: colors.text }]} numberOfLines={1}>
+                    {value || '—'}
+                </Text>
+            )}
+        </View>
+    );
+
     return (
-         <View style={styles.screen}>
-                    <UnderbossBar />
-                    
-                    <ScrollView contentContainerStyle={styles.container}>
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Informations</Text>
-                            
-                            <View style={styles.infoRow}>
-                                <Text style={styles.label}>Token</Text>
-                                <Text style={styles.value}>{AppSettings.token}</Text>
-                            </View>
-        
-                             <View style={styles.infoRow}>
-                                <Text style={styles.label}>Username</Text>
-                                <Text style={styles.value}>{AppSettings.username}</Text>
-                            </View>
-        
+        <View style={[styles.screen, { backgroundColor: colors.background }]}>
+            <UnderbossBar />
             
-                            <View style={styles.infoRow}>
-                                <Text style={styles.label}>User Id</Text>
-                                <Text style={styles.value}>{AppSettings.userId}</Text>
-                            </View>
-        
-                        
-        
-                        
-                        {/* <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Details</Text>
-                            
-                            <View style={styles.infoRow}>
-                                <Text style={styles.label}>Postal adresse</Text>
-                                <Text style={styles.value}>{AppSettings.userProfile}</Text>
-                            </View> */}
-        
-                            <View style={styles.infoRow}>
-                                <Text style={styles.label}>Auto rotate</Text>
-                                <Text style={styles.value}>{AppSettings.autoRotate}</Text>
-                            </View>
-                        
-                            <Text style={styles.label}>Notification</Text>
-                            <Text style={styles.value}>{AppSettings.notifications}</Text>
-                        </View>
-        
-                        {/* Bouton de modification */}
-                        <TouchableOpacity 
-                            style={styles.editButton} 
-                            onPress={logoutUser}
-                        >
-                            <Text style={styles.editButtonText}>Logout</Text>
-                        </TouchableOpacity>
-                    </ScrollView>
+            <ScrollView 
+                contentContainerStyle={styles.container}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* APPEARANCE SECTION */}
+                <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+                    <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Appearance</Text>
+                    
+                    <Text style={[styles.settingLabel, { color: colors.textSecondary, marginBottom: SPACING.md }]}>
+                        Theme
+                    </Text>
+                    <View style={styles.themeSelector}>
+                        {THEME_OPTIONS.map((option) => (
+                            <TouchableOpacity
+                                key={option.value}
+                                style={[
+                                    styles.themeOption,
+                                    { 
+                                        backgroundColor: mode === option.value ? BRAND.primary : colors.backgroundTertiary,
+                                        borderColor: mode === option.value ? BRAND.primary : colors.border,
+                                    },
+                                ]}
+                                onPress={() => setMode(option.value)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.themeIcon}>{option.icon}</Text>
+                                <Text style={[
+                                    styles.themeLabel,
+                                    { color: mode === option.value ? '#fff' : colors.text }
+                                ]}>
+                                    {option.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                 </View>
+
+                {/* NOTIFICATIONS SECTION */}
+                <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+                    <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Notifications</Text>
+                    
+                    <SettingRow
+                        label="Push Notifications"
+                        rightContent={
+                            <Switch
+                                value={AppSettings.notifications}
+                                onValueChange={(val) => { AppSettings.notifications = val; }}
+                                trackColor={{ false: colors.border, true: BRAND.primaryLight }}
+                                thumbColor={AppSettings.notifications ? BRAND.primary : colors.textMuted}
+                            />
+                        }
+                    />
+                </View>
+
+                {/* DISPLAY SECTION */}
+                <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+                    <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Display</Text>
+                    
+                    <SettingRow
+                        label="Auto Rotate"
+                        rightContent={
+                            <Switch
+                                value={AppSettings.autoRotate}
+                                onValueChange={(val) => { AppSettings.autoRotate = val; }}
+                                trackColor={{ false: colors.border, true: BRAND.primaryLight }}
+                                thumbColor={AppSettings.autoRotate ? BRAND.primary : colors.textMuted}
+                            />
+                        }
+                    />
+                </View>
+
+                {/* ACCOUNT INFO SECTION */}
+                <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+                    <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Account</Text>
+                    
+                    <SettingRow label="Username" value={AppSettings.username} />
+                    <SettingRow label="User ID" value={AppSettings.userId?.slice(0, 8) + '...'} />
+                </View>
+
+                {/* DEBUG SECTION (collapsible in production) */}
+                <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+                    <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Debug Info</Text>
+                    
+                    <SettingRow 
+                        label="Token" 
+                        value={AppSettings.token ? `${AppSettings.token.slice(0, 20)}...` : 'Not set'} 
+                    />
+                    <SettingRow 
+                        label="Current Theme" 
+                        value={`${mode} (${isDark ? 'dark' : 'light'})`} 
+                    />
+                </View>
+
+                {/* LOGOUT BUTTON */}
+                <TouchableOpacity 
+                    style={[styles.logoutButton, createShadow(2, isDark)]}
+                    onPress={logoutUser}
+                    activeOpacity={0.8}
+                >
+                    <Text style={styles.logoutButtonText}>Log Out</Text>
+                </TouchableOpacity>
+
+                {/* APP INFO */}
+                <View style={styles.appInfo}>
+                    <Text style={[styles.appVersion, { color: colors.textMuted }]}>
+                        Underboss v1.0.0
+                    </Text>
+                    <Text style={[styles.appCopyright, { color: colors.textMuted }]}>
+                        © 2026 Underboss. All rights reserved.
+                    </Text>
+                </View>
+            </ScrollView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     screen: {
         flex: 1,
-        backgroundColor: '#F7FAFC',
     },
     container: {
-        paddingBottom: 30,
-    },
-    header: {
-        alignItems: 'center',
-        padding: 30,
-        backgroundColor: '#fff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E2E8F0',
-    },
-    avatar: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        marginBottom: 15,
-    },
-    avatarPlaceholder: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: '#CBD5E0',
-        marginBottom: 15,
-    },
-    pseudo: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#1A202C',
-    },
-    ratingBadge: {
-        marginTop: 8,
-        backgroundColor: '#FEF3C7',
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 20,
-    },
-    ratingText: {
-        color: '#92400E',
-        fontWeight: '600',
+        paddingBottom: 40,
     },
     section: {
-        marginTop: 20,
-        backgroundColor: '#fff',
-        paddingHorizontal: 20,
-        paddingVertical: 15,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: '#E2E8F0',
+        marginHorizontal: SPACING.lg,
+        marginTop: SPACING.lg,
+        borderRadius: RADIUS.lg,
+        padding: SPACING.lg,
     },
     sectionTitle: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#A0AEC0',
+        fontSize: FONT_SIZE.xs,
+        fontWeight: FONT_WEIGHT.bold,
         textTransform: 'uppercase',
-        marginBottom: 10,
-        letterSpacing: 1.1,
+        marginBottom: SPACING.md,
+        letterSpacing: 1.2,
     },
-    infoRow: {
+    settingRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        paddingVertical: 12,
+        alignItems: 'center',
+        paddingVertical: SPACING.md,
         borderBottomWidth: 0.5,
-        borderBottomColor: '#EDF2F7',
     },
-    label: {
-        fontSize: 16,
-        color: '#718096',
+    settingLabel: {
+        fontSize: FONT_SIZE.md,
     },
-    value: {
-        fontSize: 16,
-        fontWeight: '500',
-        color: '#2D3748',
-        maxWidth: '60%', 
+    settingValue: {
+        fontSize: FONT_SIZE.md,
+        fontWeight: FONT_WEIGHT.medium,
+        maxWidth: '55%',
         textAlign: 'right',
     },
-   
-    editButton: {
-        margin: 20,
-        backgroundColor: '#b90202',
-        borderWidth: 1,
-        borderColor: '#605959',
-        padding: 15,
-        borderRadius: 12,
+    themeSelector: {
+        flexDirection: 'row',
+        gap: SPACING.sm,
+    },
+    themeOption: {
+        flex: 1,
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: SPACING.md,
+        borderRadius: RADIUS.md,
+        borderWidth: 2,
+        gap: SPACING.xs,
+    },
+    themeIcon: {
+        fontSize: 24,
+    },
+    themeLabel: {
+        fontSize: FONT_SIZE.sm,
+        fontWeight: FONT_WEIGHT.semibold,
+    },
+    logoutButton: {
+        marginHorizontal: SPACING.lg,
+        marginTop: SPACING.xxl,
+        backgroundColor: BRAND.error,
+        paddingVertical: SPACING.lg,
+        borderRadius: RADIUS.lg,
         alignItems: 'center',
     },
-    editButtonText: {
-        color: '#ffffff',
-        fontWeight: '700',
-        fontSize: 20,
+    logoutButtonText: {
+        color: '#fff',
+        fontSize: FONT_SIZE.lg,
+        fontWeight: FONT_WEIGHT.bold,
+    },
+    appInfo: {
+        alignItems: 'center',
+        marginTop: SPACING.xxl,
+        paddingBottom: SPACING.lg,
+    },
+    appVersion: {
+        fontSize: FONT_SIZE.sm,
+        fontWeight: FONT_WEIGHT.medium,
+    },
+    appCopyright: {
+        fontSize: FONT_SIZE.xs,
+        marginTop: SPACING.xs,
     },
 });
