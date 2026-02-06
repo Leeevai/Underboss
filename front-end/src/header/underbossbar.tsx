@@ -34,9 +34,9 @@ export default function UnderbossBar() {
                     <TouchableOpacity
                         style={[styles.iconButton, { backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundTertiary }]}
                         activeOpacity={0.6}
-                        onPress={() => navigation.navigate('Notification')}
+                        onPress={() => navigation.navigate('Payement')}
                     >
-                        <Text style={styles.iconEmoji}>🔔</Text>
+                        <Text style={styles.iconEmoji}>💰</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity

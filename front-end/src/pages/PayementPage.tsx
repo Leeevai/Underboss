@@ -11,10 +11,10 @@ export default function NotificationPage() {
             <UnderbossBar />
             <ScrollView contentContainerStyle={styles.container}>
                 <View style={styles.emptyState}>
-                    <Text style={styles.emptyIcon}>🔔</Text>
-                    <Text style={[styles.title, { color: colors.text }]}>Notifications</Text>
+                    <Text style={styles.emptyIcon}>💰</Text>
+                    <Text style={[styles.title, { color: colors.text }]}>Payments</Text>
                     <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                        You're all caught up!
+                        You are rich 💰💰💰💰
                     </Text>
                 </View>
             </ScrollView>

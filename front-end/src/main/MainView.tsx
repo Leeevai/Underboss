@@ -6,7 +6,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import PapsFeed from '../feed/PapsFeed';
-import NotificationPage from '../pages/NotificationPage';
+import NotificationPage from '../pages/PayementPage.tsx';
 import ProfilePage from '../pages/ProfilePage';
 import SettingsPage from '../pages/SettingsPage';
 import ModifyProfil from '../pages/ModifyProfil.tsx';
@@ -16,6 +16,7 @@ import ChatScreen from '../chat/ChatScreen';
 
 import { serv, getCurrentUser } from '../serve';
 import SpapFeed from '../spap/SpapFeed';
+import PayementPage from '../pages/PayementPage.tsx';
 
 
 const currentUser = getCurrentUser();
@@ -145,7 +146,7 @@ export default function MainView({ logoutUser }: MainViewProps) {
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Main" component={MainTabs} />
-          <Stack.Screen name="Notification" component={NotificationPage} />
+          <Stack.Screen name="Payement" component={PayementPage} />
           <Stack.Screen name="ProfilePage" component={ProfilePage} />
           <Stack.Screen name="ModifyProfil" component={ModifyProfil} />
           <Stack.Screen name="Settings">
