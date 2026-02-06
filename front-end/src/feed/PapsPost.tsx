@@ -22,7 +22,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { serv } from '../serve';
+import { serv, getMediaUrl } from '../serve';
 import type { Paps, PapsDetail } from '../serve/paps';
 import type { MediaItem } from '../serve/common/types';
 import type { Comment } from '../serve/comments';
@@ -604,22 +604,22 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                   ) : (
                     <View style={styles.commentsList}>
                       {(showAllComments ? comments : comments.slice(0, 3)).map((comment) => (
-                        <View key={comment.id} style={styles.commentItem}>
+                        <View key={comment.comment_id} style={styles.commentItem}>
                           <View style={styles.commentHeader}>
                             <View style={styles.commentAvatar}>
-                              {comment.user_avatar ? (
+                              {comment.author_avatar ? (
                                 <Image 
-                                  source={{ uri: comment.user_avatar }} 
+                                  source={{ uri: getMediaUrl(comment.author_avatar)! }} 
                                   style={styles.commentAvatarImage} 
                                 />
                               ) : (
                                 <Text style={styles.commentAvatarInitial}>
-                                  {comment.username?.charAt(0)?.toUpperCase() || '?'}
+                                  {comment.author_username?.charAt(0)?.toUpperCase() || '?'}
                                 </Text>
                               )}
                             </View>
                             <View style={styles.commentMeta}>
-                              <Text style={styles.commentUsername}>@{comment.username}</Text>
+                              <Text style={styles.commentUsername}>@{comment.author_username}</Text>
                               <Text style={styles.commentTime}>
                                 {formatRelativeTime(comment.created_at)}
                               </Text>

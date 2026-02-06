@@ -74,19 +74,43 @@ export const useChats = () => {
 
   // Fetch all threads
   const fetchThreads = useCallback(async (forceRefresh = false) => {
-    if (loading && !forceRefresh) return;
+    // Only skip if already loading AND not forced - use atom value check
+    if (!forceRefresh && loading) {
+      console.log('[Chat] Skipping fetch, already loading');
+      return;
+    }
+    
+    console.log('[Chat] Starting fetchThreads...');
     setLoading(true);
     setError(null);
     
     try {
-      const response: ChatListResponse = await serv("chat.list");
-      const fetchedThreads = response.threads || [];
+      console.log('[Chat] Calling serv("chat.list")...');
+      const response = await serv("chat.list");
+      console.log('[Chat] Raw response:', JSON.stringify(response));
+      
+      // Handle different response formats
+      const rawThreads = Array.isArray(response) 
+        ? response 
+        : (response?.threads || response?.data || []);
+      
+      // Normalize: backend returns thread_id, frontend expects id
+      const fetchedThreads = rawThreads.map((t: any) => ({
+        ...t,
+        id: t.id || t.thread_id, // Use id if present, fallback to thread_id
+        participants: t.participants || [], // Ensure participants array exists
+      }));
+      
+      console.log('[Chat] Fetched threads count:', fetchedThreads.length);
+      console.log('[Chat] First thread id:', fetchedThreads[0]?.id);
+      
       setThreads(fetchedThreads);
       
       // Calculate total unread
-      const unread = fetchedThreads.reduce((sum, t) => sum + t.unread_count, 0);
+      const unread = fetchedThreads.reduce((sum: number, t: any) => sum + (t.unread_count || 0), 0);
       setTotalUnread(unread);
     } catch (err) {
+      console.error('[Chat] Failed to fetch threads:', err);
       setError(err instanceof Error ? err.message : "Failed to load chats");
     } finally {
       setLoading(false);
@@ -124,6 +148,7 @@ export const useChats = () => {
 
   // Mark thread as read
   const markThreadRead = useCallback(async (threadId: string) => {
+    if (!threadId) return;
     try {
       await serv("chat.markAllRead", { thread_id: threadId });
       
@@ -159,6 +184,8 @@ export const useChats = () => {
 export const useSortedChats = () => {
   const { loading, error, fetchThreads, markThreadRead, leaveThread, totalUnread } = useChats();
   const threads = useAtomValue(sortedThreadsAtom);
+  
+  console.log('[useSortedChats] threads from atom:', threads.length, 'loading:', loading);
   
   return {
     threads,
@@ -198,6 +225,7 @@ export const useChatMessages = (threadId: string) => {
 
   // Fetch messages for a thread
   const fetchMessages = useCallback(async (options?: { before?: string; after?: string; limit?: number }) => {
+    if (!threadId) return [];
     setLoadingMap((prev) => new Map(prev).set(threadId, true));
     
     try {
@@ -236,6 +264,10 @@ export const useChatMessages = (threadId: string) => {
 
   // Send a message
   const sendMessage = useCallback(async (content: string) => {
+    if (!threadId) {
+      console.warn('[Chat] Cannot send message: no thread ID');
+      return null;
+    }
     try {
       const response = await serv("chat.messages.send", {
         thread_id: threadId,
@@ -254,6 +286,10 @@ export const useChatMessages = (threadId: string) => {
 
   // Edit a message
   const editMessage = useCallback(async (messageId: string, content: string) => {
+    if (!threadId) {
+      console.warn('[Chat] Cannot edit message: no thread ID');
+      return;
+    }
     try {
       await serv("chat.messages.update", {
         thread_id: threadId,

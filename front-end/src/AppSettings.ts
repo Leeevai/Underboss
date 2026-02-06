@@ -1,3 +1,6 @@
+import {UserProfile} from './serve'
+
+
 /**
  * Global application settings and state storage.
  * This class holds static properties accessible throughout the application.
@@ -26,7 +29,7 @@ export default class AppSettings {
   /**
    * Cached user profile data.
    */
-  static userProfile: any = null;
+  static userProfile: UserProfile | null = null;
 
   /**
    * Theme preference. True for dark mode, false for light mode.

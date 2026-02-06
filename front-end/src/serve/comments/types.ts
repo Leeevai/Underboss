@@ -23,28 +23,32 @@ import type { UUID, ISODateTime } from '../common/types';
  * - GET /comments/{comment_id}/thread
  */
 export interface Comment {
-  /** Comment ID (UUID) */
-  id: UUID;
+  /** Comment ID (UUID) - backend returns as comment_id */
+  comment_id: UUID;
   /** PAPS ID this comment belongs to */
   paps_id: UUID;
   /** Author's user ID */
   user_id: UUID;
-  /** Author's username */
-  username: string;
-  /** Author's avatar URL */
-  user_avatar: string | null;
+  /** Author's username - backend returns as author_username */
+  author_username: string;
+  /** Author's display name */
+  author_display_name?: string | null;
+  /** Author's avatar URL - backend returns as author_avatar */
+  author_avatar: string | null;
   /** Parent comment ID (null for top-level comments) */
   parent_id: UUID | null;
   /** Comment text content */
   content: string;
+  /** Whether comment was edited */
+  is_edited?: boolean;
   /** Creation timestamp */
   created_at: ISODateTime;
   /** Last update timestamp */
   updated_at?: ISODateTime;
+  /** Deletion timestamp (null if not deleted) */
+  deleted_at?: ISODateTime | null;
   /** Number of direct replies */
   reply_count: number;
-  /** Whether comment has been soft-deleted */
-  is_deleted: boolean;
 }
 
 /** 

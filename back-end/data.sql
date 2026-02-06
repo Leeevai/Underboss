@@ -518,6 +518,294 @@ INSERT INTO CHAT_MESSAGE (id, thread_id, sender_id, content, sent_at) VALUES
   ('00000000-0000-0000-0008-000000000032', '00000000-0000-0000-0007-000000000008', '00000000-0000-0000-0000-000000000201', 'Hi! I have some great ideas for a fintech logo.', NOW() - INTERVAL '2 hours'),
   ('00000000-0000-0000-0008-000000000033', '00000000-0000-0000-0007-000000000008', '00000000-0000-0000-0000-000000000202', 'Perfect! Would love to see some initial sketches.', NOW() - INTERVAL '1 hour');
 
+-- Messages in osman -> hassan's python API chat
+INSERT INTO CHAT_MESSAGE (id, thread_id, sender_id, content, sent_at) VALUES
+  ('00000000-0000-0000-0008-000000000034', '00000000-0000-0000-0007-000000000007', '00000000-0000-0000-0000-000000000203', 'Hi Hassan! I have extensive experience with FastAPI and PostgreSQL.', NOW() - INTERVAL '4 hours'),
+  ('00000000-0000-0000-0008-000000000035', '00000000-0000-0000-0007-000000000007', '00000000-0000-0000-0000-000000000201', 'Great! Can you share your GitHub profile?', NOW() - INTERVAL '3 hours'),
+  ('00000000-0000-0000-0008-000000000036', '00000000-0000-0000-0007-000000000007', '00000000-0000-0000-0000-000000000203', 'Sure, here it is: github.com/osman-data. I also attached my portfolio PDF.', NOW() - INTERVAL '2 hours');
+
+-- Messages in hassan -> osman's ML job chat  
+INSERT INTO CHAT_MESSAGE (id, thread_id, sender_id, content, sent_at) VALUES
+  ('00000000-0000-0000-0008-000000000037', '00000000-0000-0000-0007-000000000009', '00000000-0000-0000-0000-000000000201', 'Hi Osman! I have worked on similar churn prediction models before.', NOW() - INTERVAL '6 hours'),
+  ('00000000-0000-0000-0008-000000000038', '00000000-0000-0000-0007-000000000009', '00000000-0000-0000-0000-000000000203', 'That sounds perfect! What libraries do you typically use?', NOW() - INTERVAL '5 hours'),
+  ('00000000-0000-0000-0008-000000000039', '00000000-0000-0000-0007-000000000009', '00000000-0000-0000-0000-000000000201', 'Primarily scikit-learn for classical ML, and XGBoost for gradient boosting. Also familiar with TensorFlow.', NOW() - INTERVAL '4 hours'),
+  ('00000000-0000-0000-0008-000000000040', '00000000-0000-0000-0007-000000000009', '00000000-0000-0000-0000-000000000203', 'Excellent! Let me review your application and get back to you.', NOW() - INTERVAL '3 hours');
+
+-- Messages in hassan -> enrique's content writing chat
+INSERT INTO CHAT_MESSAGE (id, thread_id, sender_id, content, sent_at) VALUES
+  ('00000000-0000-0000-0008-000000000041', '00000000-0000-0000-0007-000000000010', '00000000-0000-0000-0000-000000000201', 'Hi Enrique! I''m interested in writing technical content for your blog.', NOW() - INTERVAL '8 hours'),
+  ('00000000-0000-0000-0008-000000000042', '00000000-0000-0000-0007-000000000010', '00000000-0000-0000-0000-000000000204', 'Great to hear! Do you have samples of technical writing?', NOW() - INTERVAL '7 hours'),
+  ('00000000-0000-0000-0008-000000000043', '00000000-0000-0000-0007-000000000010', '00000000-0000-0000-0000-000000000201', 'Yes! I''ve attached a PDF with some of my published articles on web development.', NOW() - INTERVAL '6 hours'),
+  ('00000000-0000-0000-0008-000000000044', '00000000-0000-0000-0007-000000000010', '00000000-0000-0000-0000-000000000204', 'These look excellent. Very clear explanations. Let me discuss with the team.', NOW() - INTERVAL '5 hours');
+
+-- ============================================
+-- PAPS_SCHEDULE (Recurring job schedules)
+-- ============================================
+INSERT INTO PAPS_SCHEDULE (id, paps_id, recurrence_rule, start_date, end_date, next_run_at, is_active) VALUES
+  -- Video editing is weekly recurring
+  ('00000000-0000-0000-0009-000000000001', '00000000-0000-0000-0003-000000000007', 'WEEKLY', '2026-02-10', '2026-06-10', NOW() + INTERVAL '3 days', TRUE),
+  -- Content writing has monthly schedule
+  ('00000000-0000-0000-0009-000000000002', '00000000-0000-0000-0003-000000000020', 'MONTHLY', '2026-02-01', '2026-12-31', NOW() + INTERVAL '25 days', TRUE),
+  -- Social media campaign is weekly
+  ('00000000-0000-0000-0009-000000000003', '00000000-0000-0000-0003-000000000021', 'WEEKLY', '2026-02-15', '2026-05-15', NOW() + INTERVAL '7 days', TRUE),
+  -- SEO campaign is monthly
+  ('00000000-0000-0000-0009-000000000004', '00000000-0000-0000-0003-000000000006', 'MONTHLY', '2026-02-01', '2026-08-01', NOW() + INTERVAL '5 days', TRUE);
+
+-- ============================================
+-- SPAP_MEDIA (Application media attachments)
+-- Files stored in: media/spap/{media_id}.{ext}
+-- ============================================
+INSERT INTO SPAP_MEDIA (id, spap_id, media_type, file_extension, file_size_bytes, mime_type, display_order) VALUES
+  -- Clement's portfolio for e-commerce job
+  ('00000000-0000-0000-000a-000000000001', '00000000-0000-0000-0004-000000000001', 'document', 'pdf', 250000, 'application/pdf', 1),
+  ('00000000-0000-0000-000a-000000000002', '00000000-0000-0000-0004-000000000001', 'image', 'jpg', 85000, 'image/jpeg', 2),
+  -- Osman's data portfolio for mobile job
+  ('00000000-0000-0000-000a-000000000003', '00000000-0000-0000-0004-000000000002', 'document', 'pdf', 320000, 'application/pdf', 1),
+  -- Osman's portfolio for Python API job
+  ('00000000-0000-0000-000a-000000000004', '00000000-0000-0000-0004-000000000051', 'document', 'pdf', 180000, 'application/pdf', 1),
+  ('00000000-0000-0000-000a-000000000005', '00000000-0000-0000-0004-000000000051', 'image', 'jpg', 92000, 'image/jpeg', 2),
+  -- Hassan's portfolio for logo design
+  ('00000000-0000-0000-000a-000000000006', '00000000-0000-0000-0004-000000000053', 'image', 'jpg', 75000, 'image/jpeg', 1),
+  ('00000000-0000-0000-000a-000000000007', '00000000-0000-0000-0004-000000000053', 'image', 'jpg', 68000, 'image/jpeg', 2),
+  -- Hobbes's photography samples for product photography
+  ('00000000-0000-0000-000a-000000000008', '00000000-0000-0000-0004-000000000055', 'image', 'jpg', 95000, 'image/jpeg', 1),
+  ('00000000-0000-0000-000a-000000000009', '00000000-0000-0000-0004-000000000055', 'image', 'jpg', 88000, 'image/jpeg', 2),
+  -- Enrique's illustration samples
+  ('00000000-0000-0000-000a-000000000010', '00000000-0000-0000-0004-000000000056', 'image', 'jpg', 110000, 'image/jpeg', 1),
+  -- Hassan's ML experience docs
+  ('00000000-0000-0000-000a-000000000011', '00000000-0000-0000-0004-000000000058', 'document', 'pdf', 420000, 'application/pdf', 1),
+  -- Hassan's technical writing samples
+  ('00000000-0000-0000-000a-000000000012', '00000000-0000-0000-0004-000000000061', 'document', 'pdf', 380000, 'application/pdf', 1),
+  -- Clement's social media portfolio
+  ('00000000-0000-0000-000a-000000000013', '00000000-0000-0000-0004-000000000063', 'image', 'jpg', 72000, 'image/jpeg', 1),
+  -- Hassan's WordPress portfolio
+  ('00000000-0000-0000-000a-000000000014', '00000000-0000-0000-0004-000000000066', 'image', 'jpg', 82000, 'image/jpeg', 1),
+  ('00000000-0000-0000-000a-000000000015', '00000000-0000-0000-0004-000000000066', 'document', 'pdf', 290000, 'application/pdf', 2),
+  -- Osman's security certifications
+  ('00000000-0000-0000-000a-000000000016', '00000000-0000-0000-0004-000000000068', 'document', 'pdf', 150000, 'application/pdf', 1),
+  -- Enrique's documentation samples
+  ('00000000-0000-0000-000a-000000000017', '00000000-0000-0000-0004-000000000070', 'document', 'pdf', 275000, 'application/pdf', 1);
+
+-- ============================================
+-- Additional ASAPs (More accepted assignments)
+-- ============================================
+INSERT INTO ASAP (id, paps_id, accepted_user_id, status, assigned_at, started_at, completed_at) VALUES
+  -- Enrique accepted for illustration job (completed)
+  ('00000000-0000-0000-0006-000000000004', '00000000-0000-0000-0003-000000000017', '00000000-0000-0000-0000-000000000204', 'completed', NOW() - INTERVAL '15 days', NOW() - INTERVAL '14 days', NOW() - INTERVAL '3 days'),
+  -- Hassan accepted for WordPress job (in_progress)
+  ('00000000-0000-0000-0006-000000000005', '00000000-0000-0000-0003-000000000009', '00000000-0000-0000-0000-000000000201', 'in_progress', NOW() - INTERVAL '5 days', NOW() - INTERVAL '4 days', NULL),
+  -- Osman accepted for data pipeline job (in_progress)
+  ('00000000-0000-0000-0006-000000000006', '00000000-0000-0000-0003-000000000005', '00000000-0000-0000-0000-000000000201', 'in_progress', NOW() - INTERVAL '7 days', NOW() - INTERVAL '6 days', NULL),
+  -- Hobbes accepted for DevOps job (active - not started yet)
+  ('00000000-0000-0000-0006-000000000007', '00000000-0000-0000-0003-000000000014', '00000000-0000-0000-0000-000000000102', 'active', NOW() - INTERVAL '1 day', NULL, NULL);
+
+-- ============================================
+-- ASAP_MEDIA (Assignment media - proof of work, deliverables)
+-- Files stored in: media/asap/{media_id}.{ext}
+-- ============================================
+INSERT INTO ASAP_MEDIA (id, asap_id, media_type, file_extension, file_size_bytes, mime_type, display_order) VALUES
+  -- Hassan's brand design deliverables for Clement
+  ('00000000-0000-0000-000b-000000000001', '00000000-0000-0000-0006-000000000001', 'image', 'jpg', 125000, 'image/jpeg', 1),
+  ('00000000-0000-0000-000b-000000000002', '00000000-0000-0000-0006-000000000001', 'document', 'pdf', 450000, 'application/pdf', 2),
+  -- Clement's edited video for Hobbes
+  ('00000000-0000-0000-000b-000000000003', '00000000-0000-0000-0006-000000000002', 'video', 'mp4', 15000000, 'video/mp4', 1),
+  -- Osman's migration documentation for Calvin (completed job)
+  ('00000000-0000-0000-000b-000000000004', '00000000-0000-0000-0006-000000000003', 'document', 'pdf', 380000, 'application/pdf', 1),
+  ('00000000-0000-0000-000b-000000000005', '00000000-0000-0000-0006-000000000003', 'image', 'jpg', 95000, 'image/jpeg', 2),
+  -- Enrique's illustrations for children's book (completed)
+  ('00000000-0000-0000-000b-000000000006', '00000000-0000-0000-0006-000000000004', 'image', 'jpg', 180000, 'image/jpeg', 1),
+  ('00000000-0000-0000-000b-000000000007', '00000000-0000-0000-0006-000000000004', 'image', 'jpg', 175000, 'image/jpeg', 2),
+  ('00000000-0000-0000-000b-000000000008', '00000000-0000-0000-0006-000000000004', 'image', 'jpg', 168000, 'image/jpeg', 3),
+  -- Hassan's WordPress progress for Hobbes
+  ('00000000-0000-0000-000b-000000000009', '00000000-0000-0000-0006-000000000005', 'image', 'jpg', 88000, 'image/jpeg', 1),
+  -- Hassan's data pipeline progress for Osman
+  ('00000000-0000-0000-000b-000000000010', '00000000-0000-0000-0006-000000000006', 'document', 'pdf', 220000, 'application/pdf', 1);
+
+-- ============================================
+-- Additional chat threads for new ASAPs
+-- ============================================
+INSERT INTO CHAT_THREAD (id, paps_id, asap_id, thread_type, created_at) VALUES
+  -- Enrique's illustration work chat
+  ('00000000-0000-0000-0007-000000000011', '00000000-0000-0000-0003-000000000017', '00000000-0000-0000-0006-000000000004', 'asap_discussion', NOW() - INTERVAL '15 days'),
+  -- Hassan's WordPress work chat
+  ('00000000-0000-0000-0007-000000000012', '00000000-0000-0000-0003-000000000009', '00000000-0000-0000-0006-000000000005', 'asap_discussion', NOW() - INTERVAL '5 days'),
+  -- Hassan's data pipeline work chat
+  ('00000000-0000-0000-0007-000000000013', '00000000-0000-0000-0003-000000000005', '00000000-0000-0000-0006-000000000006', 'asap_discussion', NOW() - INTERVAL '7 days'),
+  -- Hobbes's DevOps work chat
+  ('00000000-0000-0000-0007-000000000014', '00000000-0000-0000-0003-000000000014', '00000000-0000-0000-0006-000000000007', 'asap_discussion', NOW() - INTERVAL '1 day');
+
+-- Additional chat participants
+INSERT INTO CHAT_PARTICIPANT (thread_id, user_id, role, joined_at) VALUES
+  -- Enrique's illustration work
+  ('00000000-0000-0000-0007-000000000011', '00000000-0000-0000-0000-000000000204', 'assignee', NOW() - INTERVAL '15 days'),
+  ('00000000-0000-0000-0007-000000000011', '00000000-0000-0000-0000-000000000202', 'owner', NOW() - INTERVAL '15 days'),
+  -- Hassan's WordPress work
+  ('00000000-0000-0000-0007-000000000012', '00000000-0000-0000-0000-000000000201', 'assignee', NOW() - INTERVAL '5 days'),
+  ('00000000-0000-0000-0007-000000000012', '00000000-0000-0000-0000-000000000102', 'owner', NOW() - INTERVAL '5 days'),
+  -- Hassan's data pipeline work
+  ('00000000-0000-0000-0007-000000000013', '00000000-0000-0000-0000-000000000201', 'assignee', NOW() - INTERVAL '7 days'),
+  ('00000000-0000-0000-0007-000000000013', '00000000-0000-0000-0000-000000000203', 'owner', NOW() - INTERVAL '7 days'),
+  -- Hobbes's DevOps work
+  ('00000000-0000-0000-0007-000000000014', '00000000-0000-0000-0000-000000000102', 'assignee', NOW() - INTERVAL '1 day'),
+  ('00000000-0000-0000-0007-000000000014', '00000000-0000-0000-0000-000000000201', 'owner', NOW() - INTERVAL '1 day');
+
+-- Additional chat messages for new ASAP chats
+INSERT INTO CHAT_MESSAGE (id, thread_id, sender_id, content, sent_at) VALUES
+  -- Enrique's illustration work messages
+  ('00000000-0000-0000-0008-000000000050', '00000000-0000-0000-0007-000000000011', '00000000-0000-0000-0000-000000000202', 'Welcome Enrique! Here are the story details for the illustrations.', NOW() - INTERVAL '15 days'),
+  ('00000000-0000-0000-0008-000000000051', '00000000-0000-0000-0007-000000000011', '00000000-0000-0000-0000-000000000204', 'Thank you! I''ll start with the character sketches first.', NOW() - INTERVAL '15 days' + INTERVAL '2 hours'),
+  ('00000000-0000-0000-0008-000000000052', '00000000-0000-0000-0007-000000000011', '00000000-0000-0000-0000-000000000204', 'Here are the first 5 illustrations for review!', NOW() - INTERVAL '10 days'),
+  ('00000000-0000-0000-0008-000000000053', '00000000-0000-0000-0007-000000000011', '00000000-0000-0000-0000-000000000202', 'These look wonderful! The colors are perfect.', NOW() - INTERVAL '10 days' + INTERVAL '3 hours'),
+  ('00000000-0000-0000-0008-000000000054', '00000000-0000-0000-0007-000000000011', '00000000-0000-0000-0000-000000000204', 'All 20 illustrations are now complete!', NOW() - INTERVAL '4 days'),
+  ('00000000-0000-0000-0008-000000000055', '00000000-0000-0000-0007-000000000011', '00000000-0000-0000-0000-000000000202', 'Excellent work! Marking the job as complete now.', NOW() - INTERVAL '3 days'),
+  
+  -- Hassan's WordPress work messages
+  ('00000000-0000-0000-0008-000000000056', '00000000-0000-0000-0007-000000000012', '00000000-0000-0000-0000-000000000102', 'Hi Hassan! Excited to have you on the WordPress project.', NOW() - INTERVAL '5 days'),
+  ('00000000-0000-0000-0008-000000000057', '00000000-0000-0000-0007-000000000012', '00000000-0000-0000-0000-000000000201', 'Thanks Hobbes! I''ve reviewed your requirements. Starting with theme setup.', NOW() - INTERVAL '5 days' + INTERVAL '1 hour'),
+  ('00000000-0000-0000-0008-000000000058', '00000000-0000-0000-0007-000000000012', '00000000-0000-0000-0000-000000000201', 'Theme is installed and customized. Here''s a preview screenshot.', NOW() - INTERVAL '3 days'),
+  ('00000000-0000-0000-0008-000000000059', '00000000-0000-0000-0007-000000000012', '00000000-0000-0000-0000-000000000102', 'Looking great! Can we add a contact form?', NOW() - INTERVAL '3 days' + INTERVAL '2 hours'),
+  ('00000000-0000-0000-0008-000000000060', '00000000-0000-0000-0007-000000000012', '00000000-0000-0000-0000-000000000201', 'Already on it! Will have it ready tomorrow.', NOW() - INTERVAL '2 days'),
+  
+  -- Hassan's data pipeline work messages
+  ('00000000-0000-0000-0008-000000000061', '00000000-0000-0000-0007-000000000013', '00000000-0000-0000-0000-000000000203', 'Welcome to the project Hassan! Here''s the data source documentation.', NOW() - INTERVAL '7 days'),
+  ('00000000-0000-0000-0008-000000000062', '00000000-0000-0000-0007-000000000013', '00000000-0000-0000-0000-000000000201', 'Thanks Osman! I''ll start with the extraction layer design.', NOW() - INTERVAL '7 days' + INTERVAL '30 minutes'),
+  ('00000000-0000-0000-0008-000000000063', '00000000-0000-0000-0007-000000000013', '00000000-0000-0000-0000-000000000201', 'ETL pipeline architecture document is ready. Please review.', NOW() - INTERVAL '5 days'),
+  ('00000000-0000-0000-0008-000000000064', '00000000-0000-0000-0007-000000000013', '00000000-0000-0000-0000-000000000203', 'Looks solid! Approved. You can proceed with implementation.', NOW() - INTERVAL '5 days' + INTERVAL '4 hours'),
+  ('00000000-0000-0000-0008-000000000065', '00000000-0000-0000-0007-000000000013', '00000000-0000-0000-0000-000000000201', 'First batch of Spark jobs are deployed and tested. Processing 5GB successfully.', NOW() - INTERVAL '2 days'),
+  
+  -- Hobbes's DevOps work messages
+  ('00000000-0000-0000-0008-000000000066', '00000000-0000-0000-0007-000000000014', '00000000-0000-0000-0000-000000000201', 'Welcome to the project Hobbes! Here are the CI/CD requirements.', NOW() - INTERVAL '1 day'),
+  ('00000000-0000-0000-0008-000000000067', '00000000-0000-0000-0007-000000000014', '00000000-0000-0000-0000-000000000102', 'Thanks Hassan! I''ll review and propose a pipeline architecture.', NOW() - INTERVAL '1 day' + INTERVAL '1 hour'),
+  ('00000000-0000-0000-0008-000000000068', '00000000-0000-0000-0007-000000000014', '00000000-0000-0000-0000-000000000102', 'Here''s my proposed architecture using GitHub Actions and ArgoCD.', NOW() - INTERVAL '12 hours');
+
+-- ============================================
+-- PAYMENTS (for completed ASAPs)
+-- ============================================
+INSERT INTO PAYMENT (id, paps_id, payer_id, payee_id, amount, currency, payment_method, status, created_at, paid_at) VALUES
+  -- Payment for Osman's completed database migration (ASAP 3)
+  ('00000000-0000-0000-000c-000000000001', '00000000-0000-0000-0003-000000000011', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000203', 5000.00, 'EUR', 'transfer', 'completed', NOW() - INTERVAL '5 days', NOW() - INTERVAL '4 days'),
+  -- Payment for Enrique's completed illustrations (ASAP 4)
+  ('00000000-0000-0000-000c-000000000002', '00000000-0000-0000-0003-000000000017', '00000000-0000-0000-0000-000000000202', '00000000-0000-0000-0000-000000000204', 2200.00, 'EUR', 'paypal', 'completed', NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 days'),
+  -- Pending payment for Hassan's brand work (ASAP 1 - still active but partial payment)
+  ('00000000-0000-0000-000c-000000000003', '00000000-0000-0000-0003-000000000003', '00000000-0000-0000-0000-000000000202', '00000000-0000-0000-0000-000000000201', 1500.00, 'EUR', 'transfer', 'pending', NOW() - INTERVAL '1 day', NULL);
+
+-- ============================================
+-- UPDATE USER RATINGS (for completed jobs)
+-- ============================================
+-- Osman got rated 5.0 for database migration
+UPDATE USER_PROFILE SET rating_average = 5.00, rating_count = 1 WHERE user_id = '00000000-0000-0000-0000-000000000203';
+-- Enrique got rated 4.5 for illustrations
+UPDATE USER_PROFILE SET rating_average = 4.50, rating_count = 1 WHERE user_id = '00000000-0000-0000-0000-000000000204';
+-- Hassan has 2 ratings averaging 4.75
+UPDATE USER_PROFILE SET rating_average = 4.75, rating_count = 2 WHERE user_id = '00000000-0000-0000-0000-000000000201';
+-- Clement has 1 rating of 4.0
+UPDATE USER_PROFILE SET rating_average = 4.00, rating_count = 1 WHERE user_id = '00000000-0000-0000-0000-000000000202';
+
+-- ============================================
+-- Additional more SPAP chat threads
+-- ============================================
+INSERT INTO CHAT_THREAD (id, paps_id, spap_id, thread_type, created_at) VALUES
+  -- More application chats
+  ('00000000-0000-0000-0007-000000000015', '00000000-0000-0000-0003-000000000001', '00000000-0000-0000-0004-000000000050', 'spap_discussion', NOW() - INTERVAL '2 days'),
+  ('00000000-0000-0000-0007-000000000016', '00000000-0000-0000-0003-000000000014', '00000000-0000-0000-0004-000000000052', 'spap_discussion', NOW() - INTERVAL '3 days'),
+  ('00000000-0000-0000-0007-000000000017', '00000000-0000-0000-0003-000000000015', '00000000-0000-0000-0004-000000000054', 'spap_discussion', NOW() - INTERVAL '1 day'),
+  ('00000000-0000-0000-0007-000000000018', '00000000-0000-0000-0003-000000000016', '00000000-0000-0000-0004-000000000055', 'spap_discussion', NOW() - INTERVAL '4 days'),
+  ('00000000-0000-0000-0007-000000000019', '00000000-0000-0000-0003-000000000005', '00000000-0000-0000-0004-000000000057', 'spap_discussion', NOW() - INTERVAL '8 days'),
+  ('00000000-0000-0000-0007-000000000020', '00000000-0000-0000-0003-000000000019', '00000000-0000-0000-0004-000000000059', 'spap_discussion', NOW() - INTERVAL '2 days'),
+  ('00000000-0000-0000-0007-000000000021', '00000000-0000-0000-0003-000000000020', '00000000-0000-0000-0004-000000000062', 'spap_discussion', NOW() - INTERVAL '3 days'),
+  ('00000000-0000-0000-0007-000000000022', '00000000-0000-0000-0003-000000000021', '00000000-0000-0000-0004-000000000063', 'spap_discussion', NOW() - INTERVAL '5 days'),
+  ('00000000-0000-0000-0007-000000000023', '00000000-0000-0000-0003-000000000007', '00000000-0000-0000-0004-000000000064', 'spap_discussion', NOW() - INTERVAL '6 days'),
+  ('00000000-0000-0000-0007-000000000024', '00000000-0000-0000-0003-000000000008', '00000000-0000-0000-0004-000000000065', 'spap_discussion', NOW() - INTERVAL '4 days'),
+  ('00000000-0000-0000-0007-000000000025', '00000000-0000-0000-0003-000000000010', '00000000-0000-0000-0004-000000000068', 'spap_discussion', NOW() - INTERVAL '5 days'),
+  ('00000000-0000-0000-0007-000000000026', '00000000-0000-0000-0003-000000000012', '00000000-0000-0000-0004-000000000070', 'spap_discussion', NOW() - INTERVAL '3 days');
+
+-- Participants for additional chat threads
+INSERT INTO CHAT_PARTICIPANT (thread_id, user_id, role, joined_at) VALUES
+  ('00000000-0000-0000-0007-000000000015', '00000000-0000-0000-0000-000000000204', 'applicant', NOW() - INTERVAL '2 days'),
+  ('00000000-0000-0000-0007-000000000015', '00000000-0000-0000-0000-000000000201', 'owner', NOW() - INTERVAL '2 days'),
+  ('00000000-0000-0000-0007-000000000016', '00000000-0000-0000-0000-000000000102', 'applicant', NOW() - INTERVAL '3 days'),
+  ('00000000-0000-0000-0007-000000000016', '00000000-0000-0000-0000-000000000201', 'owner', NOW() - INTERVAL '3 days'),
+  ('00000000-0000-0000-0007-000000000017', '00000000-0000-0000-0000-000000000204', 'applicant', NOW() - INTERVAL '1 day'),
+  ('00000000-0000-0000-0007-000000000017', '00000000-0000-0000-0000-000000000202', 'owner', NOW() - INTERVAL '1 day'),
+  ('00000000-0000-0000-0007-000000000018', '00000000-0000-0000-0000-000000000102', 'applicant', NOW() - INTERVAL '4 days'),
+  ('00000000-0000-0000-0007-000000000018', '00000000-0000-0000-0000-000000000202', 'owner', NOW() - INTERVAL '4 days'),
+  ('00000000-0000-0000-0007-000000000019', '00000000-0000-0000-0000-000000000201', 'applicant', NOW() - INTERVAL '8 days'),
+  ('00000000-0000-0000-0007-000000000019', '00000000-0000-0000-0000-000000000203', 'owner', NOW() - INTERVAL '8 days'),
+  ('00000000-0000-0000-0007-000000000020', '00000000-0000-0000-0000-000000000102', 'applicant', NOW() - INTERVAL '2 days'),
+  ('00000000-0000-0000-0007-000000000020', '00000000-0000-0000-0000-000000000203', 'owner', NOW() - INTERVAL '2 days'),
+  ('00000000-0000-0000-0007-000000000021', '00000000-0000-0000-0000-000000000102', 'applicant', NOW() - INTERVAL '3 days'),
+  ('00000000-0000-0000-0007-000000000021', '00000000-0000-0000-0000-000000000204', 'owner', NOW() - INTERVAL '3 days'),
+  ('00000000-0000-0000-0007-000000000022', '00000000-0000-0000-0000-000000000202', 'applicant', NOW() - INTERVAL '5 days'),
+  ('00000000-0000-0000-0007-000000000022', '00000000-0000-0000-0000-000000000204', 'owner', NOW() - INTERVAL '5 days'),
+  ('00000000-0000-0000-0007-000000000023', '00000000-0000-0000-0000-000000000202', 'applicant', NOW() - INTERVAL '6 days'),
+  ('00000000-0000-0000-0007-000000000023', '00000000-0000-0000-0000-000000000102', 'owner', NOW() - INTERVAL '6 days'),
+  ('00000000-0000-0000-0007-000000000024', '00000000-0000-0000-0000-000000000204', 'applicant', NOW() - INTERVAL '4 days'),
+  ('00000000-0000-0000-0007-000000000024', '00000000-0000-0000-0000-000000000102', 'owner', NOW() - INTERVAL '4 days'),
+  ('00000000-0000-0000-0007-000000000025', '00000000-0000-0000-0000-000000000203', 'applicant', NOW() - INTERVAL '5 days'),
+  ('00000000-0000-0000-0007-000000000025', '00000000-0000-0000-0000-000000000101', 'owner', NOW() - INTERVAL '5 days'),
+  ('00000000-0000-0000-0007-000000000026', '00000000-0000-0000-0000-000000000204', 'applicant', NOW() - INTERVAL '3 days'),
+  ('00000000-0000-0000-0007-000000000026', '00000000-0000-0000-0000-000000000101', 'owner', NOW() - INTERVAL '3 days');
+
+-- Messages for additional chat threads
+INSERT INTO CHAT_MESSAGE (id, thread_id, sender_id, content, sent_at) VALUES
+  -- Enrique -> Hassan's e-commerce chat
+  ('00000000-0000-0000-0008-000000000070', '00000000-0000-0000-0007-000000000015', '00000000-0000-0000-0000-000000000204', 'Hi Hassan! I can help with the marketing strategy for your e-commerce platform.', NOW() - INTERVAL '2 days'),
+  ('00000000-0000-0000-0008-000000000071', '00000000-0000-0000-0007-000000000015', '00000000-0000-0000-0000-000000000201', 'Thanks for applying! What SEO strategies would you recommend?', NOW() - INTERVAL '2 days' + INTERVAL '1 hour'),
+  ('00000000-0000-0000-0008-000000000072', '00000000-0000-0000-0007-000000000015', '00000000-0000-0000-0000-000000000204', 'I would focus on product page optimization and structured data markup.', NOW() - INTERVAL '2 days' + INTERVAL '2 hours'),
+  
+  -- Hobbes -> Hassan's DevOps chat
+  ('00000000-0000-0000-0008-000000000073', '00000000-0000-0000-0007-000000000016', '00000000-0000-0000-0000-000000000102', 'Hi Hassan! I''m very interested in this DevOps project.', NOW() - INTERVAL '3 days'),
+  ('00000000-0000-0000-0008-000000000074', '00000000-0000-0000-0007-000000000016', '00000000-0000-0000-0000-000000000201', 'Great! What''s your experience with Kubernetes?', NOW() - INTERVAL '3 days' + INTERVAL '30 minutes'),
+  ('00000000-0000-0000-0008-000000000075', '00000000-0000-0000-0007-000000000016', '00000000-0000-0000-0000-000000000102', 'I have CKA certification and have managed clusters with 50+ nodes.', NOW() - INTERVAL '3 days' + INTERVAL '1 hour'),
+  
+  -- Enrique -> Clement's logo design chat
+  ('00000000-0000-0000-0008-000000000076', '00000000-0000-0000-0007-000000000017', '00000000-0000-0000-0000-000000000204', 'Hi Clement! I love designing logos with a marketing perspective.', NOW() - INTERVAL '1 day'),
+  ('00000000-0000-0000-0008-000000000077', '00000000-0000-0000-0007-000000000017', '00000000-0000-0000-0000-000000000202', 'That''s a unique approach! Can you show me some examples?', NOW() - INTERVAL '1 day' + INTERVAL '2 hours'),
+  
+  -- Hobbes -> Clement's product photography chat
+  ('00000000-0000-0000-0008-000000000078', '00000000-0000-0000-0007-000000000018', '00000000-0000-0000-0000-000000000102', 'Hi Clement! I have a professional studio setup perfect for product shots.', NOW() - INTERVAL '4 days'),
+  ('00000000-0000-0000-0008-000000000079', '00000000-0000-0000-0007-000000000018', '00000000-0000-0000-0000-000000000202', 'That sounds ideal! What lighting equipment do you use?', NOW() - INTERVAL '4 days' + INTERVAL '1 hour'),
+  ('00000000-0000-0000-0008-000000000080', '00000000-0000-0000-0007-000000000018', '00000000-0000-0000-0000-000000000102', 'I use Profoto D2 strobes with a variety of modifiers. Here are some samples.', NOW() - INTERVAL '4 days' + INTERVAL '2 hours'),
+  
+  -- Hassan -> Osman's data pipeline chat (before acceptance)
+  ('00000000-0000-0000-0008-000000000081', '00000000-0000-0000-0007-000000000019', '00000000-0000-0000-0000-000000000201', 'Hi Osman! I have 5 years experience with Apache Spark and AWS.', NOW() - INTERVAL '8 days'),
+  ('00000000-0000-0000-0008-000000000082', '00000000-0000-0000-0007-000000000019', '00000000-0000-0000-0000-000000000203', 'Impressive! Have you worked with real-time streaming?', NOW() - INTERVAL '8 days' + INTERVAL '1 hour'),
+  ('00000000-0000-0000-0008-000000000083', '00000000-0000-0000-0007-000000000019', '00000000-0000-0000-0000-000000000201', 'Yes, extensively with Kafka and Spark Streaming. I''ve attached my portfolio.', NOW() - INTERVAL '8 days' + INTERVAL '2 hours'),
+  ('00000000-0000-0000-0008-000000000084', '00000000-0000-0000-0007-000000000019', '00000000-0000-0000-0000-000000000203', 'This is exactly what I''m looking for. I''m accepting your application!', NOW() - INTERVAL '7 days'),
+  
+  -- Hobbes -> Osman's data viz chat
+  ('00000000-0000-0000-0008-000000000085', '00000000-0000-0000-0007-000000000020', '00000000-0000-0000-0000-000000000102', 'Hi Osman! I''m experienced with D3.js and real-time dashboards.', NOW() - INTERVAL '2 days'),
+  ('00000000-0000-0000-0008-000000000086', '00000000-0000-0000-0007-000000000020', '00000000-0000-0000-0000-000000000203', 'Great! What frameworks have you used for the backend integration?', NOW() - INTERVAL '2 days' + INTERVAL '1 hour'),
+  
+  -- Hobbes -> Enrique's content writing chat
+  ('00000000-0000-0000-0008-000000000087', '00000000-0000-0000-0007-000000000021', '00000000-0000-0000-0000-000000000102', 'Hi Enrique! I can write engaging technical content.', NOW() - INTERVAL '3 days'),
+  ('00000000-0000-0000-0008-000000000088', '00000000-0000-0000-0007-000000000021', '00000000-0000-0000-0000-000000000204', 'Thanks! Do you have experience with web development topics?', NOW() - INTERVAL '3 days' + INTERVAL '2 hours'),
+  
+  -- Clement -> Enrique's social media chat
+  ('00000000-0000-0000-0008-000000000089', '00000000-0000-0000-0007-000000000022', '00000000-0000-0000-0000-000000000202', 'Hi Enrique! I''ve managed social media campaigns for design agencies.', NOW() - INTERVAL '5 days'),
+  ('00000000-0000-0000-0008-000000000090', '00000000-0000-0000-0007-000000000022', '00000000-0000-0000-0000-000000000204', 'That''s relevant experience! What was your best campaign result?', NOW() - INTERVAL '5 days' + INTERVAL '1 hour'),
+  
+  -- Clement -> Hobbes's video editing chat (before acceptance)
+  ('00000000-0000-0000-0008-000000000091', '00000000-0000-0000-0007-000000000023', '00000000-0000-0000-0000-000000000202', 'Hi Hobbes! I''m passionate about video editing and storytelling.', NOW() - INTERVAL '6 days'),
+  ('00000000-0000-0000-0008-000000000092', '00000000-0000-0000-0007-000000000023', '00000000-0000-0000-0000-000000000102', 'That''s great! What editing software do you prefer?', NOW() - INTERVAL '6 days' + INTERVAL '1 hour'),
+  ('00000000-0000-0000-0008-000000000093', '00000000-0000-0000-0007-000000000023', '00000000-0000-0000-0000-000000000202', 'Primarily DaVinci Resolve and Premiere Pro. I can work in either.', NOW() - INTERVAL '6 days' + INTERVAL '2 hours'),
+  ('00000000-0000-0000-0008-000000000094', '00000000-0000-0000-0007-000000000023', '00000000-0000-0000-0000-000000000102', 'Perfect! I use Resolve too. I''m accepting your application.', NOW() - INTERVAL '5 days'),
+  
+  -- Enrique -> Hobbes's music composition chat
+  ('00000000-0000-0000-0008-000000000095', '00000000-0000-0000-0007-000000000024', '00000000-0000-0000-0000-000000000204', 'Hi Hobbes! I compose electronic and orchestral hybrid music.', NOW() - INTERVAL '4 days'),
+  ('00000000-0000-0000-0008-000000000096', '00000000-0000-0000-0007-000000000024', '00000000-0000-0000-0000-000000000102', 'That''s exactly the style I''m looking for! Can you share samples?', NOW() - INTERVAL '4 days' + INTERVAL '30 minutes'),
+  ('00000000-0000-0000-0008-000000000097', '00000000-0000-0000-0007-000000000024', '00000000-0000-0000-0000-000000000204', 'Here are links to my SoundCloud and some game projects I''ve worked on.', NOW() - INTERVAL '4 days' + INTERVAL '1 hour'),
+  
+  -- Osman -> Calvin's security audit chat
+  ('00000000-0000-0000-0008-000000000098', '00000000-0000-0000-0007-000000000025', '00000000-0000-0000-0000-000000000203', 'Hi Calvin! I have OSCP certification and extensive pentesting experience.', NOW() - INTERVAL '5 days'),
+  ('00000000-0000-0000-0008-000000000099', '00000000-0000-0000-0007-000000000025', '00000000-0000-0000-0000-000000000101', 'Impressive credentials! What tools do you typically use?', NOW() - INTERVAL '5 days' + INTERVAL '1 hour'),
+  ('00000000-0000-0000-0008-000000000100', '00000000-0000-0000-0007-000000000025', '00000000-0000-0000-0000-000000000203', 'Burp Suite, Nmap, Metasploit, and custom Python scripts for automation.', NOW() - INTERVAL '5 days' + INTERVAL '2 hours'),
+  
+  -- Enrique -> Calvin's tech documentation chat
+  ('00000000-0000-0000-0008-000000000101', '00000000-0000-0000-0007-000000000026', '00000000-0000-0000-0000-000000000204', 'Hi Calvin! I have extensive experience writing API documentation.', NOW() - INTERVAL '3 days'),
+  ('00000000-0000-0000-0008-000000000102', '00000000-0000-0000-0007-000000000026', '00000000-0000-0000-0000-000000000101', 'Great! Are you familiar with OpenAPI/Swagger?', NOW() - INTERVAL '3 days' + INTERVAL '30 minutes'),
+  ('00000000-0000-0000-0008-000000000103', '00000000-0000-0000-0007-000000000026', '00000000-0000-0000-0000-000000000204', 'Yes, I''ve written docs for 20+ APIs using OpenAPI spec and Redoc.', NOW() - INTERVAL '3 days' + INTERVAL '1 hour');
+
 -- ============================================
 -- End of static test data
 -- ============================================

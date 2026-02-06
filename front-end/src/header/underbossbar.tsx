@@ -1,7 +1,8 @@
-import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
+import AppSettings from '../AppSettings';
 
 export default function UnderbossBar() {
     const navigation = useNavigation<any>();
@@ -51,7 +52,7 @@ export default function UnderbossBar() {
                         activeOpacity={0.6}
                         onPress={() => navigation.navigate('ProfilePage')}
                     >
-                        <Text style={styles.iconEmoji}>👤</Text>
+                        <Image source={{ uri: AppSettings.userProfile?.avatar_url ||' '}} style={{ width: 42, height: 42, borderRadius: 21 }} />
                     </TouchableOpacity>
                 </View>
             </View>

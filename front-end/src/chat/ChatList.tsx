@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,28 +13,40 @@ import {
 import { useSortedChats } from '../cache/chats';
 import { getMediaUrl } from '../serve';
 import type { ChatThread } from '../serve/chat';
+import { useTheme, BRAND } from '../common/theme';
 
 interface ChatListProps {
   onSelectThread: (thread: ChatThread) => void;
 }
 
 // Separator component for FlatList
-const ItemSeparator = () => <View style={separatorStyle.separator} />;
+const ItemSeparator = ({ colors }: { colors: any }) => (
+  <View style={[separatorStyle.separator, { backgroundColor: colors.border }]} />
+);
 const separatorStyle = StyleSheet.create({
-  separator: { height: 1, backgroundColor: '#E2E8F0', marginLeft: 80 },
+  separator: { height: 1, marginLeft: 80 },
 });
 
 export default function ChatList({ onSelectThread }: ChatListProps) {
+  const { colors, isDark } = useTheme();
   const { threads, loading, error, totalUnread, refresh } = useSortedChats();
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  console.log('[ChatList] Render - threads:', threads.length, 'loading:', loading, 'error:', error);
+
+  // Memoized separator to avoid creating component inline during render
+  const renderItemSeparator = useCallback(
+    () => <ItemSeparator colors={colors} />,
+    [colors]
+  );
+
   // Fetch threads on mount
   useEffect(() => {
-    if (threads.length === 0 && !loading && !error) {
-      refresh();
-    }
-  }, [threads.length, loading, error, refresh]);
+    console.log('[ChatList] Mounted, calling refresh(true)...');
+    refresh(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -95,16 +107,24 @@ export default function ChatList({ onSelectThread }: ChatListProps) {
 
   // Render chat thread item
   const renderThread = ({ item }: { item: ChatThread }) => {
+    // Skip threads without ID
+    if (!item?.id) return null;
+    
     const typeInfo = getThreadTypeInfo(item.thread_type);
     const hasUnread = item.unread_count > 0;
+    const participants = item.participants || [];
     
     // Get the other participant(s) for display
-    const otherParticipants = item.participants.filter((p) => p.role !== 'owner');
-    const displayParticipant = otherParticipants[0] || item.participants[0];
+    const otherParticipants = participants.filter((p) => p.role !== 'owner');
+    const displayParticipant = otherParticipants[0] || participants[0];
     
     return (
       <TouchableOpacity
-        style={[styles.threadItem, hasUnread && styles.threadItemUnread]}
+        style={[
+          styles.threadItem, 
+          { backgroundColor: colors.card },
+          hasUnread && { backgroundColor: isDark ? colors.backgroundSecondary : '#F0F4FF' }
+        ]}
         onPress={() => onSelectThread(item)}
         activeOpacity={0.7}
       >
@@ -136,7 +156,7 @@ export default function ChatList({ onSelectThread }: ChatListProps) {
           {/* Header row */}
           <View style={styles.threadHeader}>
             <View style={styles.threadTitleContainer}>
-              <Text style={[styles.threadTitle, hasUnread && styles.textBold]} numberOfLines={1}>
+              <Text style={[styles.threadTitle, { color: colors.text }, hasUnread && styles.textBold]} numberOfLines={1}>
                 {item.paps_title || displayParticipant?.username || 'Chat'}
               </Text>
               <View style={[styles.typeBadge, { backgroundColor: typeInfo.color + '20' }]}>
@@ -145,22 +165,22 @@ export default function ChatList({ onSelectThread }: ChatListProps) {
                 </Text>
               </View>
             </View>
-            <Text style={styles.timeText}>
+            <Text style={[styles.timeText, { color: colors.textMuted }]}>
               {item.last_message ? formatRelativeTime(item.last_message.sent_at) : ''}
             </Text>
           </View>
 
           {/* Participants row */}
-          {item.participants.length > 1 && (
-            <Text style={styles.participantsText} numberOfLines={1}>
-              {item.participants.map((p) => p.username).join(', ')}
+          {participants.length > 1 && (
+            <Text style={[styles.participantsText, { color: colors.textSecondary }]} numberOfLines={1}>
+              {participants.map((p) => p.username).join(', ')}
             </Text>
           )}
 
           {/* Last message */}
           {item.last_message && (
             <Text 
-              style={[styles.lastMessage, hasUnread && styles.textBold]} 
+              style={[styles.lastMessage, { color: colors.textSecondary }, hasUnread && styles.textBold]} 
               numberOfLines={2}
             >
               {item.last_message.sender_username}: {item.last_message.content}
@@ -174,49 +194,49 @@ export default function ChatList({ onSelectThread }: ChatListProps) {
   // Loading state
   if (loading && threads.length === 0) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#5A67D8" />
-        <Text style={styles.loadingText}>Loading chats...</Text>
+      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={BRAND.primary} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading chats...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Messages</Text>
+      <View style={[styles.header, { backgroundColor: colors.card }]}>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Messages</Text>
         {totalUnread > 0 && (
-          <View style={styles.totalUnreadBadge}>
+          <View style={[styles.totalUnreadBadge, { backgroundColor: colors.error }]}>
             <Text style={styles.totalUnreadText}>{totalUnread}</Text>
           </View>
         )}
       </View>
 
       {/* Search */}
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { backgroundColor: colors.inputBg, color: colors.inputText }]}
           placeholder="🔍 Search conversations..."
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholderTextColor="#718096"
+          placeholderTextColor={colors.inputPlaceholder}
         />
       </View>
 
       {/* Error state */}
       {error && threads.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
+          <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
           <TouchableOpacity onPress={() => refresh(true)}>
-            <Text style={styles.retryText}>Tap to Retry</Text>
+            <Text style={[styles.retryText, { color: BRAND.primary }]}>Tap to Retry</Text>
           </TouchableOpacity>
         </View>
       ) : filteredThreads.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>💬</Text>
-          <Text style={styles.emptyTitle}>No conversations yet</Text>
-          <Text style={styles.emptySubtitle}>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No conversations yet</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
             {searchQuery 
               ? 'No matches found for your search' 
               : 'Chat threads will appear here when you apply to jobs or receive applications'}
@@ -224,15 +244,20 @@ export default function ChatList({ onSelectThread }: ChatListProps) {
         </View>
       ) : (
         <FlatList
-          data={filteredThreads}
-          keyExtractor={(item) => item.id}
+          data={filteredThreads.filter(t => t?.id)}
+          keyExtractor={(item, index) => item.id || `thread-${index}`}
           renderItem={renderThread}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh}
+              tintColor={BRAND.primary}
+              colors={[BRAND.primary]}
+            />
           }
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={ItemSeparator}
+          ItemSeparatorComponent={renderItemSeparator}
         />
       )}
     </View>

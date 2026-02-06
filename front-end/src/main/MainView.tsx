@@ -12,10 +12,7 @@ import SettingsPage from '../pages/SettingsPage';
 import ModifyProfil from '../pages/ModifyProfil.tsx';
 import Post from '../posting/posting_page'
 import CalendarScreen from '../calendar/calendarTEMP.tsx'
-
-
-// import MessagePage from '../pages/messagePage';
-// import ChatDetailPage from '../pages/ChatDetailScreen';
+import ChatScreen from '../chat/ChatScreen';
 
 import { serv, getCurrentUser } from '../serve';
 import SpapFeed from '../spap/SpapFeed';
@@ -80,9 +77,6 @@ const styles = StyleSheet.create({
 //const Post = () => (
 //  <View style={styles.center}><Text>Post something...</Text></View>
 //)
-const Message = () => (
-  <View style={styles.center}><Text>Message uploading...</Text></View>
-)
 
 
 function MainTabs() {
@@ -105,9 +99,18 @@ function MainTabs() {
         options={{ title: 'Post' }}
       />
       <Tab.Screen
-        name="Message"
-        component={Message}
-        options={{ title: 'Message' }}
+        name="Chats"
+        component={ChatScreen}
+        options={{
+          title: 'Chats',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
+              size={size}
+              color={color}
+            />
+          ),
+        }}
       />
       <Tab.Screen
   name="Calendar"

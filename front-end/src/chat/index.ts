@@ -3,7 +3,7 @@
  * 
  * Main Components:
  * - ChatScreen: Main container with list/detail navigation
- * - ChatList: List of all chat threads
+ * - ChatList: List of all chat threads  
  * - ChatDetail: Individual chat conversation view
  * - ChatBubble: Message bubble component
  */
