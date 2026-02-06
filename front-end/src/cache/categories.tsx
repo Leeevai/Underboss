@@ -29,7 +29,11 @@ const CATEGORY_COLORS: CategoryColor[] = [
 ];
 
 /** Get a consistent color for a category based on its ID */
-export const getCategoryColor = (categoryId: string): CategoryColor => {
+export const getCategoryColor = (categoryId: string | undefined | null): CategoryColor => {
+  // Default color if no categoryId
+  if (!categoryId) {
+    return CATEGORY_COLORS[0];
+  }
   // Use a simple hash of the category ID to get a consistent color index
   let hash = 0;
   for (let i = 0; i < categoryId.length; i++) {
@@ -40,7 +44,10 @@ export const getCategoryColor = (categoryId: string): CategoryColor => {
 };
 
 /** Get color by category name (fallback if no ID) */
-export const getCategoryColorByName = (name: string): CategoryColor => {
+export const getCategoryColorByName = (name: string | undefined | null): CategoryColor => {
+  if (!name) {
+    return CATEGORY_COLORS[0];
+  }
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     hash = Math.imul(31, hash) + name.charCodeAt(i);
