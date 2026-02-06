@@ -18,11 +18,14 @@ import {
   Alert,
   Dimensions,
   Platform,
+  TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { serv } from '../serve';
 import type { Paps, PapsDetail } from '../serve/paps';
 import type { MediaItem } from '../serve/common/types';
+import type { Comment } from '../serve/comments';
 import MediaViewer from '../common/MediaViewer';
 import { useAvatarUrl } from '../cache/profiles';
 import { getCategoryColorByName } from '../cache/categories';
@@ -114,6 +117,17 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [applying, setApplying] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
+  
+  // Comments state
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [postingComment, setPostingComment] = useState(false);
+  const [showAllComments, setShowAllComments] = useState(false);
+  
+  // Apply modal state
+  const [applyModalVisible, setApplyModalVisible] = useState(false);
+  const [applicationMessage, setApplicationMessage] = useState('');
 
   // Get avatar from cache (auto-fetches if not cached)
   const { avatarUrl: avatarUri } = useAvatarUrl(pap.owner_username);
@@ -154,19 +168,60 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
       }
     };
     fetchDetails();
+    
+    // Fetch comments
+    const fetchComments = async () => {
+      setLoadingComments(true);
+      try {
+        const response = await serv('comments.list', { paps_id: pap.id, limit: 20 });
+        setComments(response.comments || []);
+      } catch (error) {
+        console.error('Error fetching comments:', error);
+      } finally {
+        setLoadingComments(false);
+      }
+    };
+    fetchComments();
   }, [modalVisible, pap.id]);
 
-  // Handle apply
-  const handleApply = useCallback(async () => {
+  // Post a new comment
+  const handlePostComment = useCallback(async () => {
+    if (!newComment.trim()) return;
+    setPostingComment(true);
+    try {
+      await serv('comments.create', { 
+        paps_id: pap.id, 
+        content: newComment.trim() 
+      });
+      // Refetch comments to get the new one with full data
+      const commentsResponse = await serv('comments.list', { paps_id: pap.id, limit: 20 });
+      setComments(commentsResponse.comments || []);
+      setNewComment('');
+    } catch (error: any) {
+      Alert.alert('Error', error?.getUserMessage?.() || 'Failed to post comment');
+    } finally {
+      setPostingComment(false);
+    }
+  }, [newComment, pap.id]);
+
+  // Handle apply - show apply modal
+  const openApplyModal = useCallback(() => {
+    setApplicationMessage('');
+    setApplyModalVisible(true);
+  }, []);
+  
+  // Submit application
+  const handleSubmitApplication = useCallback(async () => {
     setApplying(true);
     try {
       await serv('spap.apply', {
         paps_id: pap.id,
-        message: 'I am interested in this job opportunity.',
+        message: applicationMessage.trim() || 'I am interested in this job opportunity.',
       });
       setHasApplied(true);
+      setApplyModalVisible(false);
       Alert.alert('Success', 'Your application has been submitted!', [
-        { text: 'OK', onPress: () => setModalVisible(false) },
+        { text: 'OK' },
       ]);
     } catch (error: any) {
       Alert.alert(
@@ -177,7 +232,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
     } finally {
       setApplying(false);
     }
-  }, [pap.id]);
+  }, [pap.id, applicationMessage]);
 
   const openModal = () => {
     console.log('Opening modal, onPress:', !!onPress);
@@ -501,6 +556,97 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                   </View>
                 )}
 
+                {/* Comments Section */}
+                <View style={styles.modalSection}>
+                  <View style={styles.commentsSectionHeader}>
+                    <Text style={styles.sectionTitle}>
+                      Comments {comments.length > 0 && `(${comments.length})`}
+                    </Text>
+                  </View>
+                  
+                  {/* Add Comment Input */}
+                  <View style={styles.addCommentBox}>
+                    <TextInput
+                      style={styles.commentInput}
+                      placeholder="Write a comment..."
+                      placeholderTextColor="#A0AEC0"
+                      value={newComment}
+                      onChangeText={setNewComment}
+                      multiline
+                      maxLength={500}
+                    />
+                    <TouchableOpacity
+                      style={[
+                        styles.postCommentBtn,
+                        (!newComment.trim() || postingComment) && styles.postCommentBtnDisabled,
+                      ]}
+                      onPress={handlePostComment}
+                      disabled={!newComment.trim() || postingComment}
+                    >
+                      {postingComment ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.postCommentBtnText}>Post</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  
+                  {/* Comments List */}
+                  {loadingComments ? (
+                    <View style={styles.commentsLoading}>
+                      <ActivityIndicator size="small" color="#3182CE" />
+                      <Text style={styles.loadingText}>Loading comments...</Text>
+                    </View>
+                  ) : comments.length === 0 ? (
+                    <View style={styles.noComments}>
+                      <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.commentsList}>
+                      {(showAllComments ? comments : comments.slice(0, 3)).map((comment) => (
+                        <View key={comment.id} style={styles.commentItem}>
+                          <View style={styles.commentHeader}>
+                            <View style={styles.commentAvatar}>
+                              {comment.user_avatar ? (
+                                <Image 
+                                  source={{ uri: comment.user_avatar }} 
+                                  style={styles.commentAvatarImage} 
+                                />
+                              ) : (
+                                <Text style={styles.commentAvatarInitial}>
+                                  {comment.username?.charAt(0)?.toUpperCase() || '?'}
+                                </Text>
+                              )}
+                            </View>
+                            <View style={styles.commentMeta}>
+                              <Text style={styles.commentUsername}>@{comment.username}</Text>
+                              <Text style={styles.commentTime}>
+                                {formatRelativeTime(comment.created_at)}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={styles.commentContent}>{comment.content}</Text>
+                          {comment.reply_count > 0 && (
+                            <Text style={styles.replyCount}>
+                              {comment.reply_count} {comment.reply_count === 1 ? 'reply' : 'replies'}
+                            </Text>
+                          )}
+                        </View>
+                      ))}
+                      {comments.length > 3 && !showAllComments && (
+                        <TouchableOpacity
+                          style={styles.showMoreCommentsBtn}
+                          onPress={() => setShowAllComments(true)}
+                        >
+                          <Text style={styles.showMoreCommentsText}>
+                            Show {comments.length - 3} more comments
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                </View>
+
                 {/* Bottom spacing */}
                 <View style={styles.bottomSpacer} />
               </ScrollView>
@@ -517,23 +663,87 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 <TouchableOpacity
                   style={[
                     styles.applyBtn,
-                    (applying || hasApplied) && styles.applyBtnDisabled,
+                    hasApplied && styles.applyBtnDisabled,
                   ]}
-                  onPress={handleApply}
-                  disabled={applying || hasApplied}
+                  onPress={openApplyModal}
+                  disabled={hasApplied}
                 >
-                  {applying ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.applyBtnText}>
-                      {hasApplied ? '✓ Applied' : 'Apply Now'}
-                    </Text>
-                  )}
+                  <Text style={styles.applyBtnText}>
+                    {hasApplied ? '✓ Applied' : 'Apply Now'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </SafeAreaView>
           </View>
         </View>
+      </Modal>
+
+      {/* Apply Modal */}
+      <Modal
+        visible={applyModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setApplyModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          style={styles.applyModalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setApplyModalVisible(false)}
+          />
+          <View style={styles.applyModalContent}>
+            <View style={styles.applyModalHeader}>
+              <Text style={styles.applyModalTitle}>Apply to Job</Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setApplyModalVisible(false)}
+              >
+                <Text style={styles.modalCloseBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.applyModalBody}>
+              <Text style={styles.applyJobTitle} numberOfLines={2}>{pap.title}</Text>
+              <Text style={styles.applyInputLabel}>Your Message</Text>
+              <TextInput
+                style={styles.applicationInput}
+                placeholder="Write a message to the job poster..."
+                placeholderTextColor="#A0AEC0"
+                value={applicationMessage}
+                onChangeText={setApplicationMessage}
+                multiline
+                maxLength={1000}
+                textAlignVertical="top"
+              />
+              <Text style={styles.applicationCharCount}>
+                {applicationMessage.length}/1000
+              </Text>
+            </View>
+            
+            <View style={styles.applyModalFooter}>
+              <TouchableOpacity
+                style={styles.cancelApplyBtn}
+                onPress={() => setApplyModalVisible(false)}
+              >
+                <Text style={styles.cancelApplyBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitApplyBtn, applying && styles.applyBtnDisabled]}
+                onPress={handleSubmitApplication}
+                disabled={applying}
+              >
+                {applying ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.submitApplyBtnText}>Submit Application</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -1007,5 +1217,218 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 20,
+  },
+
+  // Comments styles
+  commentsSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  addCommentBox: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: '#F7FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#2D3748',
+    maxHeight: 80,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  postCommentBtn: {
+    backgroundColor: '#3182CE',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  postCommentBtnDisabled: {
+    backgroundColor: '#A0AEC0',
+  },
+  postCommentBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  commentsLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 20,
+  },
+  noComments: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  noCommentsText: {
+    fontSize: 14,
+    color: '#718096',
+  },
+  commentsList: {
+    gap: 12,
+  },
+  commentItem: {
+    backgroundColor: '#F7FAFC',
+    borderRadius: 12,
+    padding: 12,
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  commentAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  commentAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  commentAvatarInitial: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4A5568',
+  },
+  commentMeta: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  commentUsername: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2D3748',
+  },
+  commentTime: {
+    fontSize: 11,
+    color: '#A0AEC0',
+  },
+  commentContent: {
+    fontSize: 14,
+    color: '#4A5568',
+    lineHeight: 20,
+  },
+  replyCount: {
+    fontSize: 12,
+    color: '#3182CE',
+    marginTop: 8,
+    fontWeight: '500',
+  },
+  showMoreCommentsBtn: {
+    padding: 12,
+    alignItems: 'center',
+  },
+  showMoreCommentsText: {
+    fontSize: 14,
+    color: '#3182CE',
+    fontWeight: '600',
+  },
+
+  // Apply Modal styles
+  applyModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  applyModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+  },
+  applyModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EDF2F7',
+  },
+  applyModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A202C',
+  },
+  applyModalBody: {
+    padding: 20,
+  },
+  applyJobTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2D3748',
+    marginBottom: 16,
+  },
+  applyInputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4A5568',
+    marginBottom: 8,
+  },
+  applicationInput: {
+    backgroundColor: '#F7FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: '#2D3748',
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  applicationCharCount: {
+    fontSize: 12,
+    color: '#A0AEC0',
+    textAlign: 'right',
+    marginTop: 6,
+  },
+  applyModalFooter: {
+    flexDirection: 'row',
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 20,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#EDF2F7',
+  },
+  cancelApplyBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#EDF2F7',
+    alignItems: 'center',
+  },
+  cancelApplyBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#4A5568',
+  },
+  submitApplyBtn: {
+    flex: 2,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#3182CE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitApplyBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
