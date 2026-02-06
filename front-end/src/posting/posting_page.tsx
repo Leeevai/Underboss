@@ -1,11 +1,42 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Image } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Image, Modal, PermissionsAndroid } from 'react-native';
 import { serv, ApiError, PaymentType, PapsStatus, Currency, getMediaUrl } from '../serve';
 import { PapsCreateRequest } from '../serve/paps/types';
 import { useActiveCategories, getCategoryColor } from '../cache/categories';
 import UnderbossBar from '../header/underbossbar';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
+import { Calendar, DateData } from 'react-native-calendars';
+
+// Geolocation types for React Native
+interface GeolocationPosition {
+  coords: {
+    latitude: number;
+    longitude: number;
+    altitude: number | null;
+    accuracy: number;
+    altitudeAccuracy: number | null;
+    heading: number | null;
+    speed: number | null;
+  };
+  timestamp: number;
+}
+
+interface GeolocationError {
+  code: number;
+  message: string;
+}
+
+// Global geolocation (polyfilled by React Native)
+declare const navigator: {
+  geolocation: {
+    getCurrentPosition: (
+      success: (position: GeolocationPosition) => void,
+      error?: (error: GeolocationError) => void,
+      options?: { enableHighAccuracy?: boolean; timeout?: number; maximumAge?: number }
+    ) => void;
+  };
+};
 
 // =============================================================================
 // CONSTANTS
@@ -17,15 +48,13 @@ const PAYMENT_TYPES: { value: PaymentType; label: string; icon: string }[] = [
   { value: 'negotiable', label: 'Negotiable', icon: '🤝' },
 ];
 
-const PAPS_STATUSES: { value: PapsStatus; label: string; color: string }[] = [
-  { value: 'draft', label: 'Draft', color: '#A0AEC0' },
-  { value: 'published', label: 'Published', color: '#38A169' },
-  { value: 'open', label: 'Open', color: '#3182CE' },
-  { value: 'closed', label: 'Closed', color: '#E53E3E' },
-  { value: 'cancelled', label: 'Cancelled', color: '#718096' },
-];
-
 const CURRENCIES: Currency[] = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY'];
+
+const POST_MODES: { value: 'draft' | 'scheduled' | 'publish'; label: string; icon: string; description: string }[] = [
+  { value: 'draft', label: 'Draft', icon: '📝', description: 'Save for later' },
+  { value: 'scheduled', label: 'Scheduled', icon: '⏰', description: 'Post at start date' },
+  { value: 'publish', label: 'Publish Now', icon: '🚀', description: 'Go live immediately' },
+];
 
 const MAX_MEDIA_FILES = 10;
 const ALLOWED_MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime'];
@@ -36,8 +65,6 @@ const DEFAULT_FORM: Partial<PapsCreateRequest> = {
   payment_type: 'fixed',
   max_applicants: 10,
   max_assignees: 1,
-  is_public: true,
-  status: 'draft',
   categories: [],
 };
 
@@ -52,8 +79,131 @@ const Post = () => {
   const [mediaFiles, setMediaFiles] = useState<Asset[]>([]);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   
+  // Post mode: draft, scheduled, or publish now
+  const [postMode, setPostMode] = useState<'draft' | 'scheduled' | 'publish'>('publish');
+  
+  // Calendar popup state
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [calendarField, setCalendarField] = useState<'start' | 'end'>('start');
+  
+  // Location loading state
+  const [loadingLocation, setLoadingLocation] = useState(false);
+  
   // Categories from cache
   const { categories, loading: categoriesLoading } = useActiveCategories();
+
+  // Open calendar for a specific field
+  const openCalendar = (field: 'start' | 'end') => {
+    setCalendarField(field);
+    setCalendarVisible(true);
+  };
+
+  // Handle date selection
+  const handleDateSelect = (date: DateData) => {
+    const now = new Date();
+    const selectedDate = new Date(date.dateString);
+    
+    // If selecting a past date, show error
+    if (selectedDate < new Date(now.toDateString())) {
+      Alert.alert('Invalid Date', 'Cannot select a date in the past');
+      return;
+    }
+    
+    const isoDate = `${date.dateString}T12:00:00`;
+    if (calendarField === 'start') {
+      setForm(p => {
+        const updated = { ...p, start_datetime: isoDate };
+        // Auto-calculate end date if duration is set
+        if (p.estimated_duration_minutes && p.estimated_duration_minutes > 0) {
+          const startMs = new Date(isoDate).getTime();
+          const endMs = startMs + p.estimated_duration_minutes * 60 * 1000;
+          updated.end_datetime = new Date(endMs).toISOString().slice(0, 19);
+        }
+        return updated;
+      });
+    } else {
+      setForm(p => {
+        const updated = { ...p, end_datetime: isoDate };
+        // Auto-calculate duration if start is set
+        if (p.start_datetime) {
+          const startMs = new Date(p.start_datetime).getTime();
+          const endMs = new Date(isoDate).getTime();
+          if (endMs > startMs) {
+            updated.estimated_duration_minutes = Math.round((endMs - startMs) / 60000);
+          }
+        }
+        return updated;
+      });
+    }
+    setCalendarVisible(false);
+  };
+
+  // Handle duration change - auto-calculate end date
+  const handleDurationChange = useCallback((minutes: number) => {
+    setForm(p => {
+      const updated = { ...p, estimated_duration_minutes: minutes || undefined };
+      if (p.start_datetime && minutes > 0) {
+        const startMs = new Date(p.start_datetime).getTime();
+        const endMs = startMs + minutes * 60 * 1000;
+        updated.end_datetime = new Date(endMs).toISOString().slice(0, 19);
+      }
+      return updated;
+    });
+  }, []);
+
+  // Fetch current location from device
+  const fetchCurrentLocation = async () => {
+    setLoadingLocation(true);
+    
+    try {
+      // Request permission on Android
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Location Permission',
+            message: 'This app needs access to your location to set the job location.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert('Permission Denied', 'Location permission is required');
+          setLoadingLocation(false);
+          return;
+        }
+      }
+      
+      // Get current position using React Native Geolocation
+      navigator.geolocation.getCurrentPosition(
+        (position: GeolocationPosition) => {
+          setForm(p => ({
+            ...p,
+            location_lat: position.coords.latitude,
+            location_lng: position.coords.longitude,
+          }));
+          setLoadingLocation(false);
+        },
+        (error: GeolocationError) => {
+          console.error('Location error:', error);
+          Alert.alert('Location Error', 'Could not get your location. Please enter manually.');
+          setLoadingLocation(false);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      );
+    } catch (err) {
+      console.error('Location fetch failed:', err);
+      setLoadingLocation(false);
+    }
+  };
+
+  // Format date for display
+  const formatDisplayDate = (isoDate?: string) => {
+    if (!isoDate) return 'Select date';
+    const d = new Date(isoDate);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
 
   // Toggle category selection
   const toggleCategory = (categoryId: string) => {
@@ -111,16 +261,15 @@ const Post = () => {
 
     setUploadingMedia(true);
     try {
-      // Convert assets to blobs/files for upload
-      const files: Blob[] = [];
-      
-      for (const asset of mediaFiles) {
-        if (asset.uri) {
-          const response = await fetch(asset.uri);
-          const blob = await response.blob();
-          files.push(blob);
-        }
-      }
+      // Build files array for React Native FormData
+      // Each file object has { uri, type, name } format
+      const files = mediaFiles
+        .filter(asset => asset.uri)
+        .map((asset, index) => ({
+          uri: asset.uri!,
+          type: asset.type || 'image/jpeg',
+          name: asset.fileName || `media_${index}.${(asset.type || 'image/jpeg').split('/')[1]}`,
+        }));
 
       if (files.length > 0) {
         await serv('paps.media.upload', {
@@ -154,6 +303,27 @@ const Post = () => {
       Alert.alert('Validation Error', 'Payment amount must be greater than 0');
       return;
     }
+    
+    // Validate dates for non-draft posts
+    if (postMode !== 'draft') {
+      if (!form.start_datetime) {
+        Alert.alert('Validation Error', 'Start date is required for published jobs');
+        return;
+      }
+      const startDate = new Date(form.start_datetime);
+      const now = new Date();
+      if (startDate < now && postMode === 'scheduled') {
+        Alert.alert('Validation Error', 'Scheduled date cannot be in the past');
+        return;
+      }
+      if (form.end_datetime) {
+        const endDate = new Date(form.end_datetime);
+        if (endDate <= startDate) {
+          Alert.alert('Validation Error', 'End date must be after start date');
+          return;
+        }
+      }
+    }
 
     // Build categories array for API
     const categoriesPayload = selectedCategories.map(c => ({
@@ -161,8 +331,21 @@ const Post = () => {
       is_primary: c.isPrimary,
     }));
 
+    // Determine status and publish_at based on post mode
+    let status: PapsStatus = 'draft';
+    let publish_at: string | undefined;
+    
+    if (postMode === 'publish') {
+      status = 'published';
+    } else if (postMode === 'scheduled') {
+      status = 'draft';
+      publish_at = form.start_datetime; // Will auto-publish at start time
+    }
+
     const payload: Partial<PapsCreateRequest> = {
       ...form,
+      status,
+      publish_at,
       categories: categoriesPayload.length > 0 ? categoriesPayload : undefined,
     };
 
@@ -177,7 +360,12 @@ const Post = () => {
         await uploadMedia(papsId);
       }
 
-      Alert.alert('Success', 'Paps created successfully!');
+      const successMsg = postMode === 'draft' 
+        ? 'Saved as draft!' 
+        : postMode === 'scheduled' 
+          ? 'Scheduled successfully!' 
+          : 'Published successfully!';
+      Alert.alert('Success', successMsg);
       resetForm();
     } catch (err) {
       console.error('Failed to create paps', err);
@@ -192,6 +380,7 @@ const Post = () => {
     setForm(DEFAULT_FORM);
     setSelectedCategories([]);
     setMediaFiles([]);
+    setPostMode('publish');
   };
 
   const { colors, isDark } = useTheme();
@@ -436,43 +625,84 @@ const Post = () => {
             </View>
           </View>
 
+          {/* POST MODE */}
+          <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+            <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Post Mode</Text>
+            <View style={styles.postModeContainer}>
+              {POST_MODES.map((mode) => (
+                <TouchableOpacity
+                  key={mode.value}
+                  style={[
+                    styles.postModeOption,
+                    { backgroundColor: colors.inputBg, borderColor: colors.border },
+                    postMode === mode.value && { backgroundColor: BRAND.primary + '15', borderColor: BRAND.primary },
+                  ]}
+                  onPress={() => setPostMode(mode.value)}
+                >
+                  <Text style={styles.postModeIcon}>{mode.icon}</Text>
+                  <View style={styles.postModeText}>
+                    <Text style={[
+                      styles.postModeLabel,
+                      { color: postMode === mode.value ? BRAND.primary : colors.text },
+                    ]}>
+                      {mode.label}
+                    </Text>
+                    <Text style={[styles.postModeDesc, { color: colors.textMuted }]}>
+                      {mode.description}
+                    </Text>
+                  </View>
+                  {postMode === mode.value && (
+                    <Text style={styles.postModeCheck}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           {/* SCHEDULE */}
           <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
             <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Schedule</Text>
 
             <View style={styles.rowInputs}>
               <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Start Date/Time</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                  placeholder="YYYY-MM-DDTHH:mm"
-                  placeholderTextColor={colors.inputPlaceholder}
-                  value={form.start_datetime || ''}
-                  onChangeText={(v) => setForm(p => ({ ...p, start_datetime: v }))}
-                />
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Start Date</Text>
+                <TouchableOpacity
+                  style={[styles.datePickerButton, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
+                  onPress={() => openCalendar('start')}
+                >
+                  <Text style={styles.datePickerIcon}>📅</Text>
+                  <Text style={[styles.datePickerText, { color: form.start_datetime ? colors.inputText : colors.inputPlaceholder }]}>
+                    {formatDisplayDate(form.start_datetime)}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>End Date/Time</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                  placeholder="YYYY-MM-DDTHH:mm"
-                  placeholderTextColor={colors.inputPlaceholder}
-                  value={form.end_datetime || ''}
-                  onChangeText={(v) => setForm(p => ({ ...p, end_datetime: v }))}
-                />
+                <Text style={[styles.label, { color: colors.textSecondary }]}>End Date</Text>
+                <TouchableOpacity
+                  style={[styles.datePickerButton, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
+                  onPress={() => openCalendar('end')}
+                >
+                  <Text style={styles.datePickerIcon}>📅</Text>
+                  <Text style={[styles.datePickerText, { color: form.end_datetime ? colors.inputText : colors.inputPlaceholder }]}>
+                    {formatDisplayDate(form.end_datetime)}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Estimated Duration (minutes)</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Duration (minutes)</Text>
+              <Text style={[styles.sectionHint, { color: colors.textMuted, marginBottom: 8 }]}>
+                Changes end date automatically based on start date
+              </Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
                 keyboardType="numeric"
                 placeholder="e.g. 120"
                 placeholderTextColor={colors.inputPlaceholder}
                 value={form.estimated_duration_minutes?.toString() || ''}
-                onChangeText={(v) => setForm(p => ({ ...p, estimated_duration_minutes: parseInt(v) || undefined }))}
+                onChangeText={(v) => handleDurationChange(parseInt(v) || 0)}
               />
             </View>
           </View>
@@ -512,6 +742,22 @@ const Post = () => {
           <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
             <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Location</Text>
 
+            {/* Use Current Location Button */}
+            <TouchableOpacity
+              style={[styles.locationButton, { backgroundColor: BRAND.primary + '15', borderColor: BRAND.primary }]}
+              onPress={fetchCurrentLocation}
+              disabled={loadingLocation}
+            >
+              {loadingLocation ? (
+                <ActivityIndicator size="small" color={BRAND.primary} />
+              ) : (
+                <Text style={styles.locationButtonIcon}>📍</Text>
+              )}
+              <Text style={[styles.locationButtonText, { color: BRAND.primary }]}>
+                {loadingLocation ? 'Getting location...' : 'Use my current location'}
+              </Text>
+            </TouchableOpacity>
+
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.textSecondary }]}>Address</Text>
               <TextInput
@@ -533,6 +779,7 @@ const Post = () => {
                   placeholderTextColor={colors.inputPlaceholder}
                   value={form.location_lat?.toString() || ''}
                   onChangeText={(v) => setForm(p => ({ ...p, location_lat: parseFloat(v) || undefined }))}
+                  editable={!loadingLocation}
                 />
               </View>
 
@@ -545,6 +792,7 @@ const Post = () => {
                   placeholderTextColor={colors.inputPlaceholder}
                   value={form.location_lng?.toString() || ''}
                   onChangeText={(v) => setForm(p => ({ ...p, location_lng: parseFloat(v) || undefined }))}
+                  editable={!loadingLocation}
                 />
               </View>
             </View>
@@ -558,91 +806,6 @@ const Post = () => {
                 value={form.location_timezone || ''}
                 onChangeText={(location_timezone) => setForm(p => ({ ...p, location_timezone }))}
               />
-            </View>
-          </View>
-
-          {/* VISIBILITY & STATUS */}
-          <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
-            <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Visibility & Status</Text>
-
-            {/* Public Toggle */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Visibility</Text>
-              <View style={styles.toggleRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.toggleButton,
-                    { flex: 1, backgroundColor: colors.inputBg, borderColor: colors.inputBorder },
-                    form.is_public && { backgroundColor: BRAND.primary, borderColor: BRAND.primary },
-                  ]}
-                  onPress={() => setForm(p => ({ ...p, is_public: true }))}
-                >
-                  <Text style={styles.toggleIcon}>🌍</Text>
-                  <Text style={[styles.toggleText, { color: colors.textSecondary }, form.is_public && styles.toggleTextActive]}>Public</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.toggleButton,
-                    { flex: 1, backgroundColor: colors.inputBg, borderColor: colors.inputBorder },
-                    !form.is_public && { backgroundColor: BRAND.primary, borderColor: BRAND.primary },
-                  ]}
-                  onPress={() => setForm(p => ({ ...p, is_public: false }))}
-                >
-                  <Text style={styles.toggleIcon}>🔒</Text>
-                  <Text style={[styles.toggleText, { color: colors.textSecondary }, !form.is_public && styles.toggleTextActive]}>Private</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Status Selection */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Status</Text>
-              <View style={styles.statusRow}>
-                {PAPS_STATUSES.map((st) => (
-                  <TouchableOpacity
-                    key={st.value}
-                    style={[
-                      styles.statusChip,
-                      { backgroundColor: colors.inputBg, borderColor: colors.border },
-                      form.status === st.value && { backgroundColor: st.color },
-                    ]}
-                    onPress={() => setForm(p => ({ ...p, status: st.value }))}
-                  >
-                    <Text style={[
-                      styles.statusText,
-                      { color: colors.textSecondary },
-                      form.status === st.value && styles.statusTextActive,
-                    ]}>
-                      {st.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Publish/Expires dates */}
-            <View style={styles.rowInputs}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Publish At</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                  placeholder="YYYY-MM-DDTHH:mm"
-                  placeholderTextColor={colors.inputPlaceholder}
-                  value={form.publish_at || ''}
-                  onChangeText={(v) => setForm(p => ({ ...p, publish_at: v || undefined }))}
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Expires At</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                  placeholder="YYYY-MM-DDTHH:mm"
-                  placeholderTextColor={colors.inputPlaceholder}
-                  value={form.expires_at || ''}
-                  onChangeText={(v) => setForm(p => ({ ...p, expires_at: v || undefined }))}
-                />
-              </View>
             </View>
           </View>
 
@@ -661,7 +824,7 @@ const Post = () => {
               </View>
             ) : (
               <Text style={styles.saveButtonText}>
-                {form.status === 'draft' ? 'Save as Draft' : 'Publish Paps'}
+                {postMode === 'draft' ? '📝 Save as Draft' : postMode === 'scheduled' ? '⏰ Schedule Post' : '🚀 Publish Now'}
               </Text>
             )}
           </TouchableOpacity>
@@ -676,6 +839,51 @@ const Post = () => {
 
         </View>
       </ScrollView>
+
+      {/* Calendar Popup Modal */}
+      <Modal
+        visible={calendarVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setCalendarVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.calendarOverlay}
+          activeOpacity={1}
+          onPress={() => setCalendarVisible(false)}
+        >
+          <View style={[styles.calendarContainer, { backgroundColor: colors.card }]}>
+            <View style={styles.calendarHeader}>
+              <Text style={[styles.calendarTitle, { color: colors.text }]}>
+                {calendarField === 'start' ? 'Select Start Date' : 'Select End Date'}
+              </Text>
+              <TouchableOpacity onPress={() => setCalendarVisible(false)}>
+                <Text style={styles.calendarClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Calendar
+              onDayPress={handleDateSelect}
+              markedDates={{
+                [form.start_datetime?.split('T')[0] || '']: { selected: true, selectedColor: BRAND.primary },
+                [form.end_datetime?.split('T')[0] || '']: { selected: true, selectedColor: BRAND.secondary || '#60A5FA' },
+              }}
+              minDate={calendarField === 'end' && form.start_datetime ? form.start_datetime.split('T')[0] : undefined}
+              theme={{
+                backgroundColor: colors.card,
+                calendarBackground: colors.card,
+                textSectionTitleColor: colors.textSecondary,
+                selectedDayBackgroundColor: BRAND.primary,
+                selectedDayTextColor: '#ffffff',
+                todayTextColor: BRAND.primary,
+                dayTextColor: colors.text,
+                textDisabledColor: colors.textMuted,
+                arrowColor: BRAND.primary,
+                monthTextColor: colors.text,
+              }}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -979,6 +1187,111 @@ const styles = StyleSheet.create({
   uploadingText: {
     fontSize: 13,
     color: '#4867bb',
+  },
+  
+  // Date picker button
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+  },
+  datePickerIcon: {
+    fontSize: 16,
+  },
+  datePickerText: {
+    fontSize: 15,
+    flex: 1,
+  },
+  
+  // Calendar modal
+  calendarOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  calendarContainer: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  calendarTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  calendarClose: {
+    fontSize: 20,
+    color: '#718096',
+    padding: 4,
+  },
+  
+  // Post mode selector
+  postModeContainer: {
+    gap: 10,
+  },
+  postModeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+  },
+  postModeIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  postModeText: {
+    flex: 1,
+  },
+  postModeLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  postModeDesc: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  postModeCheck: {
+    fontSize: 18,
+    color: '#4867bb',
+    fontWeight: 'bold',
+  },
+  
+  // Location button
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 8,
+  },
+  locationButtonIcon: {
+    fontSize: 18,
+  },
+  locationButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

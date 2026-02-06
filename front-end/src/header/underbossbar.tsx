@@ -3,6 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
 import AppSettings from '../AppSettings';
+import { getMediaUrl } from '../serve';
 
 export default function UnderbossBar() {
     const navigation = useNavigation<any>();
@@ -52,7 +53,11 @@ export default function UnderbossBar() {
                         activeOpacity={0.6}
                         onPress={() => navigation.navigate('ProfilePage')}
                     >
-                        <Image source={{ uri: AppSettings.userProfile?.avatar_url ||' '}} style={{ width: 42, height: 42, borderRadius: 21 }} />
+                        {AppSettings.userProfile?.avatar_url ? (
+                            <Image source={{ uri: getMediaUrl(AppSettings.userProfile.avatar_url) || undefined }} style={{ width: 42, height: 42, borderRadius: 21 }} />
+                        ) : (
+                            <Text style={styles.iconEmoji}>👤</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
             </View>

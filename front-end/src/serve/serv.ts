@@ -171,14 +171,37 @@ function getAuthHeaders(): Record<string, string> {
   return AppSettings.token ? { Authorization: `Bearer ${AppSettings.token}` } : {};
 }
 
+/** React Native file format */
+interface RNFile {
+  uri: string;
+  type: string;
+  name: string;
+}
+
+/** Check if object is React Native file format */
+function isRNFile(obj: any): obj is RNFile {
+  return obj && typeof obj.uri === 'string' && typeof obj.name === 'string';
+}
+
 /** Create FormData for file uploads */
-function createFormData(fieldName: string, files: File | Blob | File[] | Blob[], body?: Record<string, any>): FormData {
+function createFormData(fieldName: string, files: File | Blob | File[] | Blob[] | RNFile | RNFile[], body?: Record<string, any>): FormData {
   const formData = new FormData();
   
   if (Array.isArray(files)) {
-    files.forEach(f => formData.append(fieldName, f));
+    files.forEach(f => {
+      if (isRNFile(f)) {
+        // React Native file format - append as object
+        formData.append(fieldName, f as any);
+      } else {
+        formData.append(fieldName, f);
+      }
+    });
   } else {
-    formData.append(fieldName, files);
+    if (isRNFile(files)) {
+      formData.append(fieldName, files as any);
+    } else {
+      formData.append(fieldName, files);
+    }
   }
 
   if (body) {
@@ -239,9 +262,9 @@ export async function serv<T = any>(endpoint: string, data?: Record<string, any>
       throw new ApiError('Authentication required', HTTP_STATUS.UNAUTHORIZED, 'authentication', endpoint);
     }
 
-    // Extract file(s) from data
-    const file = data?.file as File | Blob | undefined;
-    const files = data?.files as File[] | Blob[] | undefined;
+    // Extract file(s) from data - support both browser File/Blob and React Native {uri, type, name}
+    const file = data?.file as File | Blob | RNFile | undefined;
+    const files = data?.files as File[] | Blob[] | RNFile[] | undefined;
     const bodyData = data ? { ...data } : undefined;
     if (bodyData) {
       delete bodyData.file;

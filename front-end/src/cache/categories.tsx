@@ -64,6 +64,8 @@ const categoriesAtom = atom<Category[]>([]);
 const categoriesLoadingAtom = atom<boolean>(false);
 const categoriesErrorAtom = atom<string | null>(null);
 
+
+
 // =============================================================================
 // DERIVED ATOMS - different views of the same data
 // =============================================================================
@@ -124,7 +126,18 @@ export const useCategories = () => {
     setError(null);
     try {
       const response = await serv('categories.list', { active_only: true });
-      setCategories(response.categories || response || []);
+      console.log('[Categories] Raw response:', response);
+      const rawCategories = response.categories || response || [];
+      console.log('[Categories] Raw categories count:', rawCategories.length);
+      // Normalize: backend returns 'id' but frontend expects 'category_id'
+      const normalized = rawCategories.map((cat: any, index: number) => ({
+        ...cat,
+        category_id: cat.category_id || cat.id,
+        display_order: cat.display_order ?? index,
+        is_active: cat.is_active ?? true,
+      }));
+      console.log('[Categories] Normalized count:', normalized.length, 'First:', normalized[0]);
+      setCategories(normalized);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load categories');
     } finally {
