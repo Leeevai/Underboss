@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Image, Modal, PermissionsAndroid } from 'react-native';
 import { serv, ApiError, PaymentType, PapsStatus, Currency, getMediaUrl } from '../serve';
 import { PapsCreateRequest } from '../serve/paps/types';
-import { useActiveCategories, getCategoryColor } from '../cache/categories';
+import { getCategoryColor } from '../cache/categories';
 import UnderbossBar from '../header/underbossbar';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
@@ -205,29 +205,47 @@ const Post = () => {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  // Toggle category selection
+  const syncFormCategories = (next: { id: string; isPrimary: boolean }[]) => {
+    setForm(p => ({
+      ...p,
+      categories: next.map(c => ({ category_id: c.id, is_primary: c.isPrimary })),
+    }));
+  };
+
   const toggleCategory = (categoryId: string) => {
     setSelectedCategories(prev => {
       const exists = prev.find(c => c.id === categoryId);
-      if (exists) {
-        // Remove category
-        return prev.filter(c => c.id !== categoryId);
-      } else {
-        // Add category (first one becomes primary)
+      if (!exists) {
         const isPrimary = prev.length === 0;
-        return [...prev, { id: categoryId, isPrimary }];
+        const next = [...prev, { id: categoryId, isPrimary }];
+        syncFormCategories(next);
+        return next;
       }
+      const next = prev.map(c => ({ ...c, isPrimary: c.id === categoryId }));
+      syncFormCategories(next);
+      return next;
     });
   };
 
-  // Set primary category
   const setPrimaryCategory = (categoryId: string) => {
-    setSelectedCategories(prev => 
-      prev.map(c => ({ ...c, isPrimary: c.id === categoryId }))
-    );
+    setSelectedCategories(prev => {
+      const next = prev.map(c => ({ ...c, isPrimary: c.id === categoryId }));
+      syncFormCategories(next);
+      return next;
+    });
   };
 
-  // Pick media files
+  const removeCategory = (categoryId: string) => {
+    setSelectedCategories(prev => {
+      const next = prev.filter(c => c.id !== categoryId);
+      if (!next.some(c => c.isPrimary) && next.length > 0) {
+        next[0] = { ...next[0], isPrimary: true };
+      }
+      syncFormCategories(next);
+      return next;
+    });
+  };
+
   const pickMedia = async () => {
     if (mediaFiles.length >= MAX_MEDIA_FILES) {
       Alert.alert('Limit Reached', `Maximum ${MAX_MEDIA_FILES} files allowed`);
@@ -250,12 +268,10 @@ const Post = () => {
     }
   };
 
-  // Remove a media file
   const removeMedia = (index: number) => {
     setMediaFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Upload media files after PAPS creation
   const uploadMedia = async (papsId: string): Promise<boolean> => {
     if (mediaFiles.length === 0) return true;
 
@@ -288,7 +304,6 @@ const Post = () => {
     }
   };
 
-  // Submit form
   const sendPaps = async () => {
     // Validate required fields
     if (!form.title || form.title.length < 5) {
@@ -449,50 +464,31 @@ const Post = () => {
           {/* CATEGORIES */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Categories</Text>
-            <Text style={styles.sectionHint}>Select relevant categories. Tap again to set as primary.</Text>
-            
-            {categoriesLoading ? (
-              <ActivityIndicator color={BRAND.primary} style={{ marginVertical: 20 }} />
-            ) : (
-              <View style={styles.categoriesGrid}>
-                {categories.map((cat, index) => {
-                  if (!cat?.category_id) return null;
-                  const selected = selectedCategories.find(c => c.id === cat.category_id);
-                  const catColors = getCategoryColor(cat.category_id);
-                  
-                  return (
-                    <TouchableOpacity
-                      key={cat.category_id || `cat-${index}`}
-                      style={[
-                        styles.categoryChip,
-                        { backgroundColor: selected ? catColors.bg : colors.inputBg, borderColor: selected ? catColors.text : colors.border },
-                        selected?.isPrimary && styles.categoryChipPrimary,
-                      ]}
-                      onPress={() => {
-                        if (selected) {
-                          // If already selected, toggle primary or deselect
-                          if (!selected.isPrimary && selectedCategories.length > 1) {
-                            setPrimaryCategory(cat.category_id);
-                          } else {
-                            toggleCategory(cat.category_id);
-                          }
-                        } else {
-                          toggleCategory(cat.category_id);
-                        }
-                      }}
-                      onLongPress={() => toggleCategory(cat.category_id)}
-                    >
-                      <Text style={[
-                        styles.categoryChipText,
-                        { color: selected ? catColors.text : colors.textSecondary },
-                      ]}>
-                        {selected?.isPrimary && '★ '}{cat.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+            <Text style={styles.sectionHint}>Select several categories. Tap again to set primary; long-press to remove.</Text>
+
+            <View style={styles.categoriesGrid}>
+              {categories?.map((cat: any) => {
+                const isSelected = selectedCategories.some(c => c.id === cat.category_id);
+                const isPrimary = selectedCategories.some(c => c.id === cat.category_id && c.isPrimary);
+                const chipColor = getCategoryColor?.(cat) || '#E2E8F0';
+                return (
+                  <TouchableOpacity
+                    key={cat.category_id}
+                    style={[
+                      styles.categoryChip,
+                      { borderColor: '#486a97' },
+                      isPrimary && styles.categoryChipPrimary,
+                    ]}
+                    onPress={() => toggleCategory(cat.category_id)}
+                    onLongPress={() => removeCategory(cat.category_id)}
+                  >
+                    <Text style={[styles.categoryChipText, { color:'#4A5568' }]}>
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* MEDIA */}

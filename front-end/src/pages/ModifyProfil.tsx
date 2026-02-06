@@ -27,7 +27,7 @@ const ModifyProfil = ({ navigation}: any) => {
 				location_lng: response.location_lng ?? '',
 				location_address: response.location_address ?? '',
                 preferred_language: response.language ?? '',
-                //date_of_birth: response.date_of_birth ?? '2000-01-01',
+                date_of_birth: response.date_of_birth ?? '2000-01-01',
                 updated_at: response.updated_at ?? '',
 			})
 			setError('')
@@ -95,6 +95,16 @@ const ModifyProfil = ({ navigation}: any) => {
 								/>
 							</View>
 						</View>
+						<View style={{ flex: 1 }}>
+								<Text style={[styles.label, { color: colors.textSecondary }]}>Birth date</Text>
+								<TextInput
+									style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+									placeholderTextColor={colors.inputPlaceholder}
+									placeholder='YYYY-MM-DD'
+									value={(form.date_of_birth ?? '') as string}
+									onChangeText={(text) => setForm(prev => ({ ...prev, date_of_birth: text }))}
+								/>
+							</View>
 
 						<Text style={[styles.label, { color: colors.textSecondary }]}>Bio</Text>
 						<TextInput 
