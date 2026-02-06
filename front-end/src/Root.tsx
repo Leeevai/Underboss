@@ -1,31 +1,45 @@
 import React, { useState, useEffect } from 'react'
-import { View, StyleSheet, Text, Button } from 'react-native'
+import { View, StyleSheet, Text, Button, ActivityIndicator } from 'react-native'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import Login from './login/Login'
 import MainView from './main/MainView'
 import Header from './header/Header'
 import AppSettings from './AppSettings'
 import { serv, ApiError } from './serve'
+import { ThemeProvider, useTheme, BRAND } from './common/theme'
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#E3F2FD',
     width: '100%',
     height: '100%',
   }
 })
 
 // --- Placeholder for ProfileSetup ---
-const ProfileSetup = ({ onComplete }: { onComplete: () => void }) => (
-  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-    <Text style={{ fontSize: 18, marginBottom: 20 }}>Profile Setup Required</Text>
-    <Text style={{ textAlign: 'center', marginBottom: 20, color: '#666' }}>
-      (This is a placeholder. Build your profile form here.)
-    </Text>
-    <Button title="Complete Profile" onPress={onComplete} />
-  </View>
-)
+const ProfileSetup = ({ onComplete }: { onComplete: () => void }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: colors.background }}>
+      <Text style={{ fontSize: 18, marginBottom: 20, color: colors.text }}>Profile Setup Required</Text>
+      <Text style={{ textAlign: 'center', marginBottom: 20, color: colors.textSecondary }}>
+        (This is a placeholder. Build your profile form here.)
+      </Text>
+      <Button title="Complete Profile" onPress={onComplete} color={BRAND.primary} />
+    </View>
+  );
+}
 
-export default function Root() {
+// Loading screen component
+const LoadingScreen = () => {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+      <ActivityIndicator size="large" color={BRAND.primary} />
+    </View>
+  );
+}
+
+function RootContent() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
   const [isProfileComplete, setIsProfileComplete] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -101,7 +115,7 @@ export default function Root() {
   // Determine which view to show
   const renderContent = () => {
     if (isLoading) {
-      return <View style={{flex: 1, backgroundColor: '#fff'}} /> // Simple loading state
+      return <LoadingScreen />
     }
 
     if (!isAuthenticated) {
@@ -115,15 +129,28 @@ export default function Root() {
     return <MainView logoutUser={onLogout} />
   }
 
+  const { colors } = useTheme();
+
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Header 
         username={AppSettings.username} 
         isAuthenticated={isAuthenticated}
       />
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         {renderContent()}
       </View>
     </View>
+  )
+}
+
+// Root component wrapped with providers
+export default function Root() {
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <RootContent />
+      </ThemeProvider>
+    </SafeAreaProvider>
   )
 }
