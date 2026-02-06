@@ -61,7 +61,7 @@ WHERE user_id = '00000000-0000-0000-0000-000000000102';
 
 UPDATE USER_PROFILE SET
   first_name = 'Hassan',
-  last_name = 'Benali',
+  last_name = 'Mohsen',
   display_name = 'Hassan Dev',
   bio = 'Full-stack developer passionate about creating awesome web and mobile applications. Specialized in React, Node.js, and Python.',
   location_address = 'Paris, France',
@@ -72,7 +72,7 @@ WHERE user_id = '00000000-0000-0000-0000-000000000201';
 
 UPDATE USER_PROFILE SET
   first_name = 'Clement',
-  last_name = 'Dubois',
+  last_name = 'Goujon,
   display_name = 'Clement D',
   bio = 'UI/UX designer with 5 years of experience. Expert in creating beautiful, user-friendly interfaces that people love to use.',
   location_address = 'Lyon, France',
@@ -83,7 +83,7 @@ WHERE user_id = '00000000-0000-0000-0000-000000000202';
 
 UPDATE USER_PROFILE SET
   first_name = 'Osman',
-  last_name = 'Yilmaz',
+  last_name = 'Ritano',
   display_name = 'Osman E',
   bio = 'Data engineer specializing in big data solutions, ETL pipelines, and machine learning infrastructure. Love working with Python and Spark.',
   location_address = 'Marseille, France',
@@ -94,7 +94,7 @@ WHERE user_id = '00000000-0000-0000-0000-000000000203';
 
 UPDATE USER_PROFILE SET
   first_name = 'Enrique',
-  last_name = 'Garcia',
+  last_name = 'Caro',
   display_name = 'Enrique M',
   bio = 'Digital marketing expert with focus on SEO, content strategy, and social media marketing. Results-driven approach to growing online presence.',
   location_address = 'Nice, France',
