@@ -1,89 +1,95 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
 
 export default function UnderbossBar() {
     const navigation = useNavigation<any>();
+    const { colors, isDark } = useTheme();
+    const insets = useSafeAreaInsets();
 
     return (
-        <View style={styles.header}>
-            <TouchableOpacity
-                style={styles.logoContainer}
-                activeOpacity={0.7}
-                onPress={() => navigation.navigate('Main')}
-            >
-                <Text style={styles.logoText}>underboss</Text>
-            </TouchableOpacity>
-
-            <View style={styles.iconGroup}>
+        <View style={[
+            styles.container,
+            { 
+                backgroundColor: colors.headerBg,
+                paddingTop: insets.top > 0 ? insets.top : Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 10,
+                borderBottomColor: colors.headerBorder,
+            },
+            createShadow(3, isDark),
+        ]}>
+            <View style={styles.inner}>
                 <TouchableOpacity
-                    style={styles.iconButton}
-                    activeOpacity={0.6}
-                    onPress={() => navigation.navigate('Notification')}
+                    style={styles.logoContainer}
+                    activeOpacity={0.7}
+                    onPress={() => navigation.navigate('Main')}
                 >
-                    <Text style={styles.iconEmoji}>🔔</Text>
+                    <Text style={[styles.logoText, { color: colors.headerText }]}>
+                        under<Text style={{ color: BRAND.primary }}>boss</Text>
+                    </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={styles.iconButton}
-                    activeOpacity={0.6}
-                    onPress={() => navigation.navigate('Settings')}
-                >
-                    <Text style={styles.iconEmoji}>⚙️</Text>
-                </TouchableOpacity>
+                <View style={styles.iconGroup}>
+                    <TouchableOpacity
+                        style={[styles.iconButton, { backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundTertiary }]}
+                        activeOpacity={0.6}
+                        onPress={() => navigation.navigate('Notification')}
+                    >
+                        <Text style={styles.iconEmoji}>🔔</Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={styles.iconButton}
-                    activeOpacity={0.6}
-                    onPress={() => navigation.navigate('ProfilePage')}
-                >
-                    <Text style={styles.iconEmoji}>👤</Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.iconButton, { backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundTertiary }]}
+                        activeOpacity={0.6}
+                        onPress={() => navigation.navigate('Settings')}
+                    >
+                        <Text style={styles.iconEmoji}>⚙️</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.iconButton, { backgroundColor: BRAND.primary }]}
+                        activeOpacity={0.6}
+                        onPress={() => navigation.navigate('ProfilePage')}
+                    >
+                        <Text style={styles.iconEmoji}>👤</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    header: {
-        flexDirection: 'row',
-        height: 70,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingTop: 10,
+    container: {
         borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
-        // iOS Shadow
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-        // Android Shadow
-        elevation: 3,
+    },
+    inner: {
+        flexDirection: 'row',
+        height: 56,
+        alignItems: 'center',
+        paddingHorizontal: SPACING.lg,
     },
     logoContainer: {
         flex: 1,
     },
     logoText: {
-        fontSize: 26,
-        fontWeight: '900',
-        color: '#1A202C',
+        fontSize: FONT_SIZE.xxl,
+        fontWeight: FONT_WEIGHT.black,
         letterSpacing: -0.5,
     },
     iconGroup: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: SPACING.sm,
     },
     iconButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: '#F7FAFC',
+        width: 42,
+        height: 42,
+        borderRadius: RADIUS.full,
         justifyContent: 'center',
         alignItems: 'center',
     },
     iconEmoji: {
-        fontSize: 22,
+        fontSize: 20,
     }
 });
