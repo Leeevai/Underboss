@@ -1,9 +1,18 @@
 import React, { useState } from 'react'
-import { View, StyleSheet, TouchableOpacity, Text, Button } from 'react-native'
+import { View, StyleSheet, TouchableOpacity, Text, Button, Image } from 'react-native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+
+// Custom icons
+const icons = {
+  home: require('../res/icons/homepage.png'),
+  spaps: require('../res/icons/spaps.png'),
+  post: require('../res/icons/post.png'),
+  chats: require('../res/icons/chats.png'),
+  calendar: require('../res/icons/calendar.png'),
+};
 
 import PapsFeed from '../feed/PapsFeed';
 import NotificationPage from '../pages/NotificationPage';
@@ -86,17 +95,32 @@ function MainTabs() {
       <Tab.Screen
         name="Home"
         component={PapsFeed}
-        options={{ title: 'Home' }}
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Image source={icons.home} style={{ width: size, height: size, tintColor: color, opacity: focused ? 1 : 0.6 }} />
+          ),
+        }}
       />
       <Tab.Screen
         name="Spap"
         component={SpapFeed}
-        options={{ title: 'SpapFeed' }}
+        options={{
+          title: 'SpapFeed',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Image source={icons.spaps} style={{ width: size, height: size, tintColor: color, opacity: focused ? 1 : 0.6 }} />
+          ),
+        }}
       />
       <Tab.Screen
         name="Post"
         component={Post}
-        options={{ title: 'Post' }}
+        options={{
+          title: 'Post',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Image source={icons.post} style={{ width: size, height: size, tintColor: color, opacity: focused ? 1 : 0.6 }} />
+          ),
+        }}
       />
       <Tab.Screen
         name="Chats"
@@ -104,29 +128,20 @@ function MainTabs() {
         options={{
           title: 'Chats',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
-              size={size}
-              color={color}
-            />
+            <Image source={icons.chats} style={{ width: size, height: size, tintColor: color, opacity: focused ? 1 : 0.6 }} />
           ),
         }}
       />
       <Tab.Screen
-  name="Calendar"
-  component={CalendarScreen}
-  options={{
-    title: 'Calendar',
-    tabBarIcon: ({ color, size, focused }) => (
-      <Ionicons
-        name={focused ? 'calendar' : 'calendar-outline'}
-        size={size}
-        color={color}
+        name="Calendar"
+        component={CalendarScreen}
+        options={{
+          title: 'Calendar',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Image source={icons.calendar} style={{ width: size, height: size, tintColor: color, opacity: focused ? 1 : 0.6 }} />
+          ),
+        }}
       />
-    ),
-  }}
-/>
-
     </Tab.Navigator>
   );
 }

@@ -234,7 +234,11 @@ export const useChatMessages = (threadId: string) => {
         ...options,
       });
       
-      const fetchedMessages = response.messages || [];
+      // Normalize message_id to id (backend returns message_id, frontend expects id)
+      const fetchedMessages = (response.messages || []).map((msg: any) => ({
+        ...msg,
+        id: msg.id || msg.message_id,
+      }));
       
       // If fetching older messages (before), prepend; otherwise replace
       if (options?.before) {
