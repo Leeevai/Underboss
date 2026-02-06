@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
+import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { serv, getMediaUrl } from '../serve';
+import { serv, getMediaUrl, ApiError } from '../serve';
 import type { Spap } from '../serve/spap';
 
 // Get screen width for responsive design
 const { width } = Dimensions.get('window')
 
 interface SpapPosterProps {
-  spap: Spap
+  spap: Spap;
+  onWithdraw?: (spapId: string) => void;
 }
 
-export default function SpapPoster({ spap }: SpapPosterProps) {
+export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [papsDetail, setPapsDetail] = useState<any>(null);
   const [loadingPaps, setLoadingPaps] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
   
   // Fetch PAPS details when modal opens
   useEffect(() => {
@@ -48,176 +50,212 @@ export default function SpapPoster({ spap }: SpapPosterProps) {
   // Status color helper
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return { bg: '#FED7D7', text: '#C53030' };
+      case 'pending': return { bg: '#FEF3C7', text: '#D97706' };
       case 'accepted': return { bg: '#C6F6D5', text: '#38A169' };
-      case 'rejected': return { bg: '#FEB2B2', text: '#E53E3E' };
+      case 'rejected': return { bg: '#FED7D7', text: '#E53E3E' };
       case 'withdrawn': return { bg: '#E2E8F0', text: '#718096' };
       default: return { bg: '#EDF2F7', text: '#4A5568' };
     }
   };
 
+  // Handle withdraw application
+  const handleWithdraw = async () => {
+    Alert.alert(
+      'Withdraw Application',
+      'Are you sure you want to withdraw this application? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Withdraw',
+          style: 'destructive',
+          onPress: async () => {
+            setWithdrawing(true);
+            try {
+              await serv('spap.withdraw', { spap_id: spap.id });
+              setModalVisible(false);
+              onWithdraw?.(spap.id);
+            } catch (err) {
+              const message = err instanceof ApiError ? err.getUserMessage() : 'Failed to withdraw application';
+              Alert.alert('Error', message);
+            } finally {
+              setWithdrawing(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const canWithdraw = spap.status === 'pending';
+
   const statusColors = getStatusColor(spap.status);
   
   return (
-    <View id="global view for application" style={{ flexDirection: 'column' }}>
-      <View style={{ flex: 1, backgroundColor: '#792c2c13' }}>
-        <View style={styles.container}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.statusTag, { backgroundColor: statusColors.bg }]}>
-              <Text style={[styles.statusText, { color: statusColors.text }]}>{spap.status.toUpperCase()}</Text>
-            </View>
-          </View>
-
-          <View style={styles.cardBody}>
-            <Text style={styles.cardTitle}>{spap.paps_title}</Text>
-            <Text style={styles.cardDescription} numberOfLines={2}>
-              {spap.message || 'No message provided'}
-            </Text>
-
-            <View style={styles.cardMeta}>
-              <View style={styles.metaRow}>
-                <Text style={styles.metaIcon}>📅</Text>
-                <Text style={styles.metaText}>Applied {formatDate(spap.created_at)}</Text>
-              </View>
-              <View style={styles.metaRow}>
-                <Text style={styles.metaIcon}>📋</Text>
-                <Text style={styles.metaText}>ID: {spap.id.substring(0, 8)}...</Text>
-              </View>
-              <View style={styles.metaRow}>
-                <Text style={styles.metaIcon}>💼</Text>
-                <Text style={styles.metaText}>Job: {spap.paps_id.substring(0, 8)}...</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.cardFooter}>
-            <Text style={styles.footerText}>Status: {spap.status}</Text>
-            <TouchableOpacity
-              style={styles.detailsButton}
-              onPress={() => setModalVisible(true)}
-            >
-              <Text style={styles.detailsButtonText}>View Details</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Modal for more info */}
-          <Modal
-            animationType="slide"
-            transparent={true}
-            visible={modalVisible}
-            onRequestClose={() => setModalVisible(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <SafeAreaView edges={['bottom', 'left', 'right']}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalHeaderTitle}>Application Details</Text>
-                    <TouchableOpacity
-                      onPress={() => setModalVisible(false)}
-                      style={styles.modalCloseButton}
-                    >
-                      <Text style={styles.modalCloseText}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <ScrollView contentContainerStyle={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
-                    <View style={styles.modalTitleRow}>
-                      <Text style={styles.modalJobTitle}>{spap.paps_title}</Text>
-                      <View style={[styles.statusTagLarge, { backgroundColor: statusColors.bg }]}>
-                        <Text style={[styles.statusTextLarge, { color: statusColors.text }]}>{spap.status}</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.infoBoxesRow}>
-                      <View style={styles.infoBox}>
-                        <Text style={styles.infoBoxIcon}>📅</Text>
-                        <View>
-                          <Text style={styles.infoBoxLabel}>Applied On</Text>
-                          <Text style={styles.infoBoxValue}>{formatDate(spap.created_at)}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.infoBox}>
-                        <Text style={styles.infoBoxIcon}>🔄</Text>
-                        <View>
-                          <Text style={styles.infoBoxLabel}>Updated</Text>
-                          <Text style={styles.infoBoxValue}>{formatDate(spap.updated_at)}</Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    <View style={styles.modalSection}>
-                      <Text style={styles.sectionTitle}>Application Message</Text>
-                      <Text style={styles.sectionText}>
-                        {spap.message || 'No message was included with this application.'}
-                      </Text>
-                    </View>
-
-                    {loadingPaps ? (
-                      <View style={styles.modalSection}>
-                        <Text style={styles.sectionTitle}>Job Details</Text>
-                        <Text style={styles.sectionText}>Loading job details...</Text>
-                      </View>
-                    ) : papsDetail ? (
-                      <View style={styles.modalSection}>
-                        <Text style={styles.sectionTitle}>Job Details</Text>
-                        <View style={styles.jobDetailCard}>
-                          <Text style={styles.jobDetailTitle}>{papsDetail.title}</Text>
-                          <Text style={styles.jobDetailDescription} numberOfLines={3}>
-                            {papsDetail.description}
-                          </Text>
-                          {papsDetail.payment_amount && (
-                            <View style={styles.jobDetailRow}>
-                              <Text style={styles.jobDetailLabel}>💰 Payment:</Text>
-                              <Text style={styles.jobDetailValue}>
-                                {papsDetail.payment_amount} {papsDetail.payment_currency}
-                              </Text>
-                            </View>
-                          )}
-                          {papsDetail.location_address && (
-                            <View style={styles.jobDetailRow}>
-                              <Text style={styles.jobDetailLabel}>📍 Location:</Text>
-                              <Text style={styles.jobDetailValue}>{papsDetail.location_address}</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    ) : null}
-
-                    <View style={styles.modalSection}>
-                      <Text style={styles.sectionTitle}>Additional Information</Text>
-                      <View style={styles.infoList}>
-                        <View style={styles.infoListItem}>
-                          <Text style={styles.infoListLabel}>Application ID</Text>
-                          <Text style={styles.infoListValue}>{spap.id}</Text>
-                        </View>
-                        <View style={styles.infoListItem}>
-                          <Text style={styles.infoListLabel}>Job ID</Text>
-                          <Text style={styles.infoListValue}>{spap.paps_id}</Text>
-                        </View>
-                      </View>
-                    </View>
-                  </ScrollView>
-
-                  <View style={styles.modalFooter}>
-                    <TouchableOpacity
-                      style={styles.closeActionBtn}
-                      onPress={() => setModalVisible(false)}
-                    >
-                      <Text style={styles.closeActionBtnText}>Close</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtn}>
-                      <Text style={styles.actionBtnText}>View Job</Text>
-                    </TouchableOpacity>
-                  </View>
-                </SafeAreaView>
-              </View>
-            </View>
-          </Modal>
+    <View style={styles.container}>
+      <View style={styles.cardHeader}>
+        <View style={[styles.statusTag, { backgroundColor: statusColors.bg }]}>
+          <Text style={[styles.statusText, { color: statusColors.text }]}>{spap.status.toUpperCase()}</Text>
         </View>
+        <Text style={styles.dateText}>{formatDate(spap.created_at)}</Text>
       </View>
-      <View style={{ flex: 2 }}></View>
+
+      <View style={styles.cardBody}>
+        <Text style={styles.cardTitle} numberOfLines={1}>{spap.paps_title}</Text>
+        <Text style={styles.cardDescription} numberOfLines={2}>
+          {spap.message || 'No message provided'}
+        </Text>
+      </View>
+
+      <View style={styles.cardFooter}>
+        {canWithdraw && (
+          <TouchableOpacity
+            style={styles.quickWithdrawBtn}
+            onPress={handleWithdraw}
+            disabled={withdrawing}
+          >
+            {withdrawing ? (
+              <ActivityIndicator size="small" color="#E53E3E" />
+            ) : (
+              <Text style={styles.quickWithdrawText}>Withdraw</Text>
+            )}
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[styles.detailsButton, canWithdraw && { flex: 1 }]}
+          onPress={() => setModalVisible(true)}
+        >
+          <Text style={styles.detailsButtonText}>View Details</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Modal for more info */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <SafeAreaView edges={['bottom', 'left', 'right']}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalHeaderTitle}>Application Details</Text>
+                <TouchableOpacity
+                  onPress={() => setModalVisible(false)}
+                  style={styles.modalCloseButton}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView contentContainerStyle={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
+                <View style={styles.modalTitleRow}>
+                  <Text style={styles.modalJobTitle}>{spap.paps_title}</Text>
+                  <View style={[styles.statusTagLarge, { backgroundColor: statusColors.bg }]}>
+                    <Text style={[styles.statusTextLarge, { color: statusColors.text }]}>{spap.status}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.infoBoxesRow}>
+                  <View style={styles.infoBox}>
+                    <Text style={styles.infoBoxIcon}>📅</Text>
+                    <View>
+                      <Text style={styles.infoBoxLabel}>Applied On</Text>
+                      <Text style={styles.infoBoxValue}>{formatDate(spap.created_at)}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.infoBox}>
+                    <Text style={styles.infoBoxIcon}>🔄</Text>
+                    <View>
+                      <Text style={styles.infoBoxLabel}>Updated</Text>
+                      <Text style={styles.infoBoxValue}>{formatDate(spap.updated_at)}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.modalSection}>
+                  <Text style={styles.sectionTitle}>Application Message</Text>
+                  <Text style={styles.sectionText}>
+                    {spap.message || 'No message was included with this application.'}
+                  </Text>
+                </View>
+
+                {loadingPaps ? (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.sectionTitle}>Job Details</Text>
+                    <Text style={styles.sectionText}>Loading job details...</Text>
+                  </View>
+                ) : papsDetail ? (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.sectionTitle}>Job Details</Text>
+                    <View style={styles.jobDetailCard}>
+                      <Text style={styles.jobDetailTitle}>{papsDetail.title}</Text>
+                      <Text style={styles.jobDetailDescription} numberOfLines={3}>
+                        {papsDetail.description}
+                      </Text>
+                      {papsDetail.payment_amount && (
+                        <View style={styles.jobDetailRow}>
+                          <Text style={styles.jobDetailLabel}>💰 Payment:</Text>
+                          <Text style={styles.jobDetailValue}>
+                            {papsDetail.payment_amount} {papsDetail.payment_currency}
+                          </Text>
+                        </View>
+                      )}
+                      {papsDetail.location_address && (
+                        <View style={styles.jobDetailRow}>
+                          <Text style={styles.jobDetailLabel}>📍 Location:</Text>
+                          <Text style={styles.jobDetailValue}>{papsDetail.location_address}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                ) : null}
+
+                <View style={styles.modalSection}>
+                  <Text style={styles.sectionTitle}>Additional Information</Text>
+                  <View style={styles.infoList}>
+                    <View style={styles.infoListItem}>
+                      <Text style={styles.infoListLabel}>Application ID</Text>
+                      <Text style={styles.infoListValue}>{spap.id}</Text>
+                    </View>
+                    <View style={styles.infoListItem}>
+                      <Text style={styles.infoListLabel}>Job ID</Text>
+                      <Text style={styles.infoListValue}>{spap.paps_id}</Text>
+                    </View>
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                {canWithdraw && (
+                  <TouchableOpacity
+                    style={[styles.withdrawBtn, withdrawing && styles.btnDisabled]}
+                    onPress={handleWithdraw}
+                    disabled={withdrawing}
+                  >
+                    {withdrawing ? (
+                      <ActivityIndicator size="small" color="#E53E3E" />
+                    ) : (
+                      <Text style={styles.withdrawBtnText}>Withdraw</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={[styles.closeActionBtn, !canWithdraw && { flex: 1 }]}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.closeActionBtnText}>Close</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionBtn}>
+                  <Text style={styles.actionBtnText}>View Job</Text>
+                </TouchableOpacity>
+              </View>
+            </SafeAreaView>
+          </View>
+        </View>
+      </Modal>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -225,81 +263,76 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
-    marginHorizontal: 8,
     marginVertical: 8,
-    width: 280,
-    height: 300,
     borderWidth: 1,
-    borderColor: '#F0F4F8',
+    borderColor: '#E2E8F0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardHeader: {
-    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   statusTag: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
-    alignSelf: 'flex-start',
   },
   statusText: {
     fontSize: 10,
     fontWeight: '700',
   },
-  cardBody: {
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1A202C',
-    marginBottom: 8,
-  },
-  cardDescription: {
+  dateText: {
     fontSize: 12,
     color: '#718096',
-    lineHeight: 18,
+    fontWeight: '500',
+  },
+  cardBody: {
     marginBottom: 12,
   },
-  cardMeta: {
-    gap: 6,
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1A202C',
+    marginBottom: 6,
   },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  metaIcon: {
-    fontSize: 14,
-  },
-  metaText: {
-    fontSize: 12,
-    color: '#4A5568',
-    fontWeight: '500',
+  cardDescription: {
+    fontSize: 13,
+    color: '#718096',
+    lineHeight: 19,
   },
   cardFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 'auto',
+    gap: 10,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F7FAFC',
+    borderTopColor: '#F0F4F8',
   },
-  footerText: {
-    fontSize: 12,
-    color: '#718096',
-    fontWeight: '500',
+  quickWithdrawBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FED7D7',
+    backgroundColor: '#FFF5F5',
+    alignItems: 'center',
+  },
+  quickWithdrawText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#E53E3E',
   },
   detailsButton: {
     backgroundColor: '#5A67D8',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 8,
+    alignItems: 'center',
   },
   detailsButtonText: {
     color: '#fff',
@@ -507,6 +540,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#4A5568',
+  },
+  withdrawBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FED7D7',
+    backgroundColor: '#FFF5F5',
+    alignItems: 'center',
+  },
+  withdrawBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#E53E3E',
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
   actionBtn: {
     flex: 1.5,
