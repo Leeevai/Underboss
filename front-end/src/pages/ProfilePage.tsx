@@ -1,13 +1,15 @@
-import React, { useState,useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import UnderbossBar from '../header/underbossbar';
 import ModifyProfil from './ModifyProfil.tsx';
 import { serv, ApiError, UserProfile, getMediaUrl } from '../serve';
 import { useNavigation } from '@react-navigation/native';
+import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
 
 
 export default function ProfilePage({ navigation }: any) {
-    // État initial de l'utilisateur
+    const { colors, isDark } = useTheme();
+    
     const [user, setUser] = useState<UserProfile>()
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
@@ -16,14 +18,11 @@ export default function ProfilePage({ navigation }: any) {
     const fetchProfile = async () => {
         try {
           const response = await serv('profile.get')
-          console.log(response)
-          // serv returns { paps: [], total_count: number }
           setUser(response)
-          console.log(user)
           setError('')
         } catch (err) {
-          console.error('Failed to fetch paps', err)
-          const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load feed.'
+          console.error('Failed to fetch profile', err)
+          const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to load profile.'
           setError(msg)
         } finally {
           setLoading(false)
@@ -35,81 +34,116 @@ export default function ProfilePage({ navigation }: any) {
         fetchProfile()
     }, [])
 
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchProfile();
+    };
+
+    const InfoRow = ({ label, value }: { label: string; value?: string | null }) => (
+        <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
+            <Text style={[styles.value, { color: colors.text }]} numberOfLines={1}>
+                {value || '—'}
+            </Text>
+        </View>
+    );
+
+    if (loading) {
+        return (
+            <View style={[styles.screen, { backgroundColor: colors.background }]}>
+                <UnderbossBar />
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={BRAND.primary} />
+                </View>
+            </View>
+        );
+    }
+
     return (
-        <View style={styles.screen}>
+        <View style={[styles.screen, { backgroundColor: colors.background }]}>
             <UnderbossBar />
             
-            <ScrollView contentContainerStyle={styles.container}>
-                
-                <View style={styles.header}>
-                    {user?.avatar_url ? (
-                        <Image 
-                            source={{ uri: getMediaUrl(user.avatar_url) ?? undefined }} 
-                            style={styles.avatar} 
-                        />
-                    ) : (
-                        <View style={styles.avatarPlaceholder} />
+            <ScrollView 
+                contentContainerStyle={styles.container}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={BRAND.primary}
+                        colors={[BRAND.primary]}
+                    />
+                }
+            >
+                {/* PROFILE HEADER */}
+                <View style={[styles.header, { backgroundColor: colors.card }, createShadow(3, isDark)]}>
+                    <View style={styles.avatarContainer}>
+                        {user?.avatar_url ? (
+                            <Image 
+                                source={{ uri: getMediaUrl(user.avatar_url) ?? undefined }} 
+                                style={styles.avatar} 
+                            />
+                        ) : (
+                            <View style={[styles.avatarPlaceholder, { backgroundColor: colors.backgroundTertiary }]}>
+                                <Text style={styles.avatarPlaceholderText}>👤</Text>
+                            </View>
+                        )}
+                        <View style={styles.onlineIndicator} />
+                    </View>
+                    
+                    <Text style={[styles.username, { color: colors.text }]}>
+                        @{user?.username}
+                    </Text>
+                    
+                    {user?.first_name && (
+                        <Text style={[styles.fullName, { color: colors.textSecondary }]}>
+                            {user.first_name} {user.last_name}
+                        </Text>
                     )}
-                    <Text style={styles.pseudo}>@{user?.username}</Text>
+                    
                     <View style={styles.ratingBadge}>
-                        <Text style={styles.ratingText}>⭐</Text>
+                        <Text style={styles.ratingText}>⭐ Rating</Text>
                     </View>
                 </View>
 
-                
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Personal Informations</Text>
+                {/* PERSONAL INFO SECTION */}
+                <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+                    <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Personal Information</Text>
                     
-                    <View style={styles.infoRow}>
-                        <Text style={styles.label}>Name</Text>
-                        <Text style={styles.value}>{user?.first_name}</Text>
-                    </View>
-
-                     <View style={styles.infoRow}>
-                        <Text style={styles.label}>Last Name</Text>
-                        <Text style={styles.value}>{user?.last_name}</Text>
-                    </View>
-
-    
-
-                    <View style={styles.infoRow}>
-                        <Text style={styles.label}>Date of birth</Text>
-                        <Text style={styles.value}>{user?.date_of_birth}</Text>
-                    </View>
-
+                    <InfoRow label="First Name" value={user?.first_name} />
+                    <InfoRow label="Last Name" value={user?.last_name} />
+                    <InfoRow label="Date of Birth" value={user?.date_of_birth} />
+                    <InfoRow label="Gender" value={user?.gender === 'M' ? 'Male' : user?.gender === 'F' ? 'Female' : user?.gender} />
                 </View>
 
-                
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Details</Text>
+                {/* CONTACT & LOCATION SECTION */}
+                <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+                    <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Contact & Location</Text>
                     
-                    <View style={styles.infoRow}>
-                        <Text style={styles.label}>Postal adresse</Text>
-                        <Text style={styles.value}>{user?.location_address}</Text>
-                    </View>
-
-                    <View style={styles.infoRow}>
-                        <Text style={styles.label}>Main language</Text>
-                        <Text style={styles.value}>{user?.preferred_language}</Text>
-                    </View>
+                    <InfoRow label="Location" value={user?.location_address} />
+                    <InfoRow label="Language" value={user?.preferred_language} />
                 </View>
 
-                {/* Section : Bio */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Bio</Text>
-                    <Text style={styles.bioText}>{user?.bio}</Text>
-                </View>
+                {/* BIO SECTION */}
+                {user?.bio && (
+                    <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+                        <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>About</Text>
+                        <Text style={[styles.bioText, { color: colors.textSecondary }]}>
+                            {user.bio}
+                        </Text>
+                    </View>
+                )}
 
-                {/* Bouton de modification */}
+                {/* EDIT BUTTON */}
                 <TouchableOpacity 
-                    style={styles.editButton} 
-                    onPress={() => navigation.navigate('ModifyProfil', { 
-                        currentUser: user, 
-                         
-                    })}
+                    style={[styles.editButton, { borderColor: BRAND.primary }]}
+                    onPress={() => navigation.navigate('ModifyProfil', { currentUser: user })}
+                    activeOpacity={0.8}
                 >
-                    <Text style={styles.editButtonText}>Modify Profile</Text>
+                    <Text style={[styles.editButtonText, { color: BRAND.primary }]}>Edit Profile</Text>
                 </TouchableOpacity>
+
+                <View style={styles.bottomSpacer} />
             </ScrollView>
         </View>
     );
@@ -118,99 +152,125 @@ export default function ProfilePage({ navigation }: any) {
 const styles = StyleSheet.create({
     screen: {
         flex: 1,
-        backgroundColor: '#F7FAFC',
     },
     container: {
-        paddingBottom: 30,
+        paddingBottom: 20,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         alignItems: 'center',
-        padding: 30,
-        backgroundColor: '#fff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E2E8F0',
+        paddingVertical: SPACING.xxl,
+        paddingHorizontal: SPACING.lg,
+        marginHorizontal: SPACING.lg,
+        marginTop: SPACING.lg,
+        borderRadius: RADIUS.xl,
+    },
+    avatarContainer: {
+        position: 'relative',
+        marginBottom: SPACING.md,
     },
     avatar: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        marginBottom: 15,
+        width: 110,
+        height: 110,
+        borderRadius: 55,
+        borderWidth: 3,
+        borderColor: BRAND.primary,
     },
     avatarPlaceholder: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: '#CBD5E0',
-        marginBottom: 15,
+        width: 110,
+        height: 110,
+        borderRadius: 55,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 3,
+        borderColor: BRAND.primary,
     },
-    pseudo: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#1A202C',
+    avatarPlaceholderText: {
+        fontSize: 48,
+    },
+    onlineIndicator: {
+        position: 'absolute',
+        bottom: 4,
+        right: 4,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: BRAND.accent,
+        borderWidth: 3,
+        borderColor: '#fff',
+    },
+    username: {
+        fontSize: FONT_SIZE.xl,
+        fontWeight: FONT_WEIGHT.bold,
+        marginTop: SPACING.sm,
+    },
+    fullName: {
+        fontSize: FONT_SIZE.md,
+        marginTop: SPACING.xs,
     },
     ratingBadge: {
-        marginTop: 8,
+        marginTop: SPACING.md,
         backgroundColor: '#FEF3C7',
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 20,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.sm,
+        borderRadius: RADIUS.full,
     },
     ratingText: {
         color: '#92400E',
-        fontWeight: '600',
+        fontWeight: FONT_WEIGHT.semibold,
+        fontSize: FONT_SIZE.sm,
     },
     section: {
-        marginTop: 20,
-        backgroundColor: '#fff',
-        paddingHorizontal: 20,
-        paddingVertical: 15,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: '#E2E8F0',
+        marginHorizontal: SPACING.lg,
+        marginTop: SPACING.lg,
+        borderRadius: RADIUS.lg,
+        padding: SPACING.lg,
     },
     sectionTitle: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#A0AEC0',
+        fontSize: FONT_SIZE.xs,
+        fontWeight: FONT_WEIGHT.bold,
         textTransform: 'uppercase',
-        marginBottom: 10,
-        letterSpacing: 1.1,
+        marginBottom: SPACING.md,
+        letterSpacing: 1.2,
     },
     infoRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        paddingVertical: 12,
+        alignItems: 'center',
+        paddingVertical: SPACING.md,
         borderBottomWidth: 0.5,
-        borderBottomColor: '#EDF2F7',
     },
     label: {
-        fontSize: 16,
-        color: '#718096',
+        fontSize: FONT_SIZE.md,
     },
     value: {
-        fontSize: 16,
-        fontWeight: '500',
-        color: '#2D3748',
-        maxWidth: '60%', // Pour éviter que l'adresse longue ne casse le layout
+        fontSize: FONT_SIZE.md,
+        fontWeight: FONT_WEIGHT.medium,
+        maxWidth: '55%',
         textAlign: 'right',
     },
     bioText: {
-        fontSize: 15,
-        lineHeight: 22,
-        color: '#4A5568',
+        fontSize: FONT_SIZE.md,
+        lineHeight: 24,
     },
     editButton: {
-        margin: 20,
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#1A202C',
-        padding: 15,
-        borderRadius: 12,
+        marginHorizontal: SPACING.lg,
+        marginTop: SPACING.xxl,
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        paddingVertical: SPACING.lg,
+        borderRadius: RADIUS.lg,
         alignItems: 'center',
     },
     editButtonText: {
-        color: '#1A202C',
-        fontWeight: '700',
-        fontSize: 16,
+        fontSize: FONT_SIZE.lg,
+        fontWeight: FONT_WEIGHT.bold,
+    },
+    bottomSpacer: {
+        height: SPACING.xxl,
     },
 });
