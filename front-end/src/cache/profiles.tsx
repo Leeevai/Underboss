@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { atom, useAtom } from "jotai";
+import { useCallback, useEffect, useState, useRef } from "react";
+import { atom, useAtom, useAtomValue } from "jotai";
 import { UserProfile } from "../serve/profile/types";
 import { serv, getMediaUrl } from "../serve";
 
@@ -12,6 +12,9 @@ const profileMapAtom = atom<Map<string, UserProfile>>(new Map<string, UserProfil
 
 /** Set of usernames currently being fetched (to avoid duplicate requests) */
 const fetchingUsernamesAtom = atom<Set<string>>(new Set<string>());
+
+// Module-level in-flight request tracker to prevent duplicate calls across hook instances
+const inFlightRequests = new Map<string, Promise<UserProfile | null | void>>();
 
 // =============================================================================
 // DERIVED ATOMS
@@ -39,51 +42,59 @@ export const avatarByUsernameAtom = atom(
  */
 export const useProfileCache = () => {
   const [profileMap, setProfileMap] = useAtom(profileMapAtom);
-  const [fetchingUsernames, setFetchingUsernames] = useAtom(fetchingUsernamesAtom);
+  const [, setFetchingUsernames] = useAtom(fetchingUsernamesAtom);
 
   /**
-   * Fetch a profile by username if not already cached
+   * Fetch a profile by username if not already cached or in-flight
    */
   const fetchProfile = useCallback(async (username: string): Promise<UserProfile | null> => {
-    // Already cached
+    // Check cache first (using functional access to avoid stale closure)
     const cached = profileMap.get(username);
     if (cached) return cached;
 
-    // Already fetching
-    if (fetchingUsernames.has(username)) return null;
-
-    // Mark as fetching
-    setFetchingUsernames((prev: Set<string>) => new Set(prev).add(username));
-
-    try {
-      const profile = await serv('profile.getByUsername', { username });
-      
-      // Update cache
-      setProfileMap(prev => {
-        const newMap = new Map(prev);
-        newMap.set(username, profile);
-        return newMap;
-      });
-
-      return profile;
-    } catch (err) {
-      console.warn(`Failed to fetch profile for ${username}:`, err);
-      return null;
-    } finally {
-      // Remove from fetching set
-      setFetchingUsernames((prev: Set<string>) => {
-        const newSet = new Set(prev);
-        newSet.delete(username);
-        return newSet;
-      });
+    // Check if already in-flight (module-level deduplication)
+    const existingRequest = inFlightRequests.get(username);
+    if (existingRequest) {
+      // Wait for existing request and then return from cache
+      await existingRequest;
+      return profileMap.get(username) || null;
     }
-  }, [profileMap, fetchingUsernames, setProfileMap, setFetchingUsernames]);
+
+    // Create the fetch promise
+    const fetchPromise = (async () => {
+      try {
+        const profile = await serv('profile.getByUsername', { username });
+        
+        // Update cache
+        setProfileMap(prev => {
+          const newMap = new Map(prev);
+          newMap.set(username, profile);
+          return newMap;
+        });
+
+        return profile;
+      } catch (err) {
+        console.warn(`Failed to fetch profile for ${username}:`, err);
+        return null;
+      } finally {
+        // Remove from in-flight map
+        inFlightRequests.delete(username);
+      }
+    })();
+
+    // Store the promise for deduplication
+    inFlightRequests.set(username, fetchPromise);
+
+    return fetchPromise;
+  }, [profileMap, setProfileMap]);
 
   /**
    * Batch fetch multiple profiles at once
    */
   const fetchProfiles = useCallback(async (usernames: string[]): Promise<void> => {
-    const toFetch = usernames.filter(u => !profileMap.has(u) && !fetchingUsernames.has(u));
+    const toFetch = usernames.filter(u => 
+      !profileMap.has(u) && !inFlightRequests.has(u)
+    );
     if (toFetch.length === 0) return;
 
     // Mark all as fetching
@@ -118,7 +129,7 @@ export const useProfileCache = () => {
       toFetch.forEach(u => newSet.delete(u));
       return newSet;
     });
-  }, [profileMap, fetchingUsernames, setProfileMap, setFetchingUsernames]);
+  }, [profileMap, setProfileMap, setFetchingUsernames]);
 
   /**
    * Get a cached profile (does not fetch)
@@ -157,21 +168,47 @@ export const useProfileCache = () => {
  * Auto-fetches if not cached
  */
 export const useProfile = (username: string | undefined) => {
-  const { fetchProfile, getProfile, getAvatarUrl } = useProfileCache();
+  const profileMap = useAtomValue(profileMapAtom);
+  const [, setProfileMap] = useAtom(profileMapAtom);
   const [loading, setLoading] = useState(false);
+  const fetchedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!username) return;
     
-    const cached = getProfile(username);
-    if (cached) return;
+    // Already cached
+    if (profileMap.has(username)) return;
+    
+    // Already fetched or in-flight (use ref to track across renders)
+    if (fetchedRef.current.has(username) || inFlightRequests.has(username)) return;
+    
+    // Mark as fetched to prevent duplicate calls
+    fetchedRef.current.add(username);
 
-    setLoading(true);
-    fetchProfile(username).finally(() => setLoading(false));
-  }, [username, getProfile, fetchProfile]);
+    const fetchPromise = (async () => {
+      setLoading(true);
+      try {
+        const profile = await serv('profile.getByUsername', { username });
+        setProfileMap(prev => {
+          const newMap = new Map(prev);
+          newMap.set(username, profile);
+          return newMap;
+        });
+      } catch (err) {
+        console.warn(`Failed to fetch profile for ${username}:`, err);
+      } finally {
+        setLoading(false);
+        inFlightRequests.delete(username);
+      }
+    })();
 
-  const profile = username ? getProfile(username) : undefined;
-  const avatarUrl = username ? getAvatarUrl(username) : null;
+    inFlightRequests.set(username, fetchPromise);
+  // Only depend on username - we check profileMap.has() inside the effect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username]);
+
+  const profile = username ? profileMap.get(username) : undefined;
+  const avatarUrl = profile?.avatar_url ? getMediaUrl(profile.avatar_url) : null;
 
   return { profile, avatarUrl, loading };
 };
