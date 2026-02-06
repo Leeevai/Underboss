@@ -31,6 +31,7 @@ import {
   useNearbyPaps,
   useRecommendedPaps,
 } from '../cache/paps';
+import { useTheme, BRAND, createShadow } from '../common/theme';
 
 
 // =============================================================================
@@ -196,6 +197,7 @@ function QuickFilters({
 // =============================================================================
 
 export default function PapsFeed() {
+  const { colors, isDark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
@@ -242,18 +244,18 @@ export default function PapsFeed() {
 
   if (isInitialLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <UnderbossBar />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3182CE" />
-          <Text style={styles.loadingMainText}>Loading Jobs...</Text>
+          <ActivityIndicator size="large" color={BRAND.primary} />
+          <Text style={[styles.loadingMainText, { color: colors.textSecondary }]}>Loading Jobs...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Header */}
       <UnderbossBar />
 
@@ -265,20 +267,20 @@ export default function PapsFeed() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#3182CE"
-            colors={['#3182CE']}
+            tintColor={BRAND.primary}
+            colors={[BRAND.primary]}
           />
         }
         showsVerticalScrollIndicator={false}
       >
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <View style={styles.searchInputWrapper}>
+          <View style={[styles.searchInputWrapper, { backgroundColor: colors.card, borderColor: colors.border }, createShadow(2, isDark)]}>
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: colors.text }]}
               placeholder="Search for jobs..."
-              placeholderTextColor="#A0AEC0"
+              placeholderTextColor={colors.inputPlaceholder}
               value={searchQuery}
               onChangeText={setSearchQuery}
               onSubmitEditing={handleSearch}
@@ -289,7 +291,7 @@ export default function PapsFeed() {
                 style={styles.clearBtn}
                 onPress={() => setSearchQuery('')}
               >
-                <Text style={styles.clearBtnText}>✕</Text>
+                <Text style={[styles.clearBtnText, { color: colors.textMuted }]}>✕</Text>
               </TouchableOpacity>
             )}
           </View>
