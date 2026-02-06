@@ -18,6 +18,8 @@ import { getMediaUrl, getCurrentUser } from '../serve';
 import type { ChatThread, ChatMessage } from '../serve/chat';
 import ChatBubble from './ChatBubble';
 import { useTheme, BRAND } from '../common/theme';
+// import Underboss from '../../App';
+// import UnderbossBar from '../header/underbossbar';
 
 interface ChatDetailProps {
   thread: ChatThread;
@@ -69,12 +71,10 @@ export default function ChatDetail({ thread, onBack }: ChatDetailProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]);
 
-  // Scroll to bottom when new messages arrive
+  // Scroll to bottom when messages change
   useEffect(() => {
     if (messages.length > 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
     }
   }, [messages.length]);
 
@@ -157,7 +157,9 @@ export default function ChatDetail({ thread, onBack }: ChatDetailProps) {
     }
   };
 
-  const groupedMessages = groupMessagesByDate(messages);
+  // Reverse messages to get chronological order (oldest first) since backend returns newest first
+  const chronologicalMessages = [...messages].reverse();
+  const groupedMessages = groupMessagesByDate(chronologicalMessages);
   const typeInfo = getThreadTypeInfo();
 
   // Render item (message or date separator)
