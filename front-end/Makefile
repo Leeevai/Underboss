@@ -1,4 +1,6 @@
 # convenient Makefile
+SHELL   = /bin/bash
+.ONESHELL:
 
 # installation
 node_modules:
@@ -34,3 +36,15 @@ clean.npm:
 .PHONY: web
 web: node_modules
 	npm run web
+
+.PHONY: deploy
+deploy: node_modules
+	projet=$$(sed -n -e "s/^export default function \([^ ]*\)().*$$/\1/p" App.tsx| tr '[A-Z]' '[a-z]')
+	url=$$(grep -E "^ *export +const +baseUrl" src/common/const.ts | sed -n -e "s/.*['\"]\([^'\"]*\)['\"].*/\1/p")
+	echo "# projet=$$projet URL=$$url"
+	[ "$$url" = "https://$$projet.mobapp.minesparis.psl.eu/api" ] || {
+	  echo "# ERROR base url ($$url) not set for release"
+	  exit 1
+	}
+	npx react-native build-android --mode=release
+	npm run android -- --mode=release
