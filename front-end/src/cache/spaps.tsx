@@ -16,6 +16,7 @@ const spapsErrorAtom = atom<string | null>(null);
 // =============================================================================
 
 export interface ReceivedApplication extends SpapDetail {
+  paps_id: string;
   paps_owner_id: string;
   // Applicant info from joined user data
   applicant_username?: string;
@@ -195,12 +196,14 @@ export const useReceivedSpaps = () => {
       // Fetch applications for each owned PAPS
       const allApplications: ReceivedApplication[] = [];
       await Promise.all(
-        myPaps.map(async (pap: { id: string; owner_id: string }) => {
+        myPaps.map(async (pap: { id: string; owner_id: string; title?: string }) => {
           try {
             const appsResponse = await serv("spap.listByPaps", { paps_id: pap.id });
             const apps = (appsResponse.applications || []).map((app: SpapDetail) => ({
               ...app,
+              paps_id: pap.id,
               paps_owner_id: pap.owner_id,
+              paps_title: app.paps_title ?? pap.title ?? "Untitled",
             }));
             allApplications.push(...apps);
           } catch {

@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { View, FlatList, ActivityIndicator, Text, StyleSheet, RefreshControl, TextInput, TouchableOpacity, Alert } from 'react-native'
+import { View, FlatList, ActivityIndicator, Text, StyleSheet, RefreshControl, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SpapStatus } from '../serve';
 import { useSpaps, useReceivedSpaps } from '../cache';
 import SpapPoster from './SpapPoster';
 import ReceivedSpapCard from './ReceivedSpapCard';
+import PapsApplicationsModal from './PapsApplicationsModal';
 import UnderbossBar from '../header/underbossbar';
 import { useTheme, BRAND, createShadow } from '../common/theme';
 
@@ -33,6 +34,11 @@ export default function SpapFeed() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedPapsId, setSelectedPapsId] = useState<string | null>(null);
+  const [selectedPapsTitle, setSelectedPapsTitle] = useState('');
 
   // Fetch my applications on mount
   useEffect(() => {
@@ -67,6 +73,20 @@ export default function SpapFeed() {
       (s.message && s.message.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesFilter && matchesSearch;
   });
+
+  // Group received spaps by PAPS
+  const groupedByPaps = mainTab === 'received' ? filteredSpaps.reduce((acc, spap) => {
+    const papsId = (spap as any).paps_id || 'unknown';
+    if (!acc[papsId]) {
+      acc[papsId] = { paps_id: papsId, paps_title: spap.paps_title, applications: [] };
+    }
+    acc[papsId].applications.push(spap);
+    return acc;
+  }, {} as Record<string, { paps_id: string; paps_title: string; applications: typeof filteredSpaps }>) : null;
+
+  const displaySpaps = mainTab === 'received' && groupedByPaps 
+    ? Object.values(groupedByPaps) 
+    : filteredSpaps;
 
   const statusTabs: { key: FilterTab; label: string }[] = [
     { key: 'all', label: 'All' },
@@ -110,6 +130,18 @@ export default function SpapFeed() {
       ]
     );
   }, [rejectSpap]);
+
+  // Open applications modal
+  const openApplicationsModal = useCallback((papsId: string, papsTitle: string) => {
+    setSelectedPapsId(papsId);
+    setSelectedPapsTitle(papsTitle);
+    setModalVisible(true);
+  }, []);
+
+  // Get applications for selected PAPS
+  const selectedPapsApplications = selectedPapsId 
+    ? receivedSpaps.filter(s => (s as any).paps_id === selectedPapsId || s.paps_id === selectedPapsId)
+    : [];
 
   const isLoading = mainTab === 'my-applications' ? loading : receivedLoading;
   const currentError = mainTab === 'my-applications' ? error : receivedError;
@@ -222,10 +254,29 @@ export default function SpapFeed() {
         </View>
       ) : (
         <FlatList
-          data={filteredSpaps}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            mainTab === 'my-applications' ? (
+          data={displaySpaps}
+          keyExtractor={(item) => mainTab === 'received' ? (item as any).paps_id : item.id}
+          renderItem={({ item }) => {
+            if (mainTab === 'received' && (item as any).applications) {
+              const group = item as any;
+              return (
+                <TouchableOpacity 
+                  key={group.paps_id}
+                  style={[styles.papsSectionHeader, { backgroundColor: colors.primary }]}
+                  onPress={() => openApplicationsModal(group.paps_id, group.paps_title)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.papsSectionTitleContainer}>
+                    <Text style={styles.papsSectionTitle}>{group.paps_title}</Text>
+                    <Text style={styles.papsSectionSubtitle}>View all applications →</Text>
+                  </View>
+                  <View style={[styles.applicationCount, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
+                    <Text style={styles.applicationCountText}>{group.applications.length}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            }
+            return mainTab === 'my-applications' ? (
               <SpapPoster spap={item} onWithdraw={handleWithdraw} />
             ) : (
               <ReceivedSpapCard 
@@ -233,8 +284,8 @@ export default function SpapFeed() {
                 onAccept={handleAccept} 
                 onReject={handleReject} 
               />
-            )
-          )}
+            );
+          }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
@@ -242,6 +293,17 @@ export default function SpapFeed() {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      {/* Applications Modal */}
+      <PapsApplicationsModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        papsTitle={selectedPapsTitle}
+        papsId={selectedPapsId || ''}
+        applications={selectedPapsApplications}
+        onAccept={acceptSpap}
+        onReject={rejectSpap}
+      />
     </SafeAreaView>
   );
 }
@@ -345,6 +407,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#EDF2F7',
+    borderWidth: 1,
   },
   tabActive: {
     backgroundColor: '#5A67D8',
@@ -353,6 +416,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#4A5568',
+    textAlign: 'center',
   },
   tabTextActive: {
     color: '#fff',
@@ -381,5 +445,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#718096',
     textAlign: 'center',
+  },
+  papsSectionHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#5A67D8',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    borderRadius: 8,
+    marginHorizontal: 16,
+  },
+  papsSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  applicationCount: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applicationCountText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  papsSectionTitleContainer: {
+    flex: 1,
+  },
+  papsSectionSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });
