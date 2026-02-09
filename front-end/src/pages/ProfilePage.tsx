@@ -2,13 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import UnderbossBar from '../header/underbossbar';
 import ModifyProfil from './ModifyProfil.tsx';
-import { serv, ApiError, UserProfile, getMediaUrl } from '../serve';
-import { useNavigation } from '@react-navigation/native';
+import { serv, ApiError, UserProfile, getMediaUrl, getCurrentUser } from '../serve';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
 
 
 export default function ProfilePage({ navigation }: any) {
     const { colors, isDark } = useTheme();
+    const route = useRoute<any>();
+    
+    // Get username from route params (if viewing another user's profile)
+    const viewUsername = route.params?.username;
+    const currentUser = getCurrentUser();
+    const isOwnProfile = !viewUsername || viewUsername === currentUser?.username;
     
     const [user, setUser] = useState<UserProfile>()
     const [loading, setLoading] = useState(true)
@@ -17,7 +23,12 @@ export default function ProfilePage({ navigation }: any) {
 
     const fetchProfile = async () => {
         try {
-          const response = await serv('profile.get')
+          let response;
+          if (isOwnProfile) {
+            response = await serv('profile.get');
+          } else {
+            response = await serv('profile.getByUsername', { username: viewUsername });
+          }
           setUser(response)
           setError('')
         } catch (err) {
@@ -32,7 +43,7 @@ export default function ProfilePage({ navigation }: any) {
     
     useEffect(() => {
         fetchProfile()
-    }, [])
+    }, [viewUsername])
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -134,14 +145,27 @@ export default function ProfilePage({ navigation }: any) {
                     </View>
                 )}
 
-                {/* EDIT BUTTON */}
-                <TouchableOpacity 
-                    style={[styles.editButton, { borderColor: BRAND.primary }]}
-                    onPress={() => navigation.navigate('ModifyProfil', { currentUser: user })}
-                    activeOpacity={0.8}
-                >
-                    <Text style={[styles.editButtonText, { color: BRAND.primary }]}>Edit Profile</Text>
-                </TouchableOpacity>
+                {/* EDIT BUTTON - only show for own profile */}
+                {isOwnProfile && (
+                    <TouchableOpacity 
+                        style={[styles.editButton, { borderColor: BRAND.primary }]}
+                        onPress={() => navigation.navigate('ModifyProfil', { currentUser: user })}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={[styles.editButtonText, { color: BRAND.primary }]}>Edit Profile</Text>
+                    </TouchableOpacity>
+                )}
+
+                {/* BACK BUTTON - only show when viewing another user's profile */}
+                {!isOwnProfile && (
+                    <TouchableOpacity 
+                        style={[styles.editButton, { borderColor: colors.border, backgroundColor: colors.card }]}
+                        onPress={() => navigation.goBack()}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={[styles.editButtonText, { color: colors.text }]}>← Go Back</Text>
+                    </TouchableOpacity>
+                )}
 
                 <View style={styles.bottomSpacer} />
             </ScrollView>
