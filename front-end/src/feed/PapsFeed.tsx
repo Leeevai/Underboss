@@ -23,6 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Paps } from '../serve/paps';
+import { getCurrentUser } from '../serve';
 import PapsPost from './PapsPost';
 import UnderbossBar from '../header/underbossbar';
 import {
@@ -209,6 +210,7 @@ function QuickFilters({
 
 export default function PapsFeed() {
   const { colors, isDark } = useTheme();
+  const currentUser = getCurrentUser();
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
@@ -218,6 +220,15 @@ export default function PapsFeed() {
   const { paps: newestPaps, loading: newestLoading, error: newestError, refresh: refreshNewest } = useNewestPaps();
   const { paps: nearbyPaps, loading: nearbyLoading, error: nearbyError, refresh: refreshNearby } = useNearbyPaps();
   const { paps: recommendedPaps, loading: recommendedLoading, error: recommendedError, refresh: refreshRecommended } = useRecommendedPaps();
+
+  // Filter out current user's own PAPS
+  const filterOwnPaps = (paps: Paps[]) => 
+    paps.filter(pap => pap.owner_username !== currentUser?.username);
+
+  const filteredFeaturedPaps = filterOwnPaps(featuredPaps);
+  const filteredNewestPaps = filterOwnPaps(newestPaps);
+  const filteredNearbyPaps = filterOwnPaps(nearbyPaps);
+  const filteredRecommendedPaps = filterOwnPaps(recommendedPaps);
 
   // ========================================================================
   // DATA FETCHING - handled by cache, just need refresh
@@ -247,7 +258,7 @@ export default function PapsFeed() {
 
   const isInitialLoading = 
     featuredLoading && newestLoading && nearbyLoading && recommendedLoading &&
-    featuredPaps.length === 0 && newestPaps.length === 0;
+    filteredFeaturedPaps.length === 0 && filteredNewestPaps.length === 0;
 
   // ========================================================================
   // RENDER
@@ -318,10 +329,10 @@ export default function PapsFeed() {
             subtitle="Top opportunities"
             icon="⭐"
             onSeeAll={() => console.log('See all featured')}
-            count={featuredPaps.length}
+            count={filteredFeaturedPaps.length}
           />
           <HorizontalPapsList
-            paps={featuredPaps}
+            paps={filteredFeaturedPaps}
             variant="featured"
             loading={featuredLoading}
             error={featuredError || undefined}
@@ -337,10 +348,10 @@ export default function PapsFeed() {
             subtitle="Just posted"
             icon="🆕"
             onSeeAll={() => console.log('See all newest')}
-            count={newestPaps.length}
+            count={filteredNewestPaps.length}
           />
           <HorizontalPapsList
-            paps={newestPaps}
+            paps={filteredNewestPaps}
             variant="standard"
             loading={newestLoading}
             error={newestError || undefined}
@@ -356,10 +367,10 @@ export default function PapsFeed() {
             subtitle="Jobs in your area"
             icon="📍"
             onSeeAll={() => console.log('See all nearby')}
-            count={nearbyPaps.length}
+            count={filteredNearbyPaps.length}
           />
           <HorizontalPapsList
-            paps={nearbyPaps}
+            paps={filteredNearbyPaps}
             variant="standard"
             loading={nearbyLoading}
             error={nearbyError || undefined}
@@ -375,10 +386,10 @@ export default function PapsFeed() {
             subtitle="Based on your interests"
             icon="💡"
             onSeeAll={() => console.log('See all recommended')}
-            count={recommendedPaps.length}
+            count={filteredRecommendedPaps.length}
           />
           <HorizontalPapsList
-            paps={recommendedPaps}
+            paps={filteredRecommendedPaps}
             variant="compact"
             loading={recommendedLoading}
             error={recommendedError || undefined}

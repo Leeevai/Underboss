@@ -135,6 +135,10 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
   const [applyModalVisible, setApplyModalVisible] = useState(false);
   const [applicationMessage, setApplicationMessage] = useState('');
 
+  // Status change modal state
+  const [statusChangeModalVisible, setStatusChangeModalVisible] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
+
   // Get avatar from cache (auto-fetches if not cached)
   const { avatarUrl: avatarUri } = useAvatarUrl(pap.owner_username);
 
@@ -142,6 +146,10 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
   
   // Check if current user is the owner
   const isOwner = currentUser?.username === pap.owner_username;
+
+  // Check if anyone has been accepted for this job
+  const hasAccepted = papsDetail?.assigned_count ? papsDetail.assigned_count > 0 : false;
+  const canChangeStatus = isOwner && !hasAccepted;
 
   // Get first category from pap.categories (for card view)
   const firstCategory = pap.categories?.[0] as any;
@@ -242,6 +250,38 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
       setApplying(false);
     }
   }, [pap.id, applicationMessage]);
+
+  // Handle status change
+  const handleStatusChange = useCallback(async (newStatus: string) => {
+    setChangingStatus(true);
+    try {
+      await serv('paps.update', {
+        paps_id: pap.id,
+        status: newStatus,
+      });
+      // Update local state - update both the detail and the root pap
+      setPapsDetail(prev => prev ? { ...prev, status: newStatus } : null);
+      
+      // Also update the root pap object for immediate UI feedback
+      // This ensures the status picker header reflects the change
+      pap.status = newStatus as any;
+      
+      setStatusChangeModalVisible(false);
+      Alert.alert('Success', `Job status changed to ${newStatus}`);
+      
+      // Optional: Refetch details to ensure server consistency
+      const updatedDetails = await serv('paps.get', { paps_id: pap.id });
+      setPapsDetail(updatedDetails);
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error?.getUserMessage?.() || 'Failed to change status.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setChangingStatus(false);
+    }
+  }, [pap.id]);
 
   const openModal = () => {
     console.log('Opening modal, onPress:', !!onPress);
@@ -685,6 +725,14 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 >
                   <Text style={styles.closeBtnText}>Close</Text>
                 </TouchableOpacity>
+                {isOwner && canChangeStatus && (
+                  <TouchableOpacity
+                    style={[styles.changeStatusBtn, { backgroundColor: colors.primary }]}
+                    onPress={() => setStatusChangeModalVisible(true)}
+                  >
+                    <Text style={styles.changeStatusBtnText}>Change Status</Text>
+                  </TouchableOpacity>
+                )}
                 {!isOwner && (
                   <TouchableOpacity
                     style={[
@@ -771,6 +819,93 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Status Change Modal */}
+      <Modal
+        visible={statusChangeModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setStatusChangeModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.statusPickerOverlay}
+          activeOpacity={1}
+          onPress={() => setStatusChangeModalVisible(false)}
+        />
+        <View style={[styles.statusPickerContent, { backgroundColor: colors.card }]}>
+          {/* Header */}
+          <View style={[styles.statusPickerHeader, { borderBottomColor: colors.border }]}>
+            <View style={styles.statusPickerDrag} />
+            <Text style={[styles.statusPickerTitle, { color: colors.text }]}>Update Status</Text>
+          </View>
+
+          {/* Status Options */}
+          <View style={styles.statusPickerBody}>
+            {(['draft', 'published', 'open', 'closed', 'cancelled'] as const).map((status, index) => (
+              <TouchableOpacity
+                key={status}
+                onPress={() => handleStatusChange(status)}
+                disabled={changingStatus || pap.status === status}
+                activeOpacity={0.7}
+                style={[
+                  styles.statusPickerOption,
+                  {
+                    backgroundColor: pap.status === status ? colors.primary + '15' : 'transparent',
+                    borderBottomColor: colors.border,
+                    borderBottomWidth: index < 4 ? 1 : 0,
+                  }
+                ]}
+              >
+                <View style={styles.statusPickerOptionLeft}>
+                  <View
+                    style={[
+                      styles.statusPickerOptionIcon,
+                      {
+                        backgroundColor: getStatusColor(status).bg,
+                        borderColor: getStatusColor(status).bg,
+                      }
+                    ]}
+                  >
+                    <Text style={{ fontSize: 16 }}>
+                      {status === 'draft' && '📝'}
+                      {status === 'published' && '📢'}
+                      {status === 'open' && '🔓'}
+                      {status === 'closed' && '✓'}
+                      {status === 'cancelled' && '✕'}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text style={[styles.statusPickerOptionTitle, { color: colors.text }]}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </Text>
+                    <Text style={[styles.statusPickerOptionDesc, { color: colors.textTertiary }]}>
+                      {status === 'draft' && 'Not yet published'}
+                      {status === 'published' && 'Published but not active'}
+                      {status === 'open' && 'Accepting applications'}
+                      {status === 'closed' && 'No longer accepting'}
+                      {status === 'cancelled' && 'Job is cancelled'}
+                    </Text>
+                  </View>
+                </View>
+                {pap.status === status && (
+                  <Text style={[styles.statusPickerCheckmark, { color: colors.primary }]}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Footer */}
+          <View style={[styles.statusPickerFooter, { borderTopColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setStatusChangeModalVisible(false)}
+              activeOpacity={0.7}
+              style={[styles.statusPickerCancelBtn, { backgroundColor: colors.backgroundTertiary }]}
+            >
+              <Text style={[styles.statusPickerCancelText, { color: colors.textSecondary }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -1457,5 +1592,122 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  changeStatusBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#3182CE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  changeStatusBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  // Status picker modal styles - modern bottom sheet
+  statusPickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  statusPickerContent: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '60%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 24,
+  },
+  statusPickerHeader: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EDF2F7',
+  },
+  statusPickerDrag: {
+    width: 32,
+    height: 4,
+    backgroundColor: '#CBD5E0',
+    borderRadius: 2,
+    marginBottom: 12,
+  },
+  statusPickerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A202C',
+    letterSpacing: 0.3,
+  },
+  statusPickerBody: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  statusPickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 4,
+    backgroundColor: 'transparent',
+  },
+  statusPickerOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  statusPickerOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F0FFF4',
+  },
+  statusPickerOptionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2D3748',
+    marginBottom: 2,
+  },
+  statusPickerOptionDesc: {
+    fontSize: 12,
+    color: '#718096',
+    fontWeight: '500',
+  },
+  statusPickerCheckmark: {
+    fontSize: 18,
+    color: '#3182CE',
+    fontWeight: '700',
+  },
+  statusPickerFooter: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    borderTopWidth: 1,
+    borderTopColor: '#EDF2F7',
+  },
+  statusPickerCancelBtn: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#F7FAFC',
+  },
+  statusPickerCancelText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#4A5568',
   },
 });
