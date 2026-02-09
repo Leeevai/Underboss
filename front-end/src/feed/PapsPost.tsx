@@ -630,9 +630,9 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                   </View>
                   
                   {/* Add Comment Input */}
-                  <View style={styles.addCommentBox}>
+                  <View style={[styles.addCommentBox]}>
                     <TextInput
-                      style={styles.commentInput}
+                      style={[styles.commentInput, {backgroundColor: colors.backgroundTertiary}, {borderColor: colors.borderLight}]}
                       placeholder="Write a comment..."
                       placeholderTextColor="#A0AEC0"
                       value={newComment}
@@ -669,8 +669,8 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                   ) : (
                     <View style={styles.commentsList}>
                       {(showAllComments ? comments : comments.slice(0, 3)).map((comment) => (
-                        <View key={comment.comment_id} style={styles.commentItem}>
-                          <View style={styles.commentHeader}>
+                        <View key={comment.comment_id} style={[styles.commentItem, {backgroundColor: colors.backgroundTertiary}]}>
+                          <View style={[styles.commentHeader,{}]}>
                             <View style={styles.commentAvatar}>
                               {comment.author_avatar ? (
                                 <Image 
@@ -684,13 +684,13 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                               )}
                             </View>
                             <View style={styles.commentMeta}>
-                              <Text style={styles.commentUsername}>@{comment.author_username}</Text>
-                              <Text style={styles.commentTime}>
+                              <Text style={[styles.commentUsername,{color:colors.text}]}>@{comment.author_username}</Text>
+                              <Text style={[styles.commentTime]}>
                                 {formatRelativeTime(comment.created_at)}
                               </Text>
                             </View>
                           </View>
-                          <Text style={styles.commentContent}>{comment.content}</Text>
+                          <Text style={[styles.commentContent,{color:colors.textTertiary}]}>{comment.content}</Text>
                           {comment.reply_count > 0 && (
                             <Text style={styles.replyCount}>
                               {comment.reply_count} {comment.reply_count === 1 ? 'reply' : 'replies'}
