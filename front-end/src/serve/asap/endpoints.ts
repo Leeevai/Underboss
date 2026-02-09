@@ -49,6 +49,13 @@ export const asapEndpoints: Record<string, EndpointConfig> = {
     validate: validateAsapStatusUpdate,
   },
   
+  /** POST /asap/{asap_id}/confirm - Confirm assignment completion */
+  'asap.confirm': {
+    method: 'POST',
+    path: '/asap/{asap_id}/confirm',
+    auth: true,
+  },
+  
   /** DELETE /asap/{asap_id} - Delete assignment */
   'asap.delete': {
     method: 'DELETE',
