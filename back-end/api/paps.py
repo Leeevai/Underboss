@@ -194,6 +194,11 @@ def register_routes(app):
 
         if estimated_duration_minutes is not None:
             fsa.checkVal(estimated_duration_minutes > 0, "Duration must be positive", 400)
+            # Validate end_datetime doesn't exceed start + duration
+            if start_dt and end_dt:
+                max_end_dt = start_dt + datetime.timedelta(minutes=estimated_duration_minutes)
+                fsa.checkVal(end_dt <= max_end_dt, 
+                            f"End datetime cannot exceed start datetime + duration ({estimated_duration_minutes} minutes)", 400)
 
         # Validate publish_at
         publish_dt = None
@@ -333,6 +338,54 @@ def register_routes(app):
         if 'payment_amount' in kwargs and kwargs['payment_amount'] is not None:
             fsa.checkVal(kwargs['payment_amount'] > 0, "Payment amount must be positive", 400)
             updates['payment_amount'] = kwargs['payment_amount']
+
+        # Validate date consistency if any date/duration fields are being updated
+        start_dt = None
+        end_dt = None
+        duration = None
+        
+        # Get start_datetime (from update or existing)
+        if 'start_datetime' in kwargs and kwargs['start_datetime']:
+            try:
+                start_dt = datetime.datetime.fromisoformat(kwargs['start_datetime'].replace('Z', '+00:00'))
+            except ValueError:
+                fsa.checkVal(False, "Invalid start_datetime format", 400)
+        elif paps.get('start_datetime'):
+            start_dt = paps['start_datetime']
+            if isinstance(start_dt, str):
+                start_dt = datetime.datetime.fromisoformat(start_dt.replace('Z', '+00:00'))
+            elif start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=datetime.timezone.utc)
+        
+        # Get end_datetime (from update or existing)
+        if 'end_datetime' in kwargs and kwargs['end_datetime']:
+            try:
+                end_dt = datetime.datetime.fromisoformat(kwargs['end_datetime'].replace('Z', '+00:00'))
+            except ValueError:
+                fsa.checkVal(False, "Invalid end_datetime format", 400)
+        elif paps.get('end_datetime'):
+            end_dt = paps['end_datetime']
+            if isinstance(end_dt, str):
+                end_dt = datetime.datetime.fromisoformat(end_dt.replace('Z', '+00:00'))
+            elif end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=datetime.timezone.utc)
+        
+        # Get duration (from update or existing)
+        if 'estimated_duration_minutes' in kwargs and kwargs['estimated_duration_minutes']:
+            duration = kwargs['estimated_duration_minutes']
+            fsa.checkVal(duration > 0, "Duration must be positive", 400)
+        elif paps.get('estimated_duration_minutes'):
+            duration = paps['estimated_duration_minutes']
+        
+        # Validate end_datetime is after start_datetime
+        if start_dt and end_dt:
+            fsa.checkVal(end_dt > start_dt, "End datetime must be after start datetime", 400)
+            
+            # Validate end_datetime doesn't exceed start + duration
+            if duration:
+                max_end_dt = start_dt + datetime.timedelta(minutes=duration)
+                fsa.checkVal(end_dt <= max_end_dt, 
+                            f"End datetime cannot exceed start datetime + duration ({duration} minutes)", 400)
 
         # Extract other fields from kwargs (with simple validation)
         simple_fields = ['subtitle', 'status', 'location_address', 'location_lat', 'location_lng', 
