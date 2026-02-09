@@ -1000,7 +1000,9 @@ def test_paps_search_filters(api):
 
 # /paps - edge case and validation tests
 def test_paps_edge_cases(api):
-    user = "testpapsedge"
+    import uuid
+    suffix = uuid.uuid4().hex[:8]
+    user = f"papsedge{suffix}"
     pswd = "test123!ABC"
     api.setPass(user, pswd)
     
@@ -1137,6 +1139,44 @@ def test_paps_edge_cases(api):
     # Test media for non-existent paps
     api.get("/paps/00000000-0000-0000-0000-000000000000/media", 404, login=user)
     api.delete("/paps/media/00000000-0000-0000-0000-000000000000", 404, login=user)
+    
+    # Test date validation: end_datetime cannot exceed start_datetime + duration
+    import datetime
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+    end_dt_invalid = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=10)).isoformat()  # 3 days later
+    
+    # Create with invalid date range (end > start + duration)
+    api.post("/paps", 400, json={
+        "title": "Date Validation Test",
+        "description": "A test paps for date validation that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "start_datetime": start_dt,
+        "end_datetime": end_dt_invalid,
+        "estimated_duration_minutes": 120  # 2 hours, but end is 3 days later
+    }, login=user)
+    
+    # Valid date range (end <= start + duration)
+    end_dt_valid = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7, hours=2)).isoformat()
+    res = api.post("/paps", 201, json={
+        "title": "Date Validation Valid",
+        "description": "A test paps for date validation that is long enough",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "start_datetime": start_dt,
+        "end_datetime": end_dt_valid,
+        "estimated_duration_minutes": 180,  # 3 hours, end is 2 hours later - valid
+        "status": "draft"
+    }, login=user)
+    paps_id = res.json.get("paps_id")
+    
+    # Test update with invalid date range
+    api.put(f"/paps/{paps_id}", 400, json={
+        "end_datetime": end_dt_invalid  # Would exceed start + duration
+    }, login=user)
+    
+    # Delete the test paps
+    api.delete(f"/paps/{paps_id}", 204, login=user)
     
     # Cleanup
     res = api.get(f"/user/{user}/profile", 200, login=None)
@@ -1685,9 +1725,11 @@ def test_asap(api):
     suffix = uuid.uuid4().hex[:8]
     owner = f"asapowner{suffix}"
     worker = f"asapworker{suffix}"
+    thirdparty = f"asapthird{suffix}"
     pswd = "test123!ABC"
     api.setPass(owner, pswd)
     api.setPass(worker, pswd)
+    api.setPass(thirdparty, pswd)
     
     # Register users
     api.post("/register", 201, json={
@@ -1705,6 +1747,14 @@ def test_asap(api):
     }, login=None)
     worker_token = api.get("/login", 200, login=worker).json
     api.setToken(worker, worker_token.get("token") if isinstance(worker_token, dict) else worker_token)
+    
+    api.post("/register", 201, json={
+        "username": thirdparty,
+        "email": f"{thirdparty}@test.com",
+        "password": pswd
+    }, login=None)
+    thirdparty_token = api.get("/login", 200, login=thirdparty).json
+    api.setToken(thirdparty, thirdparty_token.get("token") if isinstance(thirdparty_token, dict) else thirdparty_token)
     
     # Create future date
     start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
@@ -1754,7 +1804,7 @@ def test_asap(api):
     assert res.json["asap_id"] == asap_id
     
     # Third party cannot view
-    api.get(f"/asap/{asap_id}", 403, login=NOADM)
+    api.get(f"/asap/{asap_id}", 403, login=thirdparty)
     
     # Get assignments for PAPS
     res = api.get(f"/paps/{paps_id}/assignments", 200, login=owner)
@@ -1768,14 +1818,43 @@ def test_asap(api):
     api.put(f"/asap/{asap_id}/status", 204, json={"status": "in_progress"}, login=worker)
     res = api.get(f"/asap/{asap_id}", 200, login=worker)
     assert res.json["status"] == "in_progress"
+    assert res.json.get("worker_confirmed") == False
+    assert res.json.get("owner_confirmed") == False
     
-    # Worker cannot complete (only owner can)
-    api.put(f"/asap/{asap_id}/status", 403, json={"status": "completed"}, login=worker)
+    # Test dual confirmation flow
+    # Worker cannot confirm if not in progress (already handled - we're in progress now)
     
-    # Complete the assignment (owner marks as completed)
-    api.put(f"/asap/{asap_id}/status", 204, json={"status": "completed"}, login=owner)
+    # Worker confirms completion first
+    res = api.post(f"/asap/{asap_id}/confirm", 200, login=worker)
+    assert res.json["status"] == "pending_confirmation"
+    assert "Waiting for owner" in res.json["message"]
+    
+    # Check confirmation status
+    res = api.get(f"/asap/{asap_id}", 200, login=owner)
+    assert res.json["worker_confirmed"] == True
+    assert res.json["owner_confirmed"] == False
+    assert res.json["status"] == "in_progress"  # Not completed yet
+    
+    # Worker cannot confirm again
+    api.post(f"/asap/{asap_id}/confirm", 400, login=worker)
+    
+    # Third party cannot confirm
+    api.post(f"/asap/{asap_id}/confirm", 403, login=thirdparty)
+    
+    # Owner confirms - should complete the ASAP
+    res = api.post(f"/asap/{asap_id}/confirm", 200, login=owner)
+    assert res.json["status"] == "completed"
+    assert "completed" in res.json["message"].lower()
+    
+    # Verify ASAP is completed and both confirmed
     res = api.get(f"/asap/{asap_id}", 200, login=worker)
     assert res.json["status"] == "completed"
+    assert res.json["worker_confirmed"] == True
+    assert res.json["owner_confirmed"] == True
+    assert res.json["completed_at"] is not None
+    
+    # Cannot confirm already completed ASAP
+    api.post(f"/asap/{asap_id}/confirm", 400, login=owner)
     
     # Cannot delete completed ASAP
     api.delete(f"/asap/{asap_id}", 400, login=owner)
@@ -1786,6 +1865,105 @@ def test_asap(api):
         api.delete(f"/payments/{payment['payment_id']}", 204, login=ADMIN)
     
     # Can delete PAPS after payments are deleted (cascades to ASAP)
+    api.delete(f"/paps/{paps_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    owner_id = res.json["user_id"]
+    api.delete(f"/users/{owner_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_id = res.json["user_id"]
+    api.delete(f"/users/{worker_id}", 204, login=ADMIN)
+    
+    res = api.get(f"/user/{thirdparty}/profile", 200, login=None)
+    thirdparty_id = res.json["user_id"]
+    api.delete(f"/users/{thirdparty_id}", 204, login=ADMIN)
+    
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+    api.setToken(worker, None)
+    api.setPass(worker, None)
+    api.setToken(thirdparty, None)
+    api.setPass(thirdparty, None)
+
+
+def test_asap_hourly_payment(api):
+    """Test ASAP with hourly payment calculation."""
+    import datetime
+    import uuid
+    import time
+    
+    suffix = uuid.uuid4().hex[:8]
+    owner = f"hrowner{suffix}"
+    worker = f"hrworker{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+    
+    # Register users
+    api.post("/register", 201, json={
+        "username": owner,
+        "email": f"{owner}@test.com",
+        "password": pswd
+    }, login=None)
+    owner_token = api.get("/login", 200, login=owner).json
+    api.setToken(owner, owner_token.get("token") if isinstance(owner_token, dict) else owner_token)
+    
+    api.post("/register", 201, json={
+        "username": worker,
+        "email": f"{worker}@test.com",
+        "password": pswd
+    }, login=None)
+    worker_token = api.get("/login", 200, login=worker).json
+    api.setToken(worker, worker_token.get("token") if isinstance(worker_token, dict) else worker_token)
+    
+    # Create future date
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+    
+    # Create an hourly PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Hourly Payment Test Job",
+        "description": "A job posting to test hourly payment calculation.",
+        "payment_type": "hourly",
+        "payment_amount": 25.00,  # $25/hour
+        "payment_currency": "USD",
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+    
+    # Worker applies
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "Ready to work hourly."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+    
+    # Owner accepts - creates ASAP
+    res = api.put(f"/spap/{spap_id}/accept", 200, login=owner)
+    asap_id = res.json.get("asap_id")
+    
+    # Start the assignment
+    api.put(f"/asap/{asap_id}/status", 204, json={"status": "in_progress"}, login=worker)
+    
+    # Wait a tiny bit (the real calculation is based on actual time)
+    time.sleep(0.1)
+    
+    # Both confirm
+    api.post(f"/asap/{asap_id}/confirm", 200, login=worker)
+    api.post(f"/asap/{asap_id}/confirm", 200, login=owner)
+    
+    # Check payment was created
+    res = api.get(f"/paps/{paps_id}/payments", 200, login=owner)
+    assert len(res.json["payments"]) >= 1
+    
+    # Payment should be calculated based on hours worked (will be small since we only waited 0.1 seconds)
+    payment = res.json["payments"][0]
+    assert payment["amount"] >= 0  # Should be a small amount
+    
+    # Cleanup
+    for p in res.json["payments"]:
+        api.delete(f"/payments/{p['payment_id']}", 204, login=ADMIN)
+    
     api.delete(f"/paps/{paps_id}", 204, login=ADMIN)
     
     res = api.get(f"/user/{owner}/profile", 200, login=None)
