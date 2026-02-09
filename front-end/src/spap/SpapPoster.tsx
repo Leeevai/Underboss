@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { serv, getMediaUrl, ApiError } from '../serve';
 import type { Spap } from '../serve/spap';
 import { useTheme, BRAND } from '../common/theme';
@@ -15,6 +16,7 @@ interface SpapPosterProps {
 
 export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
   const { colors } = useTheme();
+  const navigation = useNavigation<any>();
   const [modalVisible, setModalVisible] = useState(false);
   const [papsDetail, setPapsDetail] = useState<any>(null);
   const [loadingPaps, setLoadingPaps] = useState(false);
@@ -195,11 +197,24 @@ export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
                       <Text style={[styles.jobDetailDescription, { color: colors.textSecondary }]} numberOfLines={3}>
                         {papsDetail.description}
                       </Text>
+                      {papsDetail.owner_username && (
+                        <TouchableOpacity 
+                          style={styles.jobDetailRow}
+                          onPress={() => {
+                            setModalVisible(false);
+                            navigation.navigate('ProfilePage', { username: papsDetail.owner_username });
+                          }}
+                        >
+                          <Text style={[styles.jobDetailLabel, { color: colors.textSecondary }]}>👤 Posted by:</Text>
+                          <Text style={[styles.jobDetailValue, { color: BRAND.primary }]}>@{papsDetail.owner_username}</Text>
+                        </TouchableOpacity>
+                      )}
                       {papsDetail.payment_amount && (
                         <View style={styles.jobDetailRow}>
                           <Text style={[styles.jobDetailLabel, { color: colors.textSecondary }]}>💰 Payment:</Text>
                           <Text style={[styles.jobDetailValue, { color: colors.text }]}>
                             {papsDetail.payment_amount} {papsDetail.payment_currency}
+                            {papsDetail.payment_type === 'hourly' ? '/hr' : ''}
                           </Text>
                         </View>
                       )}
