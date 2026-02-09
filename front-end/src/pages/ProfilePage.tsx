@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIn
 import UnderbossBar from '../header/underbossbar';
 import ModifyProfil from './ModifyProfil.tsx';
 import { serv, ApiError, UserProfile, getMediaUrl, getCurrentUser } from '../serve';
+import PapsPost from '../feed/PapsPost';
+import type { Paps } from '../serve/paps';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -23,6 +25,10 @@ export default function ProfilePage({ navigation }: any) {
     const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState('')
 
+    // PAPs state
+    const [paps, setPaps] = useState<Paps[]>([]);
+    const [loadingPaps, setLoadingPaps] = useState(false);
+
     const fetchProfile = async () => {
         try {
           let response;
@@ -42,14 +48,43 @@ export default function ProfilePage({ navigation }: any) {
           setRefreshing(false)
         }
     }
+
+    // Fetch user's PAPs
+    const fetchUserPaps = async (username?: string) => {
+      if (!username) return;
+      setLoadingPaps(true);
+      try {
+        const response = await serv('paps.list', {
+          owner_username: username,
+          limit: 50,
+        });
+        setPaps(response.paps || []);
+      } catch (err) {
+        console.error('Error fetching user PAPs:', err);
+      } finally {
+        setLoadingPaps(false);
+      }
+    };
     
     useEffect(() => {
         fetchProfile()
     }, [viewUsername])
 
+    // Fetch PAPs when profile is loaded
+    useEffect(() => {
+      const usernameToFetch = viewUsername || currentUser?.username;
+      if (usernameToFetch) {
+        fetchUserPaps(usernameToFetch);
+      }
+    }, [viewUsername, currentUser?.username]);
+
     const onRefresh = () => {
         setRefreshing(true);
         fetchProfile();
+        const usernameToFetch = viewUsername || currentUser?.username;
+        if (usernameToFetch) {
+          fetchUserPaps(usernameToFetch);
+        }
     };
 
     const InfoRow = ({ label, value }: { label: string; value?: string | null }) => (
@@ -157,6 +192,41 @@ export default function ProfilePage({ navigation }: any) {
                         </Text>
                     </View>
                 )}
+
+                {/* POSTED JOBS SECTION */}
+                <View style={[styles.papsSection, { marginHorizontal: SPACING.lg, marginTop: SPACING.lg }]}>
+                  <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>
+                    Posted Jobs {paps.length > 0 && `(${paps.length})`}
+                  </Text>
+                  
+                  {loadingPaps ? (
+                    <View style={styles.papsLoadingContainer}>
+                      <ActivityIndicator size="small" color={BRAND.primary} />
+                      <Text style={[styles.papsLoadingText, { color: colors.textTertiary }]}>Loading jobs...</Text>
+                    </View>
+                  ) : paps.length === 0 ? (
+                    <View style={styles.parapsEmptyContainer}>
+                      <Text style={[styles.papsEmptyText, { color: colors.textTertiary }]}>No jobs posted yet</Text>
+                    </View>
+                  ) : (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.papsScrollContent}
+                      snapToInterval={320}
+                      decelerationRate="fast"
+                    >
+                      {paps.map((pap) => (
+                        <View key={pap.id} style={styles.papsCardContainer}>
+                          <PapsPost
+                            pap={pap}
+                            variant="standard"
+                          />
+                        </View>
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
 
                 {/* EDIT BUTTON - only show for own profile */}
                 {isOwnProfile && (
@@ -309,5 +379,34 @@ const styles = StyleSheet.create({
     },
     bottomSpacer: {
         height: SPACING.xxl,
+    },
+    
+    // PAPs section styles
+    papsSection: {
+      marginTop: SPACING.lg,
+    },
+    papsLoadingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      paddingVertical: SPACING.lg,
+    },
+    papsLoadingText: {
+      fontSize: FONT_SIZE.md,
+    },
+    parapsEmptyContainer: {
+      paddingVertical: SPACING.lg,
+      alignItems: 'center',
+    },
+    papsEmptyText: {
+      fontSize: FONT_SIZE.md,
+    },
+    papsScrollContent: {
+      paddingHorizontal: SPACING.sm,
+      gap: SPACING.md,
+    },
+    papsCardContainer: {
+      marginHorizontal: SPACING.sm,
     },
 });

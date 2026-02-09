@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { serv, getMediaUrl } from '../serve';
+import { serv, getMediaUrl, getCurrentUser } from '../serve';
 import type { Paps, PapsDetail } from '../serve/paps';
 import type { MediaItem } from '../serve/common/types';
 import type { Comment } from '../serve/comments';
@@ -115,6 +115,7 @@ const CARD_SIZES = {
 export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPostProps) {
   const { colors, isDark } = useTheme();
   const navigation = useNavigation<any>();
+  const currentUser = getCurrentUser();
   
   const [modalVisible, setModalVisible] = useState(false);
   const [papsDetail, setPapsDetail] = useState<PapsDetail | null>(null);
@@ -139,6 +140,9 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
 
   const cardSize = CARD_SIZES[variant];
   
+  // Check if current user is the owner
+  const isOwner = currentUser?.username === pap.owner_username;
+
   // Get first category from pap.categories (for card view)
   const firstCategory = pap.categories?.[0] as any;
   const cardCategoryName = firstCategory 
@@ -681,18 +685,20 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 >
                   <Text style={styles.closeBtnText}>Close</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.applyBtn,
-                    hasApplied && styles.applyBtnDisabled,
-                  ]}
-                  onPress={openApplyModal}
-                  disabled={hasApplied}
-                >
-                  <Text style={styles.applyBtnText}>
-                    {hasApplied ? '✓ Applied' : 'Apply Now'}
-                  </Text>
-                </TouchableOpacity>
+                {!isOwner && (
+                  <TouchableOpacity
+                    style={[
+                      styles.applyBtn,
+                      (hasApplied || isOwner) && styles.applyBtnDisabled,
+                    ]}
+                    onPress={openApplyModal}
+                    disabled={hasApplied || isOwner}
+                  >
+                    <Text style={styles.applyBtnText}>
+                      {hasApplied ? '✓ Applied' : 'Apply Now'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </SafeAreaView>
           </View>
