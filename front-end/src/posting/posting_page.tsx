@@ -337,6 +337,18 @@ const Post = () => {
           Alert.alert('Validation Error', 'End date must be after start date');
           return;
         }
+        
+        // Validate end date doesn't exceed start + duration
+        if (form.estimated_duration_minutes && form.estimated_duration_minutes > 0) {
+          const maxEndDate = new Date(startDate.getTime() + form.estimated_duration_minutes * 60 * 1000);
+          if (endDate > maxEndDate) {
+            Alert.alert('Validation Error', 
+              `End date cannot exceed start date + duration (${form.estimated_duration_minutes} minutes). ` +
+              `Maximum end date: ${maxEndDate.toLocaleString()}`
+            );
+            return;
+          }
+        }
       }
     }
 
