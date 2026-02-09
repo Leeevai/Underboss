@@ -22,6 +22,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { serv, getMediaUrl } from '../serve';
 import type { Paps, PapsDetail } from '../serve/paps';
 import type { MediaItem } from '../serve/common/types';
@@ -113,6 +114,7 @@ const CARD_SIZES = {
 
 export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPostProps) {
   const { colors, isDark } = useTheme();
+  const navigation = useNavigation<any>();
   
   const [modalVisible, setModalVisible] = useState(false);
   const [papsDetail, setPapsDetail] = useState<PapsDetail | null>(null);
@@ -510,7 +512,14 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 {/* Posted By */}
                 <View style={styles.modalSection}>
                   <Text style={[styles.sectionTitle, { color: colors.text }]}>Posted by</Text>
-                  <View style={[styles.postedByCard, { backgroundColor: colors.backgroundSecondary }]}>
+                  <TouchableOpacity 
+                    style={[styles.postedByCard, { backgroundColor: colors.backgroundSecondary }]}
+                    onPress={() => {
+                      setModalVisible(false);
+                      navigation.navigate('ProfilePage', { username: pap.owner_username });
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <View style={[styles.avatarMedium, { backgroundColor: colors.backgroundTertiary }]}>
                       {avatarUri ? (
                         <Image source={{ uri: avatarUri }} style={styles.avatarMediumImage} />
@@ -528,10 +537,10 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                         </Text>
                       )}
                     </View>
-                    <TouchableOpacity style={[styles.viewProfileBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={[styles.viewProfileBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
                       <Text style={[styles.viewProfileBtnText, { color: colors.textSecondary }]}>View</Text>
-                    </TouchableOpacity>
-                  </View>
+                    </View>
+                  </TouchableOpacity>
                 </View>
 
                 {/* Additional Info */}
