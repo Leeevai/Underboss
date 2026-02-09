@@ -437,22 +437,22 @@ const Post = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Subtitle</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Subtitle</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
                 placeholder="A short tagline for your job"
-                placeholderTextColor="#A0AEC0"
+                placeholderTextColor={colors.inputPlaceholder}
                 value={form.subtitle}
                 onChangeText={(subtitle) => setForm(p => ({ ...p, subtitle }))}
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Description *</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Description *</Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
                 placeholder="Describe the job in detail (min 20 chars)..."
-                placeholderTextColor="#A0AEC0"
+                placeholderTextColor={colors.inputPlaceholder}
                 value={form.description}
                 onChangeText={(description) => setForm(p => ({ ...p, description }))}
                 multiline
@@ -462,9 +462,9 @@ const Post = () => {
           </View>
 
           {/* CATEGORIES */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Categories</Text>
-            <Text style={styles.sectionHint}>Select several categories. Tap again to set primary; long-press to remove.</Text>
+          <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+            <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Categories</Text>
+            <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Select several categories. Tap again to set primary; long-press to remove.</Text>
 
             <View style={styles.categoriesGrid}>
               {categories?.map((cat: any) => {
@@ -474,13 +474,13 @@ const Post = () => {
                     key={cat.category_id}
                     style={[
                       styles.categoryChip,
-                      { borderColor: '#486a97' },
+                      { borderColor: colors.border, backgroundColor: colors.backgroundTertiary },
                       isPrimary && styles.categoryChipPrimary,
                     ]}
                     onPress={() => toggleCategory(cat.category_id)}
                     onLongPress={() => removeCategory(cat.category_id)}
                   >
-                    <Text style={[styles.categoryChipText, { color:'#4A5568' }]}>
+                    <Text style={[styles.categoryChipText, { color: colors.textSecondary }]}>
                       {cat.name}
                     </Text>
                   </TouchableOpacity>

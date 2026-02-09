@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useAsapCalendar, AsapWithMedia } from '../cache';
+import { useTheme, BRAND } from '../common/theme';
 import { getMediaUrl } from '../serve';
 
 const { width } = Dimensions.get('window');
@@ -26,6 +27,7 @@ type ViewMode = 'calendar' | 'all';
 type RoleFilter = 'all' | 'underboss' | 'under_worker';
 
 export default function CalendarScreen() {
+  const { colors, isDark } = useTheme();
   const [selected, setSelected] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
@@ -124,7 +126,7 @@ export default function CalendarScreen() {
     markedDates[selected] = {
       ...markedDates[selected],
       selected: true,
-      selectedColor: '#0D3B66',
+      selectedColor: BRAND.primary,
     } as any;
   }
 
@@ -137,7 +139,7 @@ export default function CalendarScreen() {
     
     return (
       <TouchableOpacity 
-        style={styles.asapCard} 
+        style={[styles.asapCard, { backgroundColor: colors.card, borderColor: colors.border }]} 
         onPress={() => openAsapDetail(item)}
         activeOpacity={0.7}
       >
@@ -148,7 +150,7 @@ export default function CalendarScreen() {
               styles.roleBadge, 
               role === 'owner' ? styles.ownerBadge : styles.workerBadge
             ]}>
-              <Text style={styles.roleBadgeText}>
+              <Text style={[styles.roleBadgeText, { color: colors.text }]}>
                 {role === 'owner' ? '👔 Underboss' : '🔧 Under Worker'}
               </Text>
             </View>
@@ -161,32 +163,32 @@ export default function CalendarScreen() {
         </View>
 
         {/* Job title */}
-        <Text style={styles.jobTitle} numberOfLines={2}>{item.paps_title}</Text>
+        <Text style={[styles.jobTitle, { color: colors.text }]} numberOfLines={2}>{item.paps_title}</Text>
 
         {/* Date info */}
         <View style={styles.dateInfo}>
-          <Text style={styles.dateLabel}>Created:</Text>
-          <Text style={styles.dateValue}>{formatDate(item.created_at)}</Text>
+          <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Created:</Text>
+          <Text style={[styles.dateValue, { color: colors.text }]}>{formatDate(item.created_at)}</Text>
         </View>
 
         {/* Started/Completed info */}
         {item.started_at && (
           <View style={styles.dateInfo}>
-            <Text style={styles.dateLabel}>Started:</Text>
-            <Text style={styles.dateValue}>{formatDate(item.started_at)}</Text>
+            <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Started:</Text>
+            <Text style={[styles.dateValue, { color: colors.text }]}>{formatDate(item.started_at)}</Text>
           </View>
         )}
         {item.completed_at && (
           <View style={styles.dateInfo}>
-            <Text style={styles.dateLabel}>Completed:</Text>
-            <Text style={styles.dateValue}>{formatDate(item.completed_at)}</Text>
+            <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Completed:</Text>
+            <Text style={[styles.dateValue, { color: colors.text }]}>{formatDate(item.completed_at)}</Text>
           </View>
         )}
 
         {/* Media indicator */}
         {item.media && item.media.length > 0 && (
-          <View style={styles.mediaIndicator}>
-            <Text style={styles.mediaIndicatorText}>📎 {item.media.length} media</Text>
+          <View style={[styles.mediaIndicator, { borderTopColor: colors.border }]}>
+            <Text style={[styles.mediaIndicatorText, { color: BRAND.primary }]}>📎 {item.media.length} media</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -196,38 +198,38 @@ export default function CalendarScreen() {
   // Loading state
   if (loading && allAsaps.length === 0) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#0D3B66" />
-        <Text style={styles.loadingText}>Loading assignments...</Text>
+      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={BRAND.primary} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading assignments...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* HEADER SECTION */}
       <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>Schedule</Text>
-        <Text style={styles.headerSubtitle}>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Schedule</Text>
+        <Text style={[styles.headerSubtitle, { color: BRAND.primary }]}>
           {asWorker.length} jobs • {asOwner.length} hires
         </Text>
       </View>
 
       {/* VIEW MODE TOGGLE */}
-      <View style={styles.viewModeContainer}>
+      <View style={[styles.viewModeContainer, { backgroundColor: colors.inputBg }]}>
         <TouchableOpacity
-          style={[styles.viewModeTab, viewMode === 'calendar' && styles.viewModeTabActive]}
+          style={[styles.viewModeTab, viewMode === 'calendar' && [styles.viewModeTabActive, { backgroundColor: colors.card }]]}
           onPress={() => setViewMode('calendar')}
         >
-          <Text style={[styles.viewModeText, viewMode === 'calendar' && styles.viewModeTextActive]}>
+          <Text style={[styles.viewModeText, { color: colors.textSecondary }, viewMode === 'calendar' && { color: colors.text }]}>
             📅 Calendar
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.viewModeTab, viewMode === 'all' && styles.viewModeTabActive]}
+          style={[styles.viewModeTab, viewMode === 'all' && [styles.viewModeTabActive, { backgroundColor: colors.card }]]}
           onPress={() => { setViewMode('all'); setSelected(''); }}
         >
-          <Text style={[styles.viewModeText, viewMode === 'all' && styles.viewModeTextActive]}>
+          <Text style={[styles.viewModeText, { color: colors.textSecondary }, viewMode === 'all' && { color: colors.text }]}>
             📋 Show All
           </Text>
         </TouchableOpacity>
@@ -242,10 +244,10 @@ export default function CalendarScreen() {
         ].map((tab) => (
           <TouchableOpacity
             key={tab.key}
-            style={[styles.roleTab, roleFilter === tab.key && styles.roleTabActive]}
+            style={[styles.roleTab, { backgroundColor: colors.inputBg }, roleFilter === tab.key && { backgroundColor: BRAND.primary }]}
             onPress={() => setRoleFilter(tab.key)}
           >
-            <Text style={[styles.roleTabText, roleFilter === tab.key && styles.roleTabTextActive]}>
+            <Text style={[styles.roleTabText, { color: colors.textSecondary }, roleFilter === tab.key && { color: '#fff' }]}>
               {tab.icon} {tab.label}
             </Text>
           </TouchableOpacity>
@@ -254,21 +256,22 @@ export default function CalendarScreen() {
 
       {/* CALENDAR (only in calendar mode) */}
       {viewMode === 'calendar' && (
-        <View style={styles.calendarCard}>
+        <View style={[styles.calendarCard, { backgroundColor: colors.card }]}>
           <Calendar
             theme={{
-              backgroundColor: '#ffffff',
-              calendarBackground: '#ffffff',
-              textSectionTitleColor: '#b6c1cd',
-              selectedDayBackgroundColor: '#0D3B66',
+              backgroundColor: colors.card,
+              calendarBackground: colors.card,
+              textSectionTitleColor: colors.textSecondary,
+              selectedDayBackgroundColor: BRAND.primary,
               selectedDayTextColor: '#ffffff',
-              todayTextColor: '#5DA9E9',
-              dayTextColor: '#2d4150',
-              arrowColor: '#0D3B66',
-              monthTextColor: '#0D3B66',
+              todayTextColor: BRAND.accent,
+              dayTextColor: colors.text,
+              arrowColor: BRAND.primary,
+              monthTextColor: colors.text,
               textDayFontWeight: '400',
               textMonthFontWeight: 'bold',
               textDayHeaderFontWeight: '600',
+              textDisabledColor: colors.textSecondary,
             }}
             onDayPress={(day: DateData) => {
               setSelected(day.dateString);
@@ -281,7 +284,7 @@ export default function CalendarScreen() {
 
       {/* SELECTED DATE INFO */}
       {viewMode === 'calendar' && selected && (
-        <View style={styles.selectedDateCard}>
+        <View style={[styles.selectedDateCard, { backgroundColor: BRAND.primary }]}>
           <Text style={styles.selectedDateText}>
             📅 {new Date(selected + 'T00:00:00').toLocaleDateString('en-US', { 
               weekday: 'long', 
@@ -301,12 +304,12 @@ export default function CalendarScreen() {
           <Text style={styles.emptyIcon}>
             {viewMode === 'calendar' && selected ? '📅' : '📋'}
           </Text>
-          <Text style={styles.emptyTitle}>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
             {viewMode === 'calendar' && selected 
               ? 'No assignments on this date'
               : 'No assignments yet'}
           </Text>
-          <Text style={styles.emptySubtitle}>
+          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
             {viewMode === 'calendar' && selected
               ? 'Try selecting another date'
               : 'Accepted jobs will appear here'}
@@ -333,16 +336,16 @@ export default function CalendarScreen() {
         onRequestClose={() => setModalVisible(false)}
       >
         {selectedAsap && (
-          <View style={styles.modalContainer}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
             {/* Modal Header */}
-            <View style={styles.modalHeader}>
+            <View style={[styles.modalHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
               <TouchableOpacity 
-                style={styles.closeButton}
+                style={[styles.closeButton, { backgroundColor: colors.inputBg }]}
                 onPress={() => setModalVisible(false)}
               >
-                <Text style={styles.closeButtonText}>✕</Text>
+                <Text style={[styles.closeButtonText, { color: colors.textSecondary }]}>✕</Text>
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>Assignment Details</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Assignment Details</Text>
               <View style={{ width: 40 }} />
             </View>
 
@@ -354,7 +357,7 @@ export default function CalendarScreen() {
                   ? styles.ownerBadge 
                   : styles.workerBadge
               ]}>
-                <Text style={styles.modalRoleBadgeText}>
+                <Text style={[styles.modalRoleBadgeText, { color: colors.text }]}>
                   {getAsapRole(selectedAsap.asap_id) === 'owner' 
                     ? '👔 You hired someone (Underboss)' 
                     : '🔧 You are working (Under Worker)'}
@@ -375,25 +378,25 @@ export default function CalendarScreen() {
               </View>
 
               {/* Job title */}
-              <Text style={styles.modalJobTitle}>{selectedAsap.paps_title}</Text>
+              <Text style={[styles.modalJobTitle, { color: colors.text }]}>{selectedAsap.paps_title}</Text>
 
               {/* Dates section */}
               <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>Timeline</Text>
-                <View style={styles.timelineItem}>
-                  <Text style={styles.timelineLabel}>Created</Text>
-                  <Text style={styles.timelineValue}>{formatDate(selectedAsap.created_at)}</Text>
+                <Text style={[styles.modalSectionTitle, { color: colors.textSecondary }]}>Timeline</Text>
+                <View style={[styles.timelineItem, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.timelineLabel, { color: colors.textSecondary }]}>Created</Text>
+                  <Text style={[styles.timelineValue, { color: colors.text }]}>{formatDate(selectedAsap.created_at)}</Text>
                 </View>
                 {selectedAsap.started_at && (
-                  <View style={styles.timelineItem}>
-                    <Text style={styles.timelineLabel}>Started</Text>
-                    <Text style={styles.timelineValue}>{formatDate(selectedAsap.started_at)}</Text>
+                  <View style={[styles.timelineItem, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.timelineLabel, { color: colors.textSecondary }]}>Started</Text>
+                    <Text style={[styles.timelineValue, { color: colors.text }]}>{formatDate(selectedAsap.started_at)}</Text>
                   </View>
                 )}
                 {selectedAsap.completed_at && (
-                  <View style={styles.timelineItem}>
-                    <Text style={styles.timelineLabel}>Completed</Text>
-                    <Text style={styles.timelineValue}>{formatDate(selectedAsap.completed_at)}</Text>
+                  <View style={[styles.timelineItem, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.timelineLabel, { color: colors.textSecondary }]}>Completed</Text>
+                    <Text style={[styles.timelineValue, { color: colors.text }]}>{formatDate(selectedAsap.completed_at)}</Text>
                   </View>
                 )}
               </View>
@@ -401,7 +404,7 @@ export default function CalendarScreen() {
               {/* Media section */}
               {selectedAsap.media && selectedAsap.media.length > 0 && (
                 <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>
+                  <Text style={[styles.modalSectionTitle, { color: colors.textSecondary }]}>
                     Media ({selectedAsap.media.length})
                   </Text>
                   <ScrollView 
@@ -414,15 +417,15 @@ export default function CalendarScreen() {
                         {mediaItem.media_type === 'image' ? (
                           <Image
                             source={{ uri: getMediaUrl(mediaItem.media_path) }}
-                            style={styles.mediaImage}
+                            style={[styles.mediaImage, { backgroundColor: colors.inputBg }]}
                             resizeMode="cover"
                           />
                         ) : (
-                          <View style={styles.mediaPlaceholder}>
+                          <View style={[styles.mediaPlaceholder, { backgroundColor: colors.inputBg }]}>
                             <Text style={styles.mediaPlaceholderText}>
                               {mediaItem.media_type === 'video' ? '🎬' : '📄'}
                             </Text>
-                            <Text style={styles.mediaTypeLabel}>
+                            <Text style={[styles.mediaTypeLabel, { color: colors.textSecondary }]}>
                               {mediaItem.media_type}
                             </Text>
                           </View>
@@ -436,8 +439,8 @@ export default function CalendarScreen() {
               {/* Media loading indicator */}
               {!selectedAsap.mediaLoaded && (
                 <View style={styles.mediaLoadingContainer}>
-                  <ActivityIndicator size="small" color="#5A67D8" />
-                  <Text style={styles.mediaLoadingText}>Loading media...</Text>
+                  <ActivityIndicator size="small" color={BRAND.primary} />
+                  <Text style={[styles.mediaLoadingText, { color: colors.textSecondary }]}>Loading media...</Text>
                 </View>
               )}
             </ScrollView>

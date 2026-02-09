@@ -2,8 +2,9 @@ import React, { useState } from 'react'
 import { View, StyleSheet, TouchableOpacity, Text, Button, Image } from 'react-native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useTheme, BRAND } from '../common/theme';
 
 // Custom icons
 const icons = {
@@ -35,54 +36,6 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff'
-  },
-  content: {
-    flex: 1
-  },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderTopWidth: 10,
-    borderTopColor: '#dbdbdb',
-    paddingBottom: 20,
-    paddingTop: 8,
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8
-  },
-  tabIcon: {
-    fontSize: 24,
-    marginBottom: 4
-  },
-  tabLabel: {
-    fontSize: 10,
-    color: '#8E8E8E'
-  },
-  tabLabelActive: {
-    fontSize: 10,
-    color: '#000',
-    fontWeight: 'bold'
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center'
-  }
-})
-
 // --- Placeholders for core components ---
 //const Post = () => (
 //  <View style={styles.center}><Text>Post something...</Text></View>
@@ -90,9 +43,33 @@ const styles = StyleSheet.create({
 
 
 function MainTabs() {
+  const { colors, isDark } = useTheme();
   
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { height: 150 } }}>
+    <Tab.Navigator 
+      screenOptions={{ 
+        headerShown: false, 
+        tabBarStyle: { 
+          height: 80,
+          backgroundColor: colors.tabBarBg,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          paddingBottom: 20,
+          paddingTop: 8,
+          elevation: 8,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: isDark ? 0.3 : 0.1,
+          shadowRadius: 4,
+        },
+        tabBarActiveTintColor: colors.tabBarActive,
+        tabBarInactiveTintColor: colors.tabBarInactive,
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '600',
+        },
+      }}
+    >
       <Tab.Screen
         name="Home"
         component={PapsFeed}
@@ -154,11 +131,36 @@ interface MainViewProps {
 }
 
 export default function MainView({ logoutUser }: MainViewProps) {
+  const { colors, isDark } = useTheme();
 
+  // Create custom navigation themes
+  const CustomLightTheme = {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      background: colors.background,
+      card: colors.card,
+      text: colors.text,
+      border: colors.border,
+      primary: colors.primary,
+    },
+  };
+
+  const CustomDarkTheme = {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      background: colors.background,
+      card: colors.card,
+      text: colors.text,
+      border: colors.border,
+      primary: colors.primary,
+    },
+  };
 
   return (
-    <View style={{ flexDirection: 'column', flex: 1 }}>
-      <NavigationContainer>
+    <View style={{ flexDirection: 'column', flex: 1, backgroundColor: colors.background }}>
+      <NavigationContainer theme={isDark ? CustomDarkTheme : CustomLightTheme}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="Payement" component={PayementPage} />

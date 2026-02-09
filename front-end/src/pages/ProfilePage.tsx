@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         backgroundColor: BRAND.accent,
         borderWidth: 3,
-        borderColor: '#fff',
+        borderColor: BRAND.primary,
     },
     username: {
         fontSize: FONT_SIZE.xl,
@@ -214,13 +214,13 @@ const styles = StyleSheet.create({
     },
     ratingBadge: {
         marginTop: SPACING.md,
-        backgroundColor: '#FEF3C7',
+        backgroundColor: BRAND.warning + '20',
         paddingHorizontal: SPACING.md,
         paddingVertical: SPACING.sm,
         borderRadius: RADIUS.full,
     },
     ratingText: {
-        color: '#92400E',
+        color: BRAND.warning,
         fontWeight: FONT_WEIGHT.semibold,
         fontSize: FONT_SIZE.sm,
     },

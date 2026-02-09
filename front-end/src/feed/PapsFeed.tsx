@@ -55,21 +55,23 @@ function SectionHeader({
   onSeeAll?: () => void;
   count?: number;
 }) {
+  const { colors } = useTheme();
+  
   return (
     <View style={styles.sectionHeader}>
       <View style={styles.sectionHeaderLeft}>
         <Text style={styles.sectionIcon}>{icon}</Text>
         <View>
-          <Text style={styles.sectionTitle}>{title}</Text>
-          {subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+          {subtitle && <Text style={[styles.sectionSubtitle, { color: colors.textTertiary }]}>{subtitle}</Text>}
         </View>
       </View>
       {onSeeAll && (
         <TouchableOpacity style={styles.seeAllBtn} onPress={onSeeAll}>
-          <Text style={styles.seeAllText}>See All</Text>
+          <Text style={[styles.seeAllText, { color: colors.primary }]}>See All</Text>
           {count !== undefined && (
-            <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>{count}</Text>
+            <View style={[styles.countBadge, { backgroundColor: colors.backgroundTertiary }]}>
+              <Text style={[styles.countBadgeText, { color: colors.primary }]}>{count}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -97,11 +99,13 @@ function HorizontalPapsList({
   onRetry?: () => void;
   emptyMessage?: string;
 }) {
+  const { colors, isDark } = useTheme();
+  
   if (loading) {
     return (
       <View style={styles.listLoading}>
-        <ActivityIndicator size="small" color="#3182CE" />
-        <Text style={styles.loadingText}>Loading...</Text>
+        <ActivityIndicator size="small" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.textTertiary }]}>Loading...</Text>
       </View>
     );
   }
@@ -109,10 +113,10 @@ function HorizontalPapsList({
   if (error) {
     return (
       <View style={styles.listError}>
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
         {onRetry && (
-          <TouchableOpacity style={styles.retryBtn} onPress={onRetry}>
-            <Text style={styles.retryBtnText}>Retry</Text>
+          <TouchableOpacity style={[styles.retryBtn, { backgroundColor: colors.errorLight }]} onPress={onRetry}>
+            <Text style={[styles.retryBtnText, { color: colors.error }]}>Retry</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -121,9 +125,9 @@ function HorizontalPapsList({
 
   if (paps.length === 0) {
     return (
-      <View style={styles.listEmpty}>
+      <View style={[styles.listEmpty, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={styles.emptyIcon}>📭</Text>
-        <Text style={styles.emptyText}>{emptyMessage}</Text>
+        <Text style={[styles.emptyText, { color: colors.textMuted }]}>{emptyMessage}</Text>
       </View>
     );
   }
@@ -161,6 +165,8 @@ function QuickFilters({
   selected: string;
   onSelect: (id: string) => void;
 }) {
+  const { colors, isDark } = useTheme();
+  
   return (
     <ScrollView
       horizontal
@@ -168,26 +174,31 @@ function QuickFilters({
       style={styles.filtersContainer}
       contentContainerStyle={styles.filtersContent}
     >
-      {QUICK_CATEGORIES.map((cat) => (
-        <TouchableOpacity
-          key={cat.id}
-          style={[
-            styles.filterChip,
-            selected === cat.id && styles.filterChipActive,
-          ]}
-          onPress={() => onSelect(cat.id)}
-        >
-          <Text style={styles.filterIcon}>{cat.icon}</Text>
-          <Text
+      {QUICK_CATEGORIES.map((cat) => {
+        const isActive = selected === cat.id;
+        return (
+          <TouchableOpacity
+            key={cat.id}
             style={[
-              styles.filterLabel,
-              selected === cat.id && styles.filterLabelActive,
+              styles.filterChip,
+              { backgroundColor: colors.card, borderColor: colors.borderLight },
+              isActive && { backgroundColor: colors.primary, borderColor: colors.primary },
             ]}
+            onPress={() => onSelect(cat.id)}
           >
-            {cat.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
+            <Text style={styles.filterIcon}>{cat.icon}</Text>
+            <Text
+              style={[
+                styles.filterLabel,
+                { color: colors.textSecondary },
+                isActive && { color: colors.textInverse },
+              ]}
+            >
+              {cat.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -390,7 +401,6 @@ export default function PapsFeed() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7FAFC',
   },
   scrollView: {
     flex: 1,
@@ -408,7 +418,6 @@ const styles = StyleSheet.create({
   },
   loadingMainText: {
     fontSize: 16,
-    color: '#718096',
     fontWeight: '500',
   },
 
@@ -420,17 +429,11 @@ const styles = StyleSheet.create({
   searchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === 'ios' ? 14 : 8,
-    shadowColor: '#1A202C',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
     elevation: 2,
     borderWidth: 1,
-    borderColor: '#EDF2F7',
   },
   searchIcon: {
     fontSize: 16,
@@ -439,7 +442,6 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: '#2D3748',
     padding: 0,
   },
   clearBtn: {
@@ -448,7 +450,6 @@ const styles = StyleSheet.create({
   },
   clearBtnText: {
     fontSize: 14,
-    color: '#A0AEC0',
   },
 
   // Quick Filters
@@ -463,22 +464,12 @@ const styles = StyleSheet.create({
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 24,
     marginHorizontal: 4,
-    shadowColor: '#1A202C',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
     elevation: 1,
     borderWidth: 1,
-    borderColor: '#EDF2F7',
-  },
-  filterChipActive: {
-    backgroundColor: '#3182CE',
-    borderColor: '#3182CE',
   },
   filterIcon: {
     fontSize: 14,
@@ -487,10 +478,6 @@ const styles = StyleSheet.create({
   filterLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#4A5568',
-  },
-  filterLabelActive: {
-    color: '#FFFFFF',
   },
 
   // Section
@@ -515,11 +502,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1A202C',
   },
   sectionSubtitle: {
     fontSize: 12,
-    color: '#718096',
     marginTop: 2,
   },
   seeAllBtn: {
@@ -530,10 +515,8 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3182CE',
   },
   countBadge: {
-    backgroundColor: '#EBF8FF',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -541,7 +524,6 @@ const styles = StyleSheet.create({
   countBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#3182CE',
   },
 
   // List states
@@ -558,7 +540,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#718096',
   },
   listError: {
     height: 200,
@@ -569,11 +550,9 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
-    color: '#E53E3E',
     textAlign: 'center',
   },
   retryBtn: {
-    backgroundColor: '#FED7D7',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
@@ -581,7 +560,6 @@ const styles = StyleSheet.create({
   retryBtnText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#C53030',
   },
   listEmpty: {
     height: 180,
@@ -589,10 +567,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginHorizontal: 16,
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EDF2F7',
     borderStyle: 'dashed',
   },
   emptyIcon: {
@@ -600,7 +576,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: '#A0AEC0',
     fontWeight: '500',
   },
   bottomPadding: {

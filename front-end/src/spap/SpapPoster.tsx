@@ -3,6 +3,7 @@ import { Alert, Modal, View, Text, Image, StyleSheet, TouchableOpacity, Dimensio
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { serv, getMediaUrl, ApiError } from '../serve';
 import type { Spap } from '../serve/spap';
+import { useTheme, BRAND } from '../common/theme';
 
 // Get screen width for responsive design
 const { width } = Dimensions.get('window')
@@ -13,6 +14,7 @@ interface SpapPosterProps {
 }
 
 export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
+  const { colors } = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
   const [papsDetail, setPapsDetail] = useState<any>(null);
   const [loadingPaps, setLoadingPaps] = useState(false);
@@ -91,22 +93,22 @@ export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
   const statusColors = getStatusColor(spap.status);
   
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.cardHeader}>
         <View style={[styles.statusTag, { backgroundColor: statusColors.bg }]}>
           <Text style={[styles.statusText, { color: statusColors.text }]}>{spap.status.toUpperCase()}</Text>
         </View>
-        <Text style={styles.dateText}>{formatDate(spap.created_at)}</Text>
+        <Text style={[styles.dateText, { color: colors.textSecondary }]}>{formatDate(spap.created_at)}</Text>
       </View>
 
       <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={1}>{spap.paps_title}</Text>
-        <Text style={styles.cardDescription} numberOfLines={2}>
+        <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>{spap.paps_title}</Text>
+        <Text style={[styles.cardDescription, { color: colors.textSecondary }]} numberOfLines={2}>
           {spap.message || 'No message provided'}
         </Text>
       </View>
 
-      <View style={styles.cardFooter}>
+      <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
         {canWithdraw && (
           <TouchableOpacity
             style={styles.quickWithdrawBtn}
@@ -114,14 +116,14 @@ export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
             disabled={withdrawing}
           >
             {withdrawing ? (
-              <ActivityIndicator size="small" color="#E53E3E" />
+              <ActivityIndicator size="small" color={BRAND.error} />
             ) : (
-              <Text style={styles.quickWithdrawText}>Withdraw</Text>
+              <Text style={[styles.quickWithdrawText, { color: BRAND.error }]}>Withdraw</Text>
             )}
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          style={[styles.detailsButton, canWithdraw && { flex: 1 }]}
+          style={[styles.detailsButton, { backgroundColor: BRAND.primary }, canWithdraw && { flex: 1 }]}
           onPress={() => setModalVisible(true)}
         >
           <Text style={styles.detailsButtonText}>View Details</Text>
@@ -136,75 +138,75 @@ export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <SafeAreaView edges={['bottom', 'left', 'right']}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalHeaderTitle}>Application Details</Text>
+              <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>Application Details</Text>
                 <TouchableOpacity
                   onPress={() => setModalVisible(false)}
-                  style={styles.modalCloseButton}
+                  style={[styles.modalCloseButton, { backgroundColor: colors.inputBg }]}
                 >
-                  <Text style={styles.modalCloseText}>✕</Text>
+                  <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>✕</Text>
                 </TouchableOpacity>
               </View>
 
               <ScrollView contentContainerStyle={styles.modalScrollBody} showsVerticalScrollIndicator={false}>
                 <View style={styles.modalTitleRow}>
-                  <Text style={styles.modalJobTitle}>{spap.paps_title}</Text>
+                  <Text style={[styles.modalJobTitle, { color: colors.text }]}>{spap.paps_title}</Text>
                   <View style={[styles.statusTagLarge, { backgroundColor: statusColors.bg }]}>
                     <Text style={[styles.statusTextLarge, { color: statusColors.text }]}>{spap.status}</Text>
                   </View>
                 </View>
 
                 <View style={styles.infoBoxesRow}>
-                  <View style={styles.infoBox}>
+                  <View style={[styles.infoBox, { backgroundColor: colors.inputBg }]}>
                     <Text style={styles.infoBoxIcon}>📅</Text>
                     <View>
-                      <Text style={styles.infoBoxLabel}>Applied On</Text>
-                      <Text style={styles.infoBoxValue}>{formatDate(spap.created_at)}</Text>
+                      <Text style={[styles.infoBoxLabel, { color: colors.textSecondary }]}>Applied On</Text>
+                      <Text style={[styles.infoBoxValue, { color: colors.text }]}>{formatDate(spap.created_at)}</Text>
                     </View>
                   </View>
-                  <View style={styles.infoBox}>
+                  <View style={[styles.infoBox, { backgroundColor: colors.inputBg }]}>
                     <Text style={styles.infoBoxIcon}>🔄</Text>
                     <View>
-                      <Text style={styles.infoBoxLabel}>Updated</Text>
-                      <Text style={styles.infoBoxValue}>{formatDate(spap.updated_at)}</Text>
+                      <Text style={[styles.infoBoxLabel, { color: colors.textSecondary }]}>Updated</Text>
+                      <Text style={[styles.infoBoxValue, { color: colors.text }]}>{formatDate(spap.updated_at)}</Text>
                     </View>
                   </View>
                 </View>
 
                 <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Application Message</Text>
-                  <Text style={styles.sectionText}>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Application Message</Text>
+                  <Text style={[styles.sectionText, { color: colors.text }]}>
                     {spap.message || 'No message was included with this application.'}
                   </Text>
                 </View>
 
                 {loadingPaps ? (
                   <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>Job Details</Text>
-                    <Text style={styles.sectionText}>Loading job details...</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Job Details</Text>
+                    <Text style={[styles.sectionText, { color: colors.text }]}>Loading job details...</Text>
                   </View>
                 ) : papsDetail ? (
                   <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>Job Details</Text>
-                    <View style={styles.jobDetailCard}>
-                      <Text style={styles.jobDetailTitle}>{papsDetail.title}</Text>
-                      <Text style={styles.jobDetailDescription} numberOfLines={3}>
+                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Job Details</Text>
+                    <View style={[styles.jobDetailCard, { backgroundColor: colors.inputBg }]}>
+                      <Text style={[styles.jobDetailTitle, { color: colors.text }]}>{papsDetail.title}</Text>
+                      <Text style={[styles.jobDetailDescription, { color: colors.textSecondary }]} numberOfLines={3}>
                         {papsDetail.description}
                       </Text>
                       {papsDetail.payment_amount && (
                         <View style={styles.jobDetailRow}>
-                          <Text style={styles.jobDetailLabel}>💰 Payment:</Text>
-                          <Text style={styles.jobDetailValue}>
+                          <Text style={[styles.jobDetailLabel, { color: colors.textSecondary }]}>💰 Payment:</Text>
+                          <Text style={[styles.jobDetailValue, { color: colors.text }]}>
                             {papsDetail.payment_amount} {papsDetail.payment_currency}
                           </Text>
                         </View>
                       )}
                       {papsDetail.location_address && (
                         <View style={styles.jobDetailRow}>
-                          <Text style={styles.jobDetailLabel}>📍 Location:</Text>
-                          <Text style={styles.jobDetailValue}>{papsDetail.location_address}</Text>
+                          <Text style={[styles.jobDetailLabel, { color: colors.textSecondary }]}>📍 Location:</Text>
+                          <Text style={[styles.jobDetailValue, { color: colors.text }]}>{papsDetail.location_address}</Text>
                         </View>
                       )}
                     </View>
@@ -212,21 +214,21 @@ export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
                 ) : null}
 
                 <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Additional Information</Text>
-                  <View style={styles.infoList}>
-                    <View style={styles.infoListItem}>
-                      <Text style={styles.infoListLabel}>Application ID</Text>
-                      <Text style={styles.infoListValue}>{spap.id}</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Additional Information</Text>
+                  <View style={[styles.infoList, { borderColor: colors.border }]}>
+                    <View style={[styles.infoListItem, { borderBottomColor: colors.border }]}>
+                      <Text style={[styles.infoListLabel, { color: colors.textSecondary }]}>Application ID</Text>
+                      <Text style={[styles.infoListValue, { color: colors.text }]}>{spap.id}</Text>
                     </View>
                     <View style={styles.infoListItem}>
-                      <Text style={styles.infoListLabel}>Job ID</Text>
-                      <Text style={styles.infoListValue}>{spap.paps_id}</Text>
+                      <Text style={[styles.infoListLabel, { color: colors.textSecondary }]}>Job ID</Text>
+                      <Text style={[styles.infoListValue, { color: colors.text }]}>{spap.paps_id}</Text>
                     </View>
                   </View>
                 </View>
               </ScrollView>
 
-              <View style={styles.modalFooter}>
+              <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
                 {canWithdraw && (
                   <TouchableOpacity
                     style={[styles.withdrawBtn, withdrawing && styles.btnDisabled]}
@@ -234,19 +236,19 @@ export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
                     disabled={withdrawing}
                   >
                     {withdrawing ? (
-                      <ActivityIndicator size="small" color="#E53E3E" />
+                      <ActivityIndicator size="small" color={BRAND.error} />
                     ) : (
-                      <Text style={styles.withdrawBtnText}>Withdraw</Text>
+                      <Text style={[styles.withdrawBtnText, { color: BRAND.error }]}>Withdraw</Text>
                     )}
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
-                  style={[styles.closeActionBtn, !canWithdraw && { flex: 1 }]}
+                  style={[styles.closeActionBtn, { backgroundColor: colors.inputBg }, !canWithdraw && { flex: 1 }]}
                   onPress={() => setModalVisible(false)}
                 >
-                  <Text style={styles.closeActionBtnText}>Close</Text>
+                  <Text style={[styles.closeActionBtnText, { color: colors.text }]}>Close</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtn}>
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: BRAND.primary }]}>
                   <Text style={styles.actionBtnText}>View Job</Text>
                 </TouchableOpacity>
               </View>

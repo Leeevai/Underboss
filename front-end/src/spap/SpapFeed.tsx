@@ -5,11 +5,14 @@ import { useSpaps, useReceivedSpaps } from '../cache';
 import SpapPoster from './SpapPoster';
 import ReceivedSpapCard from './ReceivedSpapCard';
 import UnderbossBar from '../header/underbossbar';
+import { useTheme, BRAND, createShadow } from '../common/theme';
 
 type MainTab = 'my-applications' | 'received';
 type FilterTab = 'all' | SpapStatus;
 
 export default function SpapFeed() {
+  const { colors, isDark } = useTheme();
+  
   // Main tab state
   const [mainTab, setMainTab] = useState<MainTab>('my-applications');
   
@@ -112,45 +115,45 @@ export default function SpapFeed() {
 
   if (isLoading && !refreshing && currentSpaps.length === 0) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <UnderbossBar />
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#5A67D8" />
+          <ActivityIndicator size="large" color={BRAND.primary} />
         </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <UnderbossBar />
       
       {/* Main Tabs: My Applications / Received */}
-      <View style={styles.mainTabsContainer}>
+      <View style={[styles.mainTabsContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity
-          style={[styles.mainTab, mainTab === 'my-applications' && styles.mainTabActive]}
+          style={[styles.mainTab, { backgroundColor: mainTab === 'my-applications' ? colors.primary : 'transparent' }]}
           onPress={() => { setMainTab('my-applications'); setActiveFilter('all'); }}
         >
           <Text style={styles.mainTabIcon}>📤</Text>
-          <Text style={[styles.mainTabText, mainTab === 'my-applications' && styles.mainTabTextActive]}>
+          <Text style={[styles.mainTabText, { color: mainTab === 'my-applications' ? colors.textInverse : colors.textSecondary }]}>
             My Applications
           </Text>
           {spaps.length > 0 && (
-            <View style={styles.mainTabBadge}>
+            <View style={[styles.mainTabBadge, { backgroundColor: colors.primary }]}>
               <Text style={styles.mainTabBadgeText}>{spaps.length}</Text>
             </View>
           )}
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.mainTab, mainTab === 'received' && styles.mainTabActive]}
+          style={[styles.mainTab, { backgroundColor: mainTab === 'received' ? colors.primary : 'transparent' }]}
           onPress={() => { setMainTab('received'); setActiveFilter('all'); }}
         >
           <Text style={styles.mainTabIcon}>📥</Text>
-          <Text style={[styles.mainTabText, mainTab === 'received' && styles.mainTabTextActive]}>
+          <Text style={[styles.mainTabText, { color: mainTab === 'received' ? colors.textInverse : colors.textSecondary }]}>
             Received
           </Text>
           {receivedSpaps.filter(s => s.status === 'pending').length > 0 && (
-            <View style={[styles.mainTabBadge, styles.pendingBadge]}>
+            <View style={[styles.mainTabBadge, styles.pendingBadge, { backgroundColor: colors.warning }]}>
               <Text style={styles.mainTabBadgeText}>
                 {receivedSpaps.filter(s => s.status === 'pending').length}
               </Text>
@@ -160,24 +163,25 @@ export default function SpapFeed() {
       </View>
       
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { backgroundColor: colors.inputBg, color: colors.inputText }]}
           placeholder={mainTab === 'my-applications' ? "🔍 Search your applications..." : "🔍 Search received applications..."}
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholderTextColor="#718096"
+          placeholderTextColor={colors.inputPlaceholder}
         />
       </View>
 
       {/* Status Filter Tabs */}
-      <View style={styles.tabsContainer}>
+      <View style={[styles.tabsContainer, { backgroundColor: colors.card }]}>
         {statusTabs.map((tab) => (
           <TouchableOpacity
             key={tab.key}
             style={[
               styles.tab,
-              activeFilter === tab.key && styles.tabActive,
+              { borderColor: colors.border },
+              activeFilter === tab.key && { backgroundColor: colors.primary, borderColor: colors.primary },
             ]}
             onPress={() => setActiveFilter(tab.key)}
           >

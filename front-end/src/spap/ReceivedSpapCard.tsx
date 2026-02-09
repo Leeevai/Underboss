@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { getMediaUrl } from '../serve';
 import type { ReceivedApplication } from '../cache/spaps';
+import { useTheme, BRAND } from '../common/theme';
 
 interface ReceivedSpapCardProps {
   spap: ReceivedApplication;
@@ -10,6 +11,7 @@ interface ReceivedSpapCardProps {
 }
 
 export default function ReceivedSpapCard({ spap, onAccept, onReject }: ReceivedSpapCardProps) {
+  const { colors } = useTheme();
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
 
@@ -56,7 +58,7 @@ export default function ReceivedSpapCard({ spap, onAccept, onReject }: ReceivedS
     : null;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border }]}>
       {/* Header with status and date */}
       <View style={styles.cardHeader}>
         <View style={[styles.statusTag, { backgroundColor: statusColors.bg }]}>
@@ -64,31 +66,31 @@ export default function ReceivedSpapCard({ spap, onAccept, onReject }: ReceivedS
             {spap.status.toUpperCase()}
           </Text>
         </View>
-        <Text style={styles.dateText}>{formatDate(spap.created_at)}</Text>
+        <Text style={[styles.dateText, { color: colors.textSecondary }]}>{formatDate(spap.created_at)}</Text>
       </View>
 
       {/* Job title */}
-      <Text style={styles.jobTitle}>{spap.paps_title}</Text>
+      <Text style={[styles.jobTitle, { color: colors.text }]}>{spap.paps_title}</Text>
 
       {/* Applicant info */}
       <View style={styles.applicantSection}>
-        <Text style={styles.sectionLabel}>Applicant</Text>
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Applicant</Text>
         <View style={styles.applicantRow}>
           {applicantAvatar ? (
-            <Image source={{ uri: applicantAvatar }} style={styles.avatar} />
+            <Image source={{ uri: applicantAvatar }} style={[styles.avatar, { backgroundColor: colors.border }]} />
           ) : (
-            <View style={styles.avatarPlaceholder}>
+            <View style={[styles.avatarPlaceholder, { backgroundColor: BRAND.primary }]}>
               <Text style={styles.avatarPlaceholderText}>
                 {(spap.applicant_display_name || spap.applicant_username || '?')[0].toUpperCase()}
               </Text>
             </View>
           )}
           <View style={styles.applicantInfo}>
-            <Text style={styles.applicantName}>
+            <Text style={[styles.applicantName, { color: colors.text }]}>
               {spap.applicant_display_name || spap.applicant_username}
             </Text>
             {spap.applicant_display_name && spap.applicant_username && (
-              <Text style={styles.applicantUsername}>@{spap.applicant_username}</Text>
+              <Text style={[styles.applicantUsername, { color: colors.textSecondary }]}>@{spap.applicant_username}</Text>
             )}
           </View>
         </View>
@@ -97,9 +99,9 @@ export default function ReceivedSpapCard({ spap, onAccept, onReject }: ReceivedS
       {/* Message if provided */}
       {spap.message && (
         <View style={styles.messageSection}>
-          <Text style={styles.sectionLabel}>Message</Text>
-          <View style={styles.messageBox}>
-            <Text style={styles.messageText}>{spap.message}</Text>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Message</Text>
+          <View style={[styles.messageBox, { backgroundColor: colors.inputBg, borderLeftColor: BRAND.primary }]}>
+            <Text style={[styles.messageText, { color: colors.text }]}>{spap.message}</Text>
           </View>
         </View>
       )}
@@ -113,13 +115,13 @@ export default function ReceivedSpapCard({ spap, onAccept, onReject }: ReceivedS
             disabled={accepting || rejecting}
           >
             {rejecting ? (
-              <ActivityIndicator size="small" color="#E53E3E" />
+              <ActivityIndicator size="small" color={BRAND.error} />
             ) : (
-              <Text style={styles.rejectButtonText}>Reject</Text>
+              <Text style={[styles.rejectButtonText, { color: BRAND.error }]}>Reject</Text>
             )}
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionButton, styles.acceptButton]}
+            style={[styles.actionButton, styles.acceptButton, { backgroundColor: BRAND.accent }]}
             onPress={handleAccept}
             disabled={accepting || rejecting}
           >

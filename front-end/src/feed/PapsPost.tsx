@@ -29,6 +29,7 @@ import type { Comment } from '../serve/comments';
 import MediaViewer from '../common/MediaViewer';
 import { useAvatarUrl } from '../cache/profiles';
 import { getCategoryColorByName } from '../cache/categories';
+import { useTheme, BRAND, createShadow } from '../common/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -111,6 +112,8 @@ const CARD_SIZES = {
 // =============================================================================
 
 export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPostProps) {
+  const { colors, isDark } = useTheme();
+  
   const [modalVisible, setModalVisible] = useState(false);
   const [papsDetail, setPapsDetail] = useState<PapsDetail | null>(null);
   const [papsMedia, setPapsMedia] = useState<MediaItem[]>([]);
@@ -252,7 +255,16 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
       <TouchableOpacity
         activeOpacity={0.9}
         onPress={openModal}
-        style={[styles.card, { width: cardSize.width, minHeight: cardSize.height }]}
+        style={[
+          styles.card, 
+          { 
+            width: cardSize.width, 
+            minHeight: cardSize.height,
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+          createShadow(4, isDark)
+        ]}
       >
         {/* Category Badge - First category only */}
         {cardCategoryName && cardCategoryColor && (
@@ -263,11 +275,11 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
 
         {/* Card Content */}
         <View style={styles.cardContent}>
-          <Text style={styles.cardTitle} numberOfLines={cardSize.titleLines}>
+          <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={cardSize.titleLines}>
             {pap.title}
           </Text>
           
-          <Text style={styles.cardDescription} numberOfLines={cardSize.descLines}>
+          <Text style={[styles.cardDescription, { color: colors.textTertiary }]} numberOfLines={cardSize.descLines}>
             {pap.description}
           </Text>
 
@@ -276,7 +288,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
             {pap.location_address && (
               <View style={styles.metaItem}>
                 <Text style={styles.metaIcon}>📍</Text>
-                <Text style={styles.metaText} numberOfLines={1}>
+                <Text style={[styles.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
                   {pap.location_address}
                 </Text>
               </View>
@@ -284,7 +296,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
             
             <View style={styles.metaItem}>
               <Text style={styles.metaIcon}>💰</Text>
-              <Text style={styles.metaText}>
+              <Text style={[styles.metaText, { color: colors.textSecondary }]}>
                 {formatCurrency(pap.payment_amount, pap.payment_currency)}
                 {pap.payment_type !== 'fixed' && ` ${formatPaymentType(pap.payment_type)}`}
               </Text>
@@ -293,7 +305,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
             {pap.estimated_duration_minutes && (
               <View style={styles.metaItem}>
                 <Text style={styles.metaIcon}>⏱️</Text>
-                <Text style={styles.metaText}>
+                <Text style={[styles.metaText, { color: colors.textSecondary }]}>
                   ~{Math.round(pap.estimated_duration_minutes / 60)}h
                 </Text>
               </View>
@@ -302,24 +314,24 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
         </View>
 
         {/* Card Footer */}
-        <View style={styles.cardFooter}>
+        <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
           <View style={styles.userInfo}>
-            <View style={styles.avatarSmall}>
+            <View style={[styles.avatarSmall, { backgroundColor: colors.backgroundTertiary }]}>
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.avatarSmallImage} />
               ) : (
-                <Text style={styles.avatarSmallInitial}>
+                <Text style={[styles.avatarSmallInitial, { color: colors.textSecondary }]}>
                   {pap.owner_username?.charAt(0)?.toUpperCase() || '?'}
                 </Text>
               )}
             </View>
-            <Text style={styles.username} numberOfLines={1}>
+            <Text style={[styles.username, { color: colors.textTertiary }]} numberOfLines={1}>
               @{pap.owner_username}
             </Text>
           </View>
           
           <View style={styles.actionArea}>
-            <Text style={styles.timeAgo}>{formatRelativeTime(pap.created_at)}</Text>
+            <Text style={[styles.timeAgo, { color: colors.textMuted }]}>{formatRelativeTime(pap.created_at)}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -342,25 +354,25 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
           />
           
           {/* Modal Content - does not dismiss on tap */}
-          <View style={styles.modalSheet}>
-            <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
+            <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.card }]} edges={['bottom']}>
               {/* Modal Header */}
-              <View style={styles.modalHeader}>
-                <View style={styles.modalDragIndicator} />
-                <Text style={styles.modalHeaderTitle}>Job Details</Text>
+              <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+                <View style={[styles.modalDragIndicator, { backgroundColor: colors.border }]} />
+                <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>Job Details</Text>
                 <TouchableOpacity
-                  style={styles.modalCloseBtn}
+                  style={[styles.modalCloseBtn, { backgroundColor: colors.backgroundTertiary }]}
                   onPress={() => setModalVisible(false)}
                 >
-                  <Text style={styles.modalCloseBtnText}>✕</Text>
+                  <Text style={[styles.modalCloseBtnText, { color: colors.textTertiary }]}>✕</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Loading State */}
               {loadingDetail ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#3182CE" />
-                  <Text style={styles.loadingText}>Loading job details...</Text>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={[styles.loadingText, { color: colors.textTertiary }]}>Loading job details...</Text>
                 </View>
               ) : (
               /* Modal Content - Scrollable */
@@ -372,7 +384,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
               >
                 {/* Title & Category */}
                 <View style={styles.modalTitleSection}>
-                  <Text style={styles.modalTitle}>{pap.title}</Text>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>{pap.title}</Text>
                   {modalCategoryName && modalCategoryColor && (
                     <View style={[styles.modalCategoryBadge, { backgroundColor: modalCategoryColor.bg }]}>
                       <Text style={[styles.modalCategoryText, { color: modalCategoryColor.text }]}>{modalCategoryName}</Text>
@@ -382,7 +394,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
 
                 {/* Posted Time & Status */}
                 <View style={styles.modalMetaRow}>
-                  <Text style={styles.modalMetaText}>
+                  <Text style={[styles.modalMetaText, { color: colors.textTertiary }]}>
                     Posted {formatRelativeTime(pap.created_at)}
                   </Text>
                   <View style={[
@@ -401,7 +413,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 {/* Media Section */}
                 {papsMedia.length > 0 && (
                   <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>
                       Media ({papsMedia.length})
                     </Text>
                     <MediaViewer
@@ -415,32 +427,32 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
 
                 {/* Quick Info Boxes */}
                 <View style={styles.infoBoxRow}>
-                  <View style={styles.infoBox}>
+                  <View style={[styles.infoBox, { backgroundColor: colors.backgroundTertiary, borderColor: colors.border }]}>
                     <Text style={styles.infoBoxIcon}>💰</Text>
-                    <Text style={styles.infoBoxLabel}>Payment</Text>
-                    <Text style={styles.infoBoxValue}>
+                    <Text style={[styles.infoBoxLabel, { color: colors.primary }]}>Payment</Text>
+                    <Text style={[styles.infoBoxValue, { color: colors.text }]}>
                       {formatCurrency(pap.payment_amount, pap.payment_currency)}
                     </Text>
-                    <Text style={styles.infoBoxSub}>
+                    <Text style={[styles.infoBoxSub, { color: colors.textTertiary }]}>
                       {formatPaymentType(pap.payment_type)}
                     </Text>
                   </View>
                   
-                  <View style={styles.infoBox}>
+                  <View style={[styles.infoBox, { backgroundColor: colors.backgroundTertiary, borderColor: colors.border }]}>
                     <Text style={styles.infoBoxIcon}>📍</Text>
-                    <Text style={styles.infoBoxLabel}>Location</Text>
-                    <Text style={styles.infoBoxValue} numberOfLines={2}>
+                    <Text style={[styles.infoBoxLabel, { color: colors.primary }]}>Location</Text>
+                    <Text style={[styles.infoBoxValue, { color: colors.text }]} numberOfLines={2}>
                       {pap.location_address || 'Remote'}
                     </Text>
                   </View>
                   
-                  <View style={styles.infoBox}>
+                  <View style={[styles.infoBox, { backgroundColor: colors.backgroundTertiary, borderColor: colors.border }]}>
                     <Text style={styles.infoBoxIcon}>👥</Text>
-                    <Text style={styles.infoBoxLabel}>Openings</Text>
-                    <Text style={styles.infoBoxValue}>
+                    <Text style={[styles.infoBoxLabel, { color: colors.primary }]}>Openings</Text>
+                    <Text style={[styles.infoBoxValue, { color: colors.text }]}>
                       {pap.max_assignees || 1}
                     </Text>
-                    <Text style={styles.infoBoxSub}>
+                    <Text style={[styles.infoBoxSub, { color: colors.textTertiary }]}>
                       of {pap.max_applicants || 10} max
                     </Text>
                   </View>
@@ -448,18 +460,18 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
 
                 {/* Description */}
                 <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Description</Text>
-                  <Text style={styles.descriptionText}>{pap.description}</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Description</Text>
+                  <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>{pap.description}</Text>
                 </View>
 
                 {/* Schedule (if available) */}
                 {pap.start_datetime && (
                   <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>Schedule</Text>
-                    <View style={styles.scheduleCard}>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Schedule</Text>
+                    <View style={[styles.scheduleCard, { backgroundColor: colors.backgroundSecondary }]}>
                       <View style={styles.scheduleRow}>
-                        <Text style={styles.scheduleLabel}>Start</Text>
-                        <Text style={styles.scheduleValue}>
+                        <Text style={[styles.scheduleLabel, { color: colors.textTertiary }]}>Start</Text>
+                        <Text style={[styles.scheduleValue, { color: colors.text }]}>
                           {new Date(pap.start_datetime).toLocaleDateString(undefined, {
                             weekday: 'short',
                             month: 'short',
@@ -471,8 +483,8 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                       </View>
                       {pap.end_datetime && (
                         <View style={styles.scheduleRow}>
-                          <Text style={styles.scheduleLabel}>End</Text>
-                          <Text style={styles.scheduleValue}>
+                          <Text style={[styles.scheduleLabel, { color: colors.textTertiary }]}>End</Text>
+                          <Text style={[styles.scheduleValue, { color: colors.text }]}>
                             {new Date(pap.end_datetime).toLocaleDateString(undefined, {
                               weekday: 'short',
                               month: 'short',
@@ -485,8 +497,8 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                       )}
                       {pap.estimated_duration_minutes && (
                         <View style={styles.scheduleRow}>
-                          <Text style={styles.scheduleLabel}>Duration</Text>
-                          <Text style={styles.scheduleValue}>
+                          <Text style={[styles.scheduleLabel, { color: colors.textTertiary }]}>Duration</Text>
+                          <Text style={[styles.scheduleValue, { color: colors.text }]}>
                             ~{Math.round(pap.estimated_duration_minutes / 60)} hours
                           </Text>
                         </View>
@@ -497,27 +509,27 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
 
                 {/* Posted By */}
                 <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Posted by</Text>
-                  <View style={styles.postedByCard}>
-                    <View style={styles.avatarMedium}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Posted by</Text>
+                  <View style={[styles.postedByCard, { backgroundColor: colors.backgroundSecondary }]}>
+                    <View style={[styles.avatarMedium, { backgroundColor: colors.backgroundTertiary }]}>
                       {avatarUri ? (
                         <Image source={{ uri: avatarUri }} style={styles.avatarMediumImage} />
                       ) : (
-                        <Text style={styles.avatarMediumInitial}>
+                        <Text style={[styles.avatarMediumInitial, { color: colors.textSecondary }]}>
                           {pap.owner_username?.charAt(0)?.toUpperCase() || '?'}
                         </Text>
                       )}
                     </View>
                     <View style={styles.postedByInfo}>
-                      <Text style={styles.postedByName}>@{pap.owner_username}</Text>
+                      <Text style={[styles.postedByName, { color: colors.text }]}>@{pap.owner_username}</Text>
                       {papsDetail && (
-                        <Text style={styles.postedByStats}>
+                        <Text style={[styles.postedByStats, { color: colors.textTertiary }]}>
                           {papsDetail.applications_count || 0} applications • {papsDetail.comments_count || 0} comments
                         </Text>
                       )}
                     </View>
-                    <TouchableOpacity style={styles.viewProfileBtn}>
-                      <Text style={styles.viewProfileBtnText}>View</Text>
+                    <TouchableOpacity style={[styles.viewProfileBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                      <Text style={[styles.viewProfileBtnText, { color: colors.textSecondary }]}>View</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -525,27 +537,27 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 {/* Additional Info */}
                 {loadingDetail ? (
                   <View style={styles.loadingSection}>
-                    <ActivityIndicator size="small" color="#3182CE" />
-                    <Text style={styles.loadingText}>Loading details...</Text>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <Text style={[styles.loadingText, { color: colors.textTertiary }]}>Loading details...</Text>
                   </View>
                 ) : (
                   <View style={styles.modalSection}>
-                    <Text style={styles.sectionTitle}>Details</Text>
-                    <View style={styles.detailsList}>
-                      <View style={styles.detailItem}>
-                        <Text style={styles.detailLabel}>Job ID</Text>
-                        <Text style={styles.detailValue} numberOfLines={1}>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Details</Text>
+                    <View style={[styles.detailsList, { backgroundColor: colors.backgroundSecondary }]}>
+                      <View style={[styles.detailItem, { borderBottomColor: colors.border }]}>
+                        <Text style={[styles.detailLabel, { color: colors.textTertiary }]}>Job ID</Text>
+                        <Text style={[styles.detailValue, { color: colors.text }]} numberOfLines={1}>
                           {pap.id.slice(0, 8)}...
                         </Text>
                       </View>
-                      <View style={styles.detailItem}>
-                        <Text style={styles.detailLabel}>Visibility</Text>
-                        <Text style={styles.detailValue}>
+                      <View style={[styles.detailItem, { borderBottomColor: colors.border }]}>
+                        <Text style={[styles.detailLabel, { color: colors.textTertiary }]}>Visibility</Text>
+                        <Text style={[styles.detailValue, { color: colors.text }]}>
                           {pap.is_public ? 'Public' : 'Private'}
                         </Text>
                       </View>
                       {pap.expires_at && (
-                        <View style={styles.detailItem}>
+                        <View style={[styles.detailItem, { borderBottomColor: colors.border }]}>>
                           <Text style={styles.detailLabel}>Expires</Text>
                           <Text style={styles.detailValue}>
                             {new Date(pap.expires_at).toLocaleDateString()}

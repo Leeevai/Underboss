@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { View, Button, StyleSheet, Text, Alert, TouchableOpacity } from 'react-native'
 import { serv, ApiError } from '../serve'
 import AppSettings from '../AppSettings'
+import { useTheme, BRAND, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT } from '../common/theme'
 
 // Reusing your existing common components
 import KivTextInput from '../common/KivTextInput'
@@ -22,24 +23,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333'
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
     marginTop: 4
   },
   errorContainer: {
-    backgroundColor: '#FFEBEE',
     padding: 8,
     borderRadius: 4,
     marginBottom: 16,
     width: '100%',
     borderLeftWidth: 4,
-    borderLeftColor: '#D32F2F'
   },
   errorText: {
-    color: '#D32F2F',
     fontSize: 14
   },
   buttonContainer: {
@@ -51,7 +47,6 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   switchModeText: {
-    color: '#1E88E5',
     fontSize: 16
   }
 })
@@ -61,6 +56,8 @@ interface LoginProps {
 }
 
 export default function Login({ onLogUser }: LoginProps) {
+  const { colors, isDark } = useTheme();
+  
   // Mode state: true = Login, false = Register
   const [isLoginMode, setIsLoginMode] = useState<boolean>(true)
   
@@ -146,20 +143,20 @@ export default function Login({ onLogUser }: LoginProps) {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <KivCard>
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>
+          <Text style={[styles.title, { color: colors.text }]}>
             {isLoginMode ? 'Welcome Back' : 'Create Account'}
           </Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             {isLoginMode ? 'Sign in to continue' : 'Join us to get started'}
           </Text>
         </View>
 
         {errorMessage ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{errorMessage}</Text>
+          <View style={[styles.errorContainer, { backgroundColor: colors.errorLight, borderLeftColor: colors.error }]}>
+            <Text style={[styles.errorText, { color: colors.error }]}>{errorMessage}</Text>
           </View>
         ) : null}
 
@@ -205,7 +202,7 @@ export default function Login({ onLogUser }: LoginProps) {
             setErrorMessage('')
           }}
         >
-          <Text style={styles.switchModeText}>
+          <Text style={[styles.switchModeText, { color: colors.primary }]}>
             {isLoginMode 
               ? 'No account? Create one >' 
               : '< Have an account? Login'}
