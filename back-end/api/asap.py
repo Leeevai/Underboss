@@ -130,20 +130,89 @@ def register_routes(app):
             completed_at=completed_at
         )
 
-        # If completed, create payment record
-        if status == 'completed':
+        # NOTE: For completed status, payment is now handled by the dual-confirmation endpoint
+        # The status endpoint is for admin use or other status changes
+
+        return "", 204
+
+    # POST /asap/<asap_id>/confirm - confirm ASAP completion (dual confirmation required)
+    @app.post("/asap/<asap_id>/confirm", authz="AUTH")
+    def confirm_asap_completion(asap_id: str, auth: model.CurrentAuth):
+        """Confirm ASAP completion. Both worker and owner must confirm for completion."""
+        try:
+            uuid.UUID(asap_id)
+        except ValueError:
+            return {"error": "Invalid ASAP ID format"}, 400
+
+        asap = db.get_asap_by_id(asap_id=asap_id)
+        if not asap:
+            return {"error": "Assignment not found"}, 404
+
+        # Check if already completed
+        if asap['status'] == 'completed':
+            return {"error": "Assignment already completed"}, 400
+
+        # Must be in_progress to confirm
+        if asap['status'] != 'in_progress':
+            return {"error": "Assignment must be in progress to confirm completion"}, 400
+
+        is_worker = str(asap['accepted_user_id']) == auth.aid
+        is_owner = str(asap['owner_id']) == auth.aid
+
+        if not auth.is_admin and not is_worker and not is_owner:
+            return {"error": "Not authorized to confirm this assignment"}, 403
+
+        # Record the confirmation
+        if is_worker:
+            if asap.get('worker_confirmed'):
+                return {"error": "You have already confirmed"}, 400
+            db.confirm_asap_worker(asap_id=asap_id)
+        elif is_owner:
+            if asap.get('owner_confirmed'):
+                return {"error": "You have already confirmed"}, 400
+            db.confirm_asap_owner(asap_id=asap_id)
+
+        # Try to complete (only succeeds if both have confirmed)
+        now = datetime.datetime.now(datetime.timezone.utc)
+        result = db.try_complete_asap(asap_id=asap_id, completed_at=now)
+        
+        if result:
+            # Both confirmed - create payment record with proper calculation
             paps = db.get_paps_by_id_admin(id=asap['paps_id'])
             if paps and paps['payment_amount']:
+                amount = paps['payment_amount']
+                
+                # Calculate hourly payment: hours worked * rate
+                if paps.get('payment_type') == 'hourly' and asap.get('started_at'):
+                    started_at = asap['started_at']
+                    # Ensure both datetimes are timezone-aware for subtraction
+                    if started_at.tzinfo is None:
+                        started_at = started_at.replace(tzinfo=datetime.timezone.utc)
+                    hours_worked = (now - started_at).total_seconds() / 3600
+                    # Convert Decimal to float for multiplication
+                    rate = float(paps['payment_amount'])
+                    amount = max(0.01, round(hours_worked * rate, 2))  # Minimum $0.01
+                
                 db.insert_payment(
                     paps_id=asap['paps_id'],
                     payer_id=asap['owner_id'],
                     payee_id=asap['accepted_user_id'],
-                    amount=paps['payment_amount'],
+                    amount=amount,
                     currency=paps['payment_currency'] or 'USD',
                     payment_method=None
                 )
-
-        return "", 204
+            
+            return fsa.jsonify({
+                "status": "completed",
+                "message": "Assignment completed successfully"
+            }), 200
+        else:
+            # Waiting for other party
+            other_party = "owner" if is_worker else "worker"
+            return fsa.jsonify({
+                "status": "pending_confirmation",
+                "message": f"Confirmation recorded. Waiting for {other_party} to confirm."
+            }), 200
 
     # DELETE /asap/<asap_id> - cancel/delete assignment (owner/admin only)
     @app.delete("/asap/<asap_id>", authz="AUTH")
