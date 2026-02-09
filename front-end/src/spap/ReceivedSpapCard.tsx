@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { getMediaUrl } from '../serve';
 import type { ReceivedApplication } from '../cache/spaps';
 import { useTheme, BRAND } from '../common/theme';
@@ -12,6 +13,7 @@ interface ReceivedSpapCardProps {
 
 export default function ReceivedSpapCard({ spap, onAccept, onReject }: ReceivedSpapCardProps) {
   const { colors } = useTheme();
+  const navigation = useNavigation<any>();
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
 
@@ -75,7 +77,10 @@ export default function ReceivedSpapCard({ spap, onAccept, onReject }: ReceivedS
       {/* Applicant info */}
       <View style={styles.applicantSection}>
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Applicant</Text>
-        <View style={styles.applicantRow}>
+        <TouchableOpacity 
+          style={styles.applicantRow}
+          onPress={() => navigation.navigate('ProfilePage', { username: spap.applicant_username })}
+        >
           {applicantAvatar ? (
             <Image source={{ uri: applicantAvatar }} style={[styles.avatar, { backgroundColor: colors.border }]} />
           ) : (
@@ -93,7 +98,7 @@ export default function ReceivedSpapCard({ spap, onAccept, onReject }: ReceivedS
               <Text style={[styles.applicantUsername, { color: colors.textSecondary }]}>@{spap.applicant_username}</Text>
             )}
           </View>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Message if provided */}
