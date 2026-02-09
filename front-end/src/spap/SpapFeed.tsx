@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { View, FlatList, ActivityIndicator, Text, StyleSheet, RefreshControl, TextInput, TouchableOpacity, Alert } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { SpapStatus } from '../serve';
 import { useSpaps, useReceivedSpaps } from '../cache';
 import SpapPoster from './SpapPoster';
@@ -115,17 +116,17 @@ export default function SpapFeed() {
 
   if (isLoading && !refreshing && currentSpaps.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <UnderbossBar />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={BRAND.primary} />
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <UnderbossBar />
       
       {/* Main Tabs: My Applications / Received */}
@@ -240,7 +241,7 @@ export default function SpapFeed() {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

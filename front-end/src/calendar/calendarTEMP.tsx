@@ -13,11 +13,12 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useAsapCalendar, AsapWithMedia } from '../cache';
 import { useTheme, BRAND } from '../common/theme';
 import { serv, getMediaUrl, getCurrentUser } from '../serve';
-
+import UnderbossBar from '../header/underbossbar';
 const { width } = Dimensions.get('window');
 
 /******************************************************************
@@ -236,15 +237,19 @@ export default function CalendarScreen() {
   // Loading state
   if (loading && allAsaps.length === 0) {
     return (
-      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={BRAND.primary} />
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading assignments...</Text>
-      </View>
+      <SafeAreaView style={[styles.centerContainer, { backgroundColor: colors.background }]} edges={['top']}>
+        <UnderbossBar />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={BRAND.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading assignments...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <UnderbossBar />
       {/* HEADER SECTION */}
       <View style={styles.headerContainer}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Schedule</Text>
@@ -532,7 +537,7 @@ export default function CalendarScreen() {
           </View>
         )}
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

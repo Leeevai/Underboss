@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
 import AppSettings from '../AppSettings';
 import { getMediaUrl } from '../serve';
@@ -8,14 +7,12 @@ import { getMediaUrl } from '../serve';
 export default function UnderbossBar() {
     const navigation = useNavigation<any>();
     const { colors, isDark } = useTheme();
-    const insets = useSafeAreaInsets();
 
     return (
         <View style={[
             styles.container,
             { 
                 backgroundColor: colors.headerBg,
-                paddingTop: insets.top > 0 ? insets.top : Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 10,
                 borderBottomColor: colors.headerBorder,
             },
             createShadow(3, isDark),
@@ -67,7 +64,7 @@ export default function UnderbossBar() {
 
 const styles = StyleSheet.create({
     container: {
-        borderBottomWidth: 1,
+        borderBottomWidth: 2,
     },
     inner: {
         flexDirection: 'row',

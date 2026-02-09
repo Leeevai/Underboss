@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Image, Modal, PermissionsAndroid } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { serv, ApiError, PaymentType, PapsStatus, Currency } from '../serve';
 import { PapsCreateRequest } from '../serve/paps/types';
 import UnderbossBar from '../header/underbossbar';
@@ -413,491 +414,492 @@ const Post = () => {
   const { colors, isDark } = useTheme();
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.screen, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]} edges={['top']}>
       <UnderbossBar />
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.container}
+      
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* HEADER */}
-        <View style={[styles.header, { backgroundColor: colors.card }]}>
-          <Text style={[styles.title, { color: colors.text }]}>Create a Paps</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Post a job for the community</Text>
-        </View>
-
-        {/* FORM */}
-        <View style={styles.formContainer}>
-
-          {/* BASICS */}
-          <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
-            <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Basic Info</Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Title *</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                placeholder="e.g. Build my landing page"
-                placeholderTextColor={colors.inputPlaceholder}
-                value={form.title}
-                onChangeText={(title) => setForm(p => ({ ...p, title }))}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Subtitle</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                placeholder="A short tagline for your job"
-                placeholderTextColor={colors.inputPlaceholder}
-                value={form.subtitle}
-                onChangeText={(subtitle) => setForm(p => ({ ...p, subtitle }))}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Description *</Text>
-              <TextInput
-                style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                placeholder="Describe the job in detail (min 20 chars)..."
-                placeholderTextColor={colors.inputPlaceholder}
-                value={form.description}
-                onChangeText={(description) => setForm(p => ({ ...p, description }))}
-                multiline
-                numberOfLines={4}
-              />
-            </View>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.container}
+        >
+          {/* HEADER */}
+          <View style={[styles.header, { backgroundColor: colors.card }]}>
+            <Text style={[styles.title, { color: colors.text }]}>Create a Paps</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Post a job for the community</Text>
           </View>
 
-          {/* CATEGORIES */}
-          <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
-            <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Categories</Text>
-            <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Select several categories. Tap again to set primary; long-press to remove.</Text>
+          {/* FORM */}
+          <View style={styles.formContainer}>
 
-            <View style={styles.categoriesGrid}>
-              {categories?.map((cat: any) => {
-                const isPrimary = selectedCategories.some(c => c.id === cat.category_id && c.isPrimary);
-                return (
-                  <TouchableOpacity
-                    key={cat.category_id}
-                    style={[
-                      styles.categoryChip,
-                      { borderColor: colors.border, backgroundColor: colors.backgroundTertiary },
-                      isPrimary && styles.categoryChipPrimary,
-                    ]}
-                    onPress={() => toggleCategory(cat.category_id)}
-                    onLongPress={() => removeCategory(cat.category_id)}
-                  >
-                    <Text style={[styles.categoryChipText, { color: colors.textSecondary }]}>
-                      {cat.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
+            {/* BASICS */}
+            <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+              <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Basic Info</Text>
 
-          {/* MEDIA */}
-          <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
-            <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Media</Text>
-            <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
-              Add photos or videos ({mediaFiles.length}/{MAX_MEDIA_FILES})
-            </Text>
-
-            <View style={styles.mediaContainer}>
-              {/* Media Preview Grid */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.mediaGrid}
-              >
-                {mediaFiles.map((asset, index) => (
-                  <View key={asset.uri || index} style={styles.mediaPreviewContainer}>
-                    <Image
-                      source={{ uri: asset.uri }}
-                      style={styles.mediaPreview}
-                      resizeMode="cover"
-                    />
-                    <TouchableOpacity
-                      style={styles.mediaRemoveButton}
-                      onPress={() => removeMedia(index)}
-                    >
-                      <Text style={styles.mediaRemoveText}>✕</Text>
-                    </TouchableOpacity>
-                    {asset.type?.startsWith('video') && (
-                      <View style={styles.videoIndicator}>
-                        <Text style={styles.videoIndicatorText}>▶</Text>
-                      </View>
-                    )}
-                  </View>
-                ))}
-
-                {/* Add Media Button */}
-                {mediaFiles.length < MAX_MEDIA_FILES && (
-                  <TouchableOpacity
-                    style={styles.addMediaButton}
-                    onPress={pickMedia}
-                  >
-                    <Text style={styles.addMediaIcon}>+</Text>
-                    <Text style={styles.addMediaText}>Add</Text>
-                  </TouchableOpacity>
-                )}
-              </ScrollView>
-            </View>
-
-            {uploadingMedia && (
-              <View style={styles.uploadingIndicator}>
-                <ActivityIndicator size="small" color={BRAND.primary} />
-                <Text style={[styles.uploadingText, { color: BRAND.primary }]}>Uploading media...</Text>
-              </View>
-            )}
-          </View>
-
-          {/* PAYMENT */}
-          <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
-            <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Payment</Text>
-
-            {/* Payment Type */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Type</Text>
-              <View style={styles.toggleRow}>
-                {PAYMENT_TYPES.map((pt) => (
-                  <TouchableOpacity
-                    key={pt.value}
-                    style={[
-                      styles.toggleButton,
-                      { backgroundColor: colors.inputBg, borderColor: colors.inputBorder },
-                      form.payment_type === pt.value && { backgroundColor: BRAND.primary, borderColor: BRAND.primary },
-                    ]}
-                    onPress={() => setForm(p => ({ ...p, payment_type: pt.value }))}
-                  >
-                    <Text style={styles.toggleIcon}>{pt.icon}</Text>
-                    <Text style={[
-                      styles.toggleText,
-                      { color: colors.textSecondary },
-                      form.payment_type === pt.value && styles.toggleTextActive,
-                    ]}>
-                      {pt.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Amount + Currency */}
-            <View style={styles.rowInputs}>
-              <View style={[styles.inputGroup, { flex: 2 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Amount *</Text>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Title *</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                  keyboardType="numeric"
-                  placeholder="0.00"
+                  placeholder="e.g. Build my landing page"
                   placeholderTextColor={colors.inputPlaceholder}
-                  value={form.payment_amount?.toString() || ''}
-                  onChangeText={(v) => setForm(p => ({ ...p, payment_amount: parseFloat(v) || 0 }))}
+                  value={form.title}
+                  onChangeText={(title) => setForm(p => ({ ...p, title }))}
                 />
               </View>
 
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Currency</Text>
-                <View style={styles.pickerContainer}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {CURRENCIES.map((cur) => (
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Subtitle</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+                  placeholder="A short tagline for your job"
+                  placeholderTextColor={colors.inputPlaceholder}
+                  value={form.subtitle}
+                  onChangeText={(subtitle) => setForm(p => ({ ...p, subtitle }))}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Description *</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+                  placeholder="Describe the job in detail (min 20 chars)..."
+                  placeholderTextColor={colors.inputPlaceholder}
+                  value={form.description}
+                  onChangeText={(description) => setForm(p => ({ ...p, description }))}
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
+            </View>
+
+            {/* CATEGORIES */}
+            <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+              <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Categories</Text>
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Select several categories. Tap again to set primary; long-press to remove.</Text>
+
+              <View style={styles.categoriesGrid}>
+                {categories?.map((cat: any) => {
+                  const isPrimary = selectedCategories.some(c => c.id === cat.category_id && c.isPrimary);
+                  return (
+                    <TouchableOpacity
+                      key={cat.category_id}
+                      style={[
+                        styles.categoryChip,
+                        { borderColor: colors.border, backgroundColor: colors.backgroundTertiary },
+                        isPrimary && styles.categoryChipPrimary,
+                      ]}
+                      onPress={() => toggleCategory(cat.category_id)}
+                      onLongPress={() => removeCategory(cat.category_id)}
+                    >
+                      <Text style={[styles.categoryChipText, { color: colors.textSecondary }]}>
+                        {cat.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* MEDIA */}
+            <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+              <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Media</Text>
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
+                Add photos or videos ({mediaFiles.length}/{MAX_MEDIA_FILES})
+              </Text>
+
+              <View style={styles.mediaContainer}>
+                {/* Media Preview Grid */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.mediaGrid}
+                >
+                  {mediaFiles.map((asset, index) => (
+                    <View key={asset.uri || index} style={styles.mediaPreviewContainer}>
+                      <Image
+                        source={{ uri: asset.uri }}
+                        style={styles.mediaPreview}
+                        resizeMode="cover"
+                      />
                       <TouchableOpacity
-                        key={cur}
-                        style={[
-                          styles.currencyChip,
-                          { backgroundColor: colors.inputBg, borderColor: colors.inputBorder },
-                          form.payment_currency === cur && { backgroundColor: BRAND.primary, borderColor: BRAND.primary },
-                        ]}
-                        onPress={() => setForm(p => ({ ...p, payment_currency: cur }))}
+                        style={styles.mediaRemoveButton}
+                        onPress={() => removeMedia(index)}
                       >
-                        <Text style={[
-                          styles.currencyText,
-                          { color: colors.textSecondary },
-                          form.payment_currency === cur && styles.currencyTextActive,
-                        ]}>
-                          {cur}
-                        </Text>
+                        <Text style={styles.mediaRemoveText}>✕</Text>
                       </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                      {asset.type?.startsWith('video') && (
+                        <View style={styles.videoIndicator}>
+                          <Text style={styles.videoIndicatorText}>▶</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+
+                  {/* Add Media Button */}
+                  {mediaFiles.length < MAX_MEDIA_FILES && (
+                    <TouchableOpacity
+                      style={styles.addMediaButton}
+                      onPress={pickMedia}
+                    >
+                      <Text style={styles.addMediaIcon}>+</Text>
+                      <Text style={styles.addMediaText}>Add</Text>
+                    </TouchableOpacity>
+                  )}
+                </ScrollView>
+              </View>
+
+              {uploadingMedia && (
+                <View style={styles.uploadingIndicator}>
+                  <ActivityIndicator size="small" color={BRAND.primary} />
+                  <Text style={[styles.uploadingText, { color: BRAND.primary }]}>Uploading media...</Text>
+                </View>
+              )}
+            </View>
+
+            {/* PAYMENT */}
+            <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+              <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Payment</Text>
+
+              {/* Payment Type */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Type</Text>
+                <View style={styles.toggleRow}>
+                  {PAYMENT_TYPES.map((pt) => (
+                    <TouchableOpacity
+                      key={pt.value}
+                      style={[
+                        styles.toggleButton,
+                        { backgroundColor: colors.inputBg, borderColor: colors.inputBorder },
+                        form.payment_type === pt.value && { backgroundColor: BRAND.primary, borderColor: BRAND.primary },
+                      ]}
+                      onPress={() => setForm(p => ({ ...p, payment_type: pt.value }))}
+                    >
+                      <Text style={styles.toggleIcon}>{pt.icon}</Text>
+                      <Text style={[
+                        styles.toggleText,
+                        { color: colors.textSecondary },
+                        form.payment_type === pt.value && styles.toggleTextActive,
+                      ]}>
+                        {pt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Amount + Currency */}
+              <View style={styles.rowInputs}>
+                <View style={[styles.inputGroup, { flex: 2 }]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>Amount *</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+                    keyboardType="numeric"
+                    placeholder="0.00"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    value={form.payment_amount?.toString() || ''}
+                    onChangeText={(v) => setForm(p => ({ ...p, payment_amount: parseFloat(v) || 0 }))}
+                  />
+                </View>
+
+                <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>Currency</Text>
+                  <View style={styles.pickerContainer}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {CURRENCIES.map((cur) => (
+                        <TouchableOpacity
+                          key={cur}
+                          style={[
+                            styles.currencyChip,
+                            { backgroundColor: colors.inputBg, borderColor: colors.inputBorder },
+                            form.payment_currency === cur && { backgroundColor: BRAND.primary, borderColor: BRAND.primary },
+                          ]}
+                          onPress={() => setForm(p => ({ ...p, payment_currency: cur }))}
+                        >
+                          <Text style={[
+                            styles.currencyText,
+                            { color: colors.textSecondary },
+                            form.payment_currency === cur && styles.currencyTextActive,
+                          ]}>
+                            {cur}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
 
-          {/* POST MODE */}
-          <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
-            <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Post Mode</Text>
-            <View style={styles.postModeContainer}>
-              {POST_MODES.map((mode) => (
-                <TouchableOpacity
-                  key={mode.value}
-                  style={[
-                    styles.postModeOption,
-                    { backgroundColor: colors.inputBg, borderColor: colors.border },
-                    postMode === mode.value && { backgroundColor: BRAND.primary + '15', borderColor: BRAND.primary },
-                  ]}
-                  onPress={() => setPostMode(mode.value)}
-                >
-                  <Text style={styles.postModeIcon}>{mode.icon}</Text>
-                  <View style={styles.postModeText}>
-                    <Text style={[
-                      styles.postModeLabel,
-                      { color: postMode === mode.value ? BRAND.primary : colors.text },
-                    ]}>
-                      {mode.label}
-                    </Text>
-                    <Text style={[styles.postModeDesc, { color: colors.textMuted }]}>
-                      {mode.description}
-                    </Text>
-                  </View>
-                  {postMode === mode.value && (
-                    <Text style={styles.postModeCheck}>✓</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* SCHEDULE */}
-          <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
-            <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Schedule</Text>
-
-            <View style={styles.rowInputs}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Start Date</Text>
-                <TouchableOpacity
-                  style={[styles.datePickerButton, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
-                  onPress={() => openCalendar('start')}
-                >
-                  <Text style={styles.datePickerIcon}>📅</Text>
-                  <Text style={[styles.datePickerText, { color: form.start_datetime ? colors.inputText : colors.inputPlaceholder }]}>
-                    {formatDisplayDate(form.start_datetime)}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>End Date</Text>
-                <TouchableOpacity
-                  style={[styles.datePickerButton, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
-                  onPress={() => openCalendar('end')}
-                >
-                  <Text style={styles.datePickerIcon}>📅</Text>
-                  <Text style={[styles.datePickerText, { color: form.end_datetime ? colors.inputText : colors.inputPlaceholder }]}>
-                    {formatDisplayDate(form.end_datetime)}
-                  </Text>
-                </TouchableOpacity>
+            {/* POST MODE */}
+            <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+              <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Post Mode</Text>
+              <View style={styles.postModeContainer}>
+                {POST_MODES.map((mode) => (
+                  <TouchableOpacity
+                    key={mode.value}
+                    style={[
+                      styles.postModeOption,
+                      { backgroundColor: colors.inputBg, borderColor: colors.border },
+                      postMode === mode.value && { backgroundColor: BRAND.primary + '15', borderColor: BRAND.primary },
+                    ]}
+                    onPress={() => setPostMode(mode.value)}
+                  >
+                    <Text style={styles.postModeIcon}>{mode.icon}</Text>
+                    <View style={styles.postModeText}>
+                      <Text style={[
+                        styles.postModeLabel,
+                        { color: postMode === mode.value ? BRAND.primary : colors.text },
+                      ]}>
+                        {mode.label}
+                      </Text>
+                      <Text style={[styles.postModeDesc, { color: colors.textMuted }]}>
+                        {mode.description}
+                      </Text>
+                    </View>
+                    {postMode === mode.value && (
+                      <Text style={styles.postModeCheck}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Duration (minutes)</Text>
-              <Text style={[styles.sectionHint, { color: colors.textMuted, marginBottom: 8 }]}>
-                Changes end date automatically based on start date
-              </Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                keyboardType="numeric"
-                placeholder="e.g. 120"
-                placeholderTextColor={colors.inputPlaceholder}
-                value={form.estimated_duration_minutes?.toString() || ''}
-                onChangeText={(v) => handleDurationChange(parseInt(v, 10) || 0)}
-              />
-            </View>
-          </View>
+            {/* SCHEDULE */}
+            <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+              <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Schedule</Text>
 
-          {/* LIMITS */}
-          <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
-            <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Limits</Text>
+              <View style={styles.rowInputs}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>Start Date</Text>
+                  <TouchableOpacity
+                    style={[styles.datePickerButton, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
+                    onPress={() => openCalendar('start')}
+                  >
+                    <Text style={styles.datePickerIcon}>📅</Text>
+                    <Text style={[styles.datePickerText, { color: form.start_datetime ? colors.inputText : colors.inputPlaceholder }]}>
+                      {formatDisplayDate(form.start_datetime)}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
-            <View style={styles.rowInputs}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Max Applicants</Text>
+                <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>End Date</Text>
+                  <TouchableOpacity
+                    style={[styles.datePickerButton, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
+                    onPress={() => openCalendar('end')}
+                  >
+                    <Text style={styles.datePickerIcon}>📅</Text>
+                    <Text style={[styles.datePickerText, { color: form.end_datetime ? colors.inputText : colors.inputPlaceholder }]}>
+                      {formatDisplayDate(form.end_datetime)}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Duration (minutes)</Text>
+                <Text style={[styles.sectionHint, { color: colors.textMuted, marginBottom: 8 }]}>
+                  Changes end date automatically based on start date
+                </Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
                   keyboardType="numeric"
-                  placeholder="10"
+                  placeholder="e.g. 120"
                   placeholderTextColor={colors.inputPlaceholder}
-                  value={form.max_applicants?.toString() || ''}
-                  onChangeText={(v) => setForm(p => ({ ...p, max_applicants: parseInt(v, 10) || 10 }))}
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Max Assignees</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                  keyboardType="numeric"
-                  placeholder="1"
-                  placeholderTextColor={colors.inputPlaceholder}
-                  value={form.max_assignees?.toString() || ''}
-                  onChangeText={(v) => setForm(p => ({ ...p, max_assignees: parseInt(v, 10) || 1 }))}
+                  value={form.estimated_duration_minutes?.toString() || ''}
+                  onChangeText={(v) => handleDurationChange(parseInt(v, 10) || 0)}
                 />
               </View>
             </View>
-          </View>
 
-          {/* LOCATION */}
-          <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
-            <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Location</Text>
+            {/* LIMITS */}
+            <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+              <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Limits</Text>
 
-            {/* Use Current Location Button */}
+              <View style={styles.rowInputs}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>Max Applicants</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+                    keyboardType="numeric"
+                    placeholder="10"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    value={form.max_applicants?.toString() || ''}
+                    onChangeText={(v) => setForm(p => ({ ...p, max_applicants: parseInt(v, 10) || 10 }))}
+                  />
+                </View>
+
+                <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>Max Assignees</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+                    keyboardType="numeric"
+                    placeholder="1"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    value={form.max_assignees?.toString() || ''}
+                    onChangeText={(v) => setForm(p => ({ ...p, max_assignees: parseInt(v, 10) || 1 }))}
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* LOCATION */}
+            <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+              <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Location</Text>
+
+              {/* Use Current Location Button */}
+              <TouchableOpacity
+                style={[styles.locationButton, { backgroundColor: BRAND.primary + '15', borderColor: BRAND.primary }]}
+                onPress={fetchCurrentLocation}
+                disabled={loadingLocation}
+              >
+                {loadingLocation ? (
+                  <ActivityIndicator size="small" color={BRAND.primary} />
+                ) : (
+                  <Text style={styles.locationButtonIcon}>📍</Text>
+                )}
+                <Text style={[styles.locationButtonText, { color: BRAND.primary }]}>
+                  {loadingLocation ? 'Getting location...' : 'Use my current location'}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Address</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+                  placeholder="e.g. Paris, France"
+                  placeholderTextColor={colors.inputPlaceholder}
+                  value={form.location_address || ''}
+                  onChangeText={(location_address) => setForm(p => ({ ...p, location_address }))}
+                />
+              </View>
+
+              <View style={styles.rowInputs}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>Latitude</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+                    keyboardType="numeric"
+                    placeholder="48.8566"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    value={form.location_lat?.toString() || ''}
+                    onChangeText={(v) => setForm(p => ({ ...p, location_lat: parseFloat(v) || undefined }))}
+                    editable={!loadingLocation}
+                  />
+                </View>
+
+                <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>Longitude</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+                    keyboardType="numeric"
+                    placeholder="2.3522"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    value={form.location_lng?.toString() || ''}
+                    onChangeText={(v) => setForm(p => ({ ...p, location_lng: parseFloat(v) || undefined }))}
+                    editable={!loadingLocation}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Timezone</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+                  placeholder="e.g. Europe/Paris"
+                  placeholderTextColor={colors.inputPlaceholder}
+                  value={form.location_timezone || ''}
+                  onChangeText={(location_timezone) => setForm(p => ({ ...p, location_timezone }))}
+                />
+              </View>
+            </View>
+
+            {/* ACTIONS */}
             <TouchableOpacity
-              style={[styles.locationButton, { backgroundColor: BRAND.primary + '15', borderColor: BRAND.primary }]}
-              onPress={fetchCurrentLocation}
-              disabled={loadingLocation}
+              style={[styles.saveButton, { backgroundColor: BRAND.primary }, (submitting || uploadingMedia) && styles.saveButtonDisabled]}
+              onPress={sendPaps}
+              disabled={submitting || uploadingMedia}
             >
-              {loadingLocation ? (
-                <ActivityIndicator size="small" color={BRAND.primary} />
+              {submitting || uploadingMedia ? (
+                <View style={styles.buttonLoadingRow}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={styles.saveButtonText}>
+                    {uploadingMedia ? 'Uploading Media...' : 'Creating...'}
+                  </Text>
+                </View>
               ) : (
-                <Text style={styles.locationButtonIcon}>📍</Text>
+                <Text style={styles.saveButtonText}>
+                  {postMode === 'draft' ? '📝 Save as Draft' : postMode === 'scheduled' ? '⏰ Schedule Post' : '🚀 Publish Now'}
+                </Text>
               )}
-              <Text style={[styles.locationButtonText, { color: BRAND.primary }]}>
-                {loadingLocation ? 'Getting location...' : 'Use my current location'}
-              </Text>
             </TouchableOpacity>
 
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Address</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                placeholder="e.g. Paris, France"
-                placeholderTextColor={colors.inputPlaceholder}
-                value={form.location_address || ''}
-                onChangeText={(location_address) => setForm(p => ({ ...p, location_address }))}
-              />
-            </View>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={resetForm}
+              disabled={submitting || uploadingMedia}
+            >
+              <Text style={styles.cancelButtonText}>Reset Form</Text>
+            </TouchableOpacity>
 
-            <View style={styles.rowInputs}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Latitude</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                  keyboardType="numeric"
-                  placeholder="48.8566"
-                  placeholderTextColor={colors.inputPlaceholder}
-                  value={form.location_lat?.toString() || ''}
-                  onChangeText={(v) => setForm(p => ({ ...p, location_lat: parseFloat(v) || undefined }))}
-                  editable={!loadingLocation}
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Longitude</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                  keyboardType="numeric"
-                  placeholder="2.3522"
-                  placeholderTextColor={colors.inputPlaceholder}
-                  value={form.location_lng?.toString() || ''}
-                  onChangeText={(v) => setForm(p => ({ ...p, location_lng: parseFloat(v) || undefined }))}
-                  editable={!loadingLocation}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Timezone</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                placeholder="e.g. Europe/Paris"
-                placeholderTextColor={colors.inputPlaceholder}
-                value={form.location_timezone || ''}
-                onChangeText={(location_timezone) => setForm(p => ({ ...p, location_timezone }))}
-              />
-            </View>
           </View>
+        </ScrollView>
 
-          {/* ACTIONS */}
-          <TouchableOpacity
-            style={[styles.saveButton, { backgroundColor: BRAND.primary }, (submitting || uploadingMedia) && styles.saveButtonDisabled]}
-            onPress={sendPaps}
-            disabled={submitting || uploadingMedia}
-          >
-            {submitting || uploadingMedia ? (
-              <View style={styles.buttonLoadingRow}>
-                <ActivityIndicator color="#fff" size="small" />
-                <Text style={styles.saveButtonText}>
-                  {uploadingMedia ? 'Uploading Media...' : 'Creating...'}
-                </Text>
-              </View>
-            ) : (
-              <Text style={styles.saveButtonText}>
-                {postMode === 'draft' ? '📝 Save as Draft' : postMode === 'scheduled' ? '⏰ Schedule Post' : '🚀 Publish Now'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={resetForm}
-            disabled={submitting || uploadingMedia}
-          >
-            <Text style={styles.cancelButtonText}>Reset Form</Text>
-          </TouchableOpacity>
-
-        </View>
-      </ScrollView>
-
-      {/* Calendar Popup Modal */}
-      <Modal
-        visible={calendarVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setCalendarVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.calendarOverlay}
-          activeOpacity={1}
-          onPress={() => setCalendarVisible(false)}
+        {/* Calendar Popup Modal */}
+        <Modal
+          visible={calendarVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setCalendarVisible(false)}
         >
-          <View style={[styles.calendarContainer, { backgroundColor: colors.card }]}>
-            <View style={styles.calendarHeader}>
-              <Text style={[styles.calendarTitle, { color: colors.text }]}>
-                {calendarField === 'start' ? 'Select Start Date' : 'Select End Date'}
-              </Text>
-              <TouchableOpacity onPress={() => setCalendarVisible(false)}>
-                <Text style={styles.calendarClose}>✕</Text>
-              </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.calendarOverlay}
+            activeOpacity={1}
+            onPress={() => setCalendarVisible(false)}
+          >
+            <View style={[styles.calendarContainer, { backgroundColor: colors.card }]}>
+              <View style={styles.calendarHeader}>
+                <Text style={[styles.calendarTitle, { color: colors.text }]}>
+                  {calendarField === 'start' ? 'Select Start Date' : 'Select End Date'}
+                </Text>
+                <TouchableOpacity onPress={() => setCalendarVisible(false)}>
+                  <Text style={styles.calendarClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <Calendar
+                onDayPress={handleDateSelect}
+                markedDates={{
+                  [form.start_datetime?.split('T')[0] || '']: { selected: true, selectedColor: BRAND.primary },
+                  [form.end_datetime?.split('T')[0] || '']: { selected: true, selectedColor: BRAND.secondary || '#60A5FA' },
+                }}
+                minDate={calendarField === 'end' && form.start_datetime ? form.start_datetime.split('T')[0] : undefined}
+                theme={{
+                  backgroundColor: colors.card,
+                  calendarBackground: colors.card,
+                  textSectionTitleColor: colors.textSecondary,
+                  selectedDayBackgroundColor: BRAND.primary,
+                  selectedDayTextColor: '#ffffff',
+                  todayTextColor: BRAND.primary,
+                  dayTextColor: colors.text,
+                  textDisabledColor: colors.textMuted,
+                  arrowColor: BRAND.primary,
+                  monthTextColor: colors.text,
+                }}
+              />
             </View>
-            <Calendar
-              onDayPress={handleDateSelect}
-              markedDates={{
-                [form.start_datetime?.split('T')[0] || '']: { selected: true, selectedColor: BRAND.primary },
-                [form.end_datetime?.split('T')[0] || '']: { selected: true, selectedColor: BRAND.secondary || '#60A5FA' },
-              }}
-              minDate={calendarField === 'end' && form.start_datetime ? form.start_datetime.split('T')[0] : undefined}
-              theme={{
-                backgroundColor: colors.card,
-                calendarBackground: colors.card,
-                textSectionTitleColor: colors.textSecondary,
-                selectedDayBackgroundColor: BRAND.primary,
-                selectedDayTextColor: '#ffffff',
-                todayTextColor: BRAND.primary,
-                dayTextColor: colors.text,
-                textDisabledColor: colors.textMuted,
-                arrowColor: BRAND.primary,
-                monthTextColor: colors.text,
-              }}
-            />
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </KeyboardAvoidingView>
+          </TouchableOpacity>
+        </Modal>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F7FAFC',
   },
   container: {
     paddingBottom: 40,

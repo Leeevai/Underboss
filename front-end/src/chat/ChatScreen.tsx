@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet,View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ChatThread } from '../serve/chat';
 import ChatList from './ChatList';
@@ -28,14 +28,14 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <UnderbossBar />
+      <View style={{ flex: 1 }}>
       {selectedThread ? (
         <ChatDetail thread={selectedThread} onBack={handleBack} />
       ) : (
-        <>
-          <UnderbossBar />
-          <ChatList onSelectThread={handleSelectThread} />
-        </>
+        <ChatList onSelectThread={handleSelectThread} />
       )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -43,5 +43,10 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
   },
 });

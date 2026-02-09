@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
-import { View, StyleSheet, TouchableOpacity, Text, Button, Image } from 'react-native'
+import { View, Image } from 'react-native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+
 import { useTheme, BRAND } from '../common/theme';
 
 // Custom icons
@@ -50,7 +50,7 @@ function MainTabs() {
       screenOptions={{ 
         headerShown: false, 
         tabBarStyle: { 
-          height: 80,
+          height: 120,
           backgroundColor: colors.tabBarBg,
           borderTopColor: colors.border,
           borderTopWidth: 1,
@@ -75,6 +75,7 @@ function MainTabs() {
         component={PapsFeed}
         options={{
           title: 'Home',
+          headerShown: false,
           tabBarIcon: ({ color, size, focused }) => (
             <Image source={icons.home} style={{ width: size, height: size, tintColor: color, opacity: focused ? 1 : 0.6 }} />
           ),
@@ -85,6 +86,7 @@ function MainTabs() {
         component={SpapFeed}
         options={{
           title: 'SpapFeed',
+          headerShown: false,
           tabBarIcon: ({ color, size, focused }) => (
             <Image source={icons.spaps} style={{ width: size, height: size, tintColor: color, opacity: focused ? 1 : 0.6 }} />
           ),
@@ -95,6 +97,7 @@ function MainTabs() {
         component={Post}
         options={{
           title: 'Post',
+          headerShown: false,
           tabBarIcon: ({ color, size, focused }) => (
             <Image source={icons.post} style={{ width: size, height: size, tintColor: color, opacity: focused ? 1 : 0.6 }} />
           ),
@@ -105,6 +108,7 @@ function MainTabs() {
         component={ChatScreen}
         options={{
           title: 'Chats',
+          headerShown: false,
           tabBarIcon: ({ color, size, focused }) => (
             <Image source={icons.chats} style={{ width: size, height: size, tintColor: color, opacity: focused ? 1 : 0.6 }} />
           ),
@@ -115,6 +119,7 @@ function MainTabs() {
         component={CalendarScreen}
         options={{
           title: 'Calendar',
+          headerShown: false,
           tabBarIcon: ({ color, size, focused }) => (
             <Image source={icons.calendar} style={{ width: size, height: size, tintColor: color, opacity: focused ? 1 : 0.6 }} />
           ),
