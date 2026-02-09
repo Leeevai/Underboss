@@ -27,6 +27,11 @@ export interface Asap {
   created_at: ISODateTime;
   started_at: ISODateTime | null;
   completed_at: ISODateTime | null;
+  worker_confirmed: boolean;
+  owner_confirmed: boolean;
+  payment_amount: number | null;
+  payment_currency: string | null;
+  payment_type: 'fixed' | 'hourly' | 'negotiable' | null;
 }
 
 /** 
@@ -110,6 +115,14 @@ export interface AsapCanRateResponse {
   is_owner?: boolean;
   is_worker?: boolean;
   reason?: string;
+}
+
+/**
+ * POST /asap/{asap_id}/confirm response
+ */
+export interface AsapConfirmResponse {
+  status: 'completed' | 'pending_confirmation';
+  message: string;
 }
 
 /** 
