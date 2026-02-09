@@ -117,6 +117,8 @@ export default function CalendarScreen() {
     }
   };
 
+
+
   // Check if current user can confirm
   const canConfirm = (asap: AsapWithMedia): { canConfirm: boolean; alreadyConfirmed: boolean; isWorker: boolean; isOwner: boolean } => {
     const currentUser = getCurrentUser();
@@ -168,6 +170,7 @@ export default function CalendarScreen() {
       selectedColor: BRAND.primary,
     } as any;
   }
+
 
   const filteredAsaps = getFilteredAsaps();
 
@@ -230,6 +233,8 @@ export default function CalendarScreen() {
             <Text style={[styles.mediaIndicatorText, { color: BRAND.primary }]}>📎 {item.media.length} media</Text>
           </View>
         )}
+
+    
       </TouchableOpacity>
     );
   };
@@ -478,6 +483,17 @@ export default function CalendarScreen() {
                   </ScrollView>
                 </View>
               )}
+              {selectedAsap.payment_amount  && (
+                <View style={styles.infoBoxRow}>
+                   <View style={[styles.infoBox, { backgroundColor: colors.backgroundTertiary, borderColor: colors.border }]}>
+                      <Text style={styles.infoBoxIcon}>💰</Text>
+                      <Text style={[styles.infoBoxLabel, { color: colors.primary }]}>Payment</Text>
+                      <Text style={[styles.infoBoxValue, { color: colors.text }]}> {selectedAsap.payment_amount}   {selectedAsap.payment_currency}   {selectedAsap.payment_type} </Text>
+                  </View>
+                </View>
+              )}
+
+              
 
               {/* Media loading indicator */}
               {!selectedAsap.mediaLoaded && (
@@ -758,6 +774,48 @@ const styles = StyleSheet.create({
     color: '#5A67D8',
     fontWeight: '500',
   },
+
+  //INFO BOXES STYLE
+
+  infoBoxRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 28,
+  },
+  infoBox: {
+    flex: 1,
+    backgroundColor: '#F0FFF4',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#C6F6D5',
+  },
+  infoBoxIcon: {
+    fontSize: 28,
+    marginBottom: 8,
+  },
+  infoBoxLabel: {
+    fontSize: 11,
+    color: '#38A169',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  infoBoxValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#22543D',
+    textAlign: 'center',
+  },
+  infoBoxSub: {
+    fontSize: 11,
+    color: '#48BB78',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+
 
   // Empty State
   emptyState: {
