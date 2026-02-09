@@ -284,6 +284,8 @@ CREATE TABLE ASAP (
     assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
+    worker_confirmed BOOLEAN DEFAULT FALSE,
+    owner_confirmed BOOLEAN DEFAULT FALSE,
     
     CONSTRAINT asap_unique_assignment UNIQUE (paps_id, accepted_user_id),
     CONSTRAINT asap_completed_after_start CHECK (completed_at IS NULL OR started_at IS NULL OR completed_at >= started_at)
