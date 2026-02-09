@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Platform 
 import UnderbossBar from '../header/underbossbar';
 import AppSettings from '../AppSettings';
 import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface SettingsPageProps {
     logoutUser: () => void;
@@ -39,7 +40,7 @@ export default function SettingsPage({ logoutUser }: SettingsPageProps) {
     );
 
     return (
-        <View style={[styles.screen, { backgroundColor: colors.background }]}>
+        <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]} edges={['top']}>
             <UnderbossBar />
             
             <ScrollView 
@@ -154,7 +155,7 @@ export default function SettingsPage({ logoutUser }: SettingsPageProps) {
                     </Text>
                 </View>
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }
 
