@@ -89,6 +89,17 @@ export default function ProfilePage({ navigation }: any) {
                 }
             >
                 {/* PROFILE HEADER */}
+                {!isOwnProfile && (
+                    <TouchableOpacity 
+                        style={[styles.editButton, { borderColor: colors.border, backgroundColor: colors.card }]}
+                        onPress={() => navigation.goBack()}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={[styles.editButtonText, { color: colors.text }]}>← Go Back</Text>
+                    </TouchableOpacity>
+                )}
+
+                <View style={styles.bottomSpacer} />
                 <View style={[styles.header, { backgroundColor: colors.card }, createShadow(3, isDark)]}>
                     <View style={styles.avatarContainer}>
                         {user?.avatar_url ? (
