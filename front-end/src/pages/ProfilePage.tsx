@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIn
 import UnderbossBar from '../header/underbossbar';
 import ModifyProfil from './ModifyProfil.tsx';
 import { serv, ApiError, UserProfile, getMediaUrl, getCurrentUser } from '../serve';
+
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
 
@@ -61,17 +63,17 @@ export default function ProfilePage({ navigation }: any) {
 
     if (loading) {
         return (
-            <View style={[styles.screen, { backgroundColor: colors.background }]}>
+            <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]} edges={['top']}>
                 <UnderbossBar />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={BRAND.primary} />
                 </View>
-            </View>
+            </SafeAreaView>
         );
     }
 
     return (
-        <View style={[styles.screen, { backgroundColor: colors.background }]}>
+        <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]} edges={['top']}>
             <UnderbossBar />
             
             <ScrollView 
@@ -169,7 +171,7 @@ export default function ProfilePage({ navigation }: any) {
 
                 <View style={styles.bottomSpacer} />
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }
 
