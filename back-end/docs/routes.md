@@ -1796,10 +1796,17 @@ media: [binary file data] (can be multiple files)
       "paps_title": "string",
       "accepted_user_id": "uuid",
       "owner_id": "uuid",
-      "status": "in_progress",
-      "created_at": "iso8601-timestamp",
+      "owner_username": "string",
+      "owner_display_name": "string|null",
+      "status": "active|in_progress|completed|cancelled|disputed",
+      "assigned_at": "iso8601-timestamp",
       "started_at": "iso8601-timestamp|null",
-      "completed_at": "iso8601-timestamp|null"
+      "completed_at": "iso8601-timestamp|null",
+      "worker_confirmed": "boolean",
+      "owner_confirmed": "boolean",
+      "payment_amount": "number|null",
+      "payment_currency": "string|null",
+      "payment_type": "fixed|hourly|negotiable|null"
     }
   ],
   "as_owner": [...],
@@ -1845,14 +1852,26 @@ media: [binary file data] (can be multiple files)
   "asap_id": "uuid",
   "paps_id": "uuid",
   "paps_title": "string",
+  "title": "string",
+  "subtitle": "string|null",
+  "location_address": "string|null",
+  "location_lat": "number|null",
+  "location_lng": "number|null",
   "accepted_user_id": "uuid",
-  "accepted_username": "string",
+  "accepted_user_username": "string",
+  "accepted_user_display_name": "string|null",
+  "accepted_user_avatar": "string|null",
   "owner_id": "uuid",
   "owner_username": "string",
-  "status": "in_progress",
-  "created_at": "iso8601-timestamp",
+  "status": "active|in_progress|completed|cancelled|disputed",
+  "assigned_at": "iso8601-timestamp",
   "started_at": "iso8601-timestamp|null",
-  "completed_at": "iso8601-timestamp|null"
+  "completed_at": "iso8601-timestamp|null",
+  "worker_confirmed": "boolean",
+  "owner_confirmed": "boolean",
+  "payment_amount": "number|null",
+  "payment_currency": "string|null",
+  "payment_type": "fixed|hourly|negotiable|null"
 }
 ```
 
@@ -1896,6 +1915,43 @@ media: [binary file data] (can be multiple files)
 **Error Responses**:
 - **400 Bad Request**: Invalid status
 - **403 Forbidden**: Not authorized for this status change
+- **404 Not Found**: Assignment not found
+
+---
+
+### POST /asap/{asap_id}/confirm
+**Description**: Confirm assignment completion (dual confirmation required)  
+**Authorization**: AUTH (must be worker or owner)
+
+**Path Parameters**:
+- `asap_id`: string (UUID)
+
+**Workflow**:
+1. Worker completes work and calls this endpoint to confirm
+2. Owner reviews and calls this endpoint to confirm
+3. When both `worker_confirmed` and `owner_confirmed` are true:
+   - Status changes to "completed"
+   - Payment record is automatically created
+   - For hourly jobs: payment = hours_worked × hourly_rate
+
+**Success Response (200)**:
+```json
+{
+  "status": "completed|pending_confirmation",
+  "message": "Assignment completed successfully|Confirmation recorded. Waiting for {other_party} to confirm."
+}
+```
+
+**Side Effects (when both confirm)**:
+- Sets `completed_at` timestamp
+- Creates payment record:
+  - **Fixed payment**: Uses PAPS `payment_amount` directly
+  - **Hourly payment**: Calculates `hours_worked × payment_amount` based on time between `started_at` and `completed_at`
+- Minimum payment amount: $0.01 (enforced by database constraint)
+
+**Error Responses**:
+- **400 Bad Request**: Invalid ASAP ID format, assignment not in_progress, or already confirmed by this party
+- **403 Forbidden**: Not involved in assignment
 - **404 Not Found**: Assignment not found
 
 ---
