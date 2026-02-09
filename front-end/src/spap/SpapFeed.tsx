@@ -181,6 +181,7 @@ export default function SpapFeed() {
             key={tab.key}
             style={[
               styles.tab,
+              {backgroundColor: colors.backgroundTertiary},
               { borderColor: colors.border },
               activeFilter === tab.key && { backgroundColor: colors.primary, borderColor: colors.primary },
             ]}

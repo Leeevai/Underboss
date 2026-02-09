@@ -566,7 +566,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                         </Text>
                       </View>
                       {pap.expires_at && (
-                        <View style={[styles.detailItem, { borderBottomColor: colors.border }]}>>
+                        <View style={[styles.detailItem, { borderBottomColor: colors.border }]}>
                           <Text style={styles.detailLabel}>Expires</Text>
                           <Text style={styles.detailValue}>
                             {new Date(pap.expires_at).toLocaleDateString()}
@@ -674,7 +674,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
               )}
 
               {/* Footer Actions */}
-              <View style={styles.modalFooter}>
+              <View style={[styles.modalFooter, {backgroundColor: colors.backgroundTertiary}]}>
                 <TouchableOpacity
                   style={styles.closeBtn}
                   onPress={() => setModalVisible(false)}
