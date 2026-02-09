@@ -973,12 +973,15 @@ SELECT
     a.assigned_at,
     a.started_at,
     a.completed_at,
+    a.worker_confirmed,
+    a.owner_confirmed,
     u.username as accepted_user_username,
     up.display_name as accepted_user_display_name,
     up.avatar_url as accepted_user_avatar,
     p.title as paps_title,
     p.payment_amount,
     p.payment_currency,
+    p.payment_type,
     owner.username as owner_username
 FROM ASAP a
 JOIN PAPS p ON a.paps_id = p.id
@@ -999,9 +1002,12 @@ SELECT
     a.assigned_at,
     a.started_at,
     a.completed_at,
+    a.worker_confirmed,
+    a.owner_confirmed,
     p.title as paps_title,
     p.payment_amount,
     p.payment_currency,
+    p.payment_type,
     owner.username as owner_username,
     owner_profile.display_name as owner_display_name
 FROM ASAP a
@@ -1023,9 +1029,12 @@ SELECT
     a.assigned_at,
     a.started_at,
     a.completed_at,
+    a.worker_confirmed,
+    a.owner_confirmed,
     p.title as paps_title,
     p.payment_amount,
     p.payment_currency,
+    p.payment_type,
     u.username as accepted_user_username,
     up.display_name as accepted_user_display_name
 FROM ASAP a
@@ -1057,6 +1066,27 @@ UPDATE ASAP SET
     started_at = COALESCE(:started_at, started_at),
     completed_at = COALESCE(:completed_at, completed_at)
 WHERE id = :asap_id::uuid;
+
+-- Confirm ASAP completion by worker
+-- name: confirm_asap_worker(asap_id)!
+UPDATE ASAP SET worker_confirmed = TRUE
+WHERE id = :asap_id::uuid;
+
+-- Confirm ASAP completion by owner
+-- name: confirm_asap_owner(asap_id)!
+UPDATE ASAP SET owner_confirmed = TRUE
+WHERE id = :asap_id::uuid;
+
+-- Complete ASAP when both have confirmed
+-- name: try_complete_asap(asap_id, completed_at)^
+UPDATE ASAP SET
+    status = 'completed',
+    completed_at = :completed_at
+WHERE id = :asap_id::uuid
+  AND worker_confirmed = TRUE
+  AND owner_confirmed = TRUE
+  AND status != 'completed'
+RETURNING id::text;
 
 -- Delete ASAP
 -- name: delete_asap(asap_id)!
