@@ -7,8 +7,8 @@
 
 .PHONY: perms
 perms: wsgi $(F.gen) $(F.csv)
-	chmod a+r $(F.conf) $(F.sql) $(F.py) $(F.gen) $(F.csv) $(F.html) $(F.md)
-	for dir in www assets ; do
+	chmod a+r $(F.conf) $(F.sql) $(F.py) $(F.gen) $(F.csv) $(F.html) $(F.md) api api/*.py media/*/*
+	for dir in www assets api media ; do
 	  if [ -d $$dir ] ; then
 	    find $$dir -type d -print0 | xargs -0 chmod a+rx
 	    find $$dir -type f -print0 | xargs -0 chmod a+r
@@ -22,10 +22,11 @@ deploy: perms
 	shopt -s -o errexit
 	# send files
 	$(RSYNC) $(F.conf) $(USER)@$(SERVER):conf/
-	$(RSYNC) $(F.py) $(F.sql) $(F.gen) $(F.csv) $(USER)@$(SERVER):api/
-	$(RSYNC) www/. $(USER)@$(SERVER):www/.
+	$(RSYNC) $(F.py) $(F.sql) $(F.gen) $(F.csv) api $(USER)@$(SERVER):api/
+	# $(RSYNC) www/. $(USER)@$(SERVER):www/.
 	# [ -d assets ] && $(RSYNC) assets/. $(USER)@$(SERVER):assets/.
 	[ -d static ] && $(RSYNC) static/. $(USER)@$(SERVER):static/.
+	[ -d media ] && $(RSYNC) media/. $(USER)@$(SERVER):media/.
 	# coldly kill connections and drop/create/fill tables
 	ssh $(USER)@$(SERVER) \
 	  psql \
