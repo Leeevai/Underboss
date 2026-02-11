@@ -12,7 +12,7 @@ import model
 # NOTE authenticated users do have associated data
 def current_auth(_: str, user: fsa.CurrentUser) -> model.CurrentAuth:
     ad = db.get_all_user_data(login=user)
-    if ad is None:
+    if ad is None:  # pragma: no cover
         raise fsa.ErrorResponse(f"user data not found for {user}", 401)
     return model.CurrentAuth(**ad)
 

@@ -131,7 +131,6 @@ back-end/
 │   ├── paps/                # Job media
 │   ├── spap/                # Application media
 │   └── asap/                # Assignment media
-├── test_media/              # Sample media for dev
 ├── app.py                   # Application entry point
 ├── auth.py                  # Authentication helpers
 ├── database.py              # DB connection & repo

@@ -18,40 +18,11 @@ import os
 import datetime
 import logging
 import decimal
-import json
-import shutil
-from pathlib import Path
 
 # initial logging configuration
 logging.basicConfig(level=logging.INFO)
 
 from utils import log
-
-# Clone test_media to media directory on startup
-# This ensures sample media files are available for testing
-def setup_media_from_test():
-    """Copy test_media contents to media directory if test_media exists."""
-    app_dir = Path(__file__).parent
-    test_media_dir = app_dir / "test_media"
-    media_dir = app_dir / "media"
-
-    if test_media_dir.exists() and test_media_dir.is_dir():
-        log.info("Copying test_media to media directory...")
-        # Create media directory if it doesn't exist
-        media_dir.mkdir(exist_ok=True)
-
-        # Copy all contents from test_media to media
-        for item in test_media_dir.iterdir():
-            dest = media_dir / item.name
-            if item.is_dir():
-                # Copy directory tree, replacing existing
-                if dest.exists():
-                    shutil.rmtree(dest)
-                shutil.copytree(item, dest)
-            else:
-                # Copy file
-                shutil.copy2(item, dest)
-        log.info(f"Test media copied to {media_dir}")
 
 # start and configure flask service
 import FlaskSimpleAuth as fsa
@@ -72,10 +43,6 @@ app = fsa.Flask(os.environ["APP_NAME"], static_folder="media", static_url_path="
 app.json_provider_class = CustomJSONProvider
 app.json = CustomJSONProvider(app)
 app.config.from_envvar("APP_CONFIG")
-
-if app.config.get("APP_TESTING", False):
-    # Run media setup
-    setup_media_from_test()
 
 # setup application log
 log.setLevel(app.config.get("APP_LOGGING_LEVEL", logging.NOTSET))

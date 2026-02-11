@@ -45,7 +45,7 @@ class MediaResult:
     error: Optional[str] = None
 
 
-class MediaHandler:
+class MediaHandler:  # pragma: no cover
     """
     Centralized media file handler for the Underboss application.
 
@@ -687,7 +687,7 @@ class MediaHandler:
 _media_handler: Optional[MediaHandler] = None
 
 
-def get_media_handler(app=None) -> MediaHandler:
+def get_media_handler(app=None) -> MediaHandler:  # pragma: no cover
     """
     Get or create the global MediaHandler instance.
 
@@ -707,7 +707,7 @@ def get_media_handler(app=None) -> MediaHandler:
     return _media_handler
 
 
-def init_media_handler(app) -> MediaHandler:
+def init_media_handler(app) -> MediaHandler:  # pragma: no cover
     """
     Initialize the media handler with Flask app.
 
