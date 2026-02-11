@@ -25,12 +25,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Paps } from '../serve/paps';
 import { getCurrentUser } from '../serve';
 import PapsPost from './PapsPost';
+import PapsListModal, { PapsListType } from './PapsListModal';
 import UnderbossBar from '../header/underbossbar';
 import {
   useFeaturedPaps,
   useNewestPaps,
   useNearbyPaps,
   useRecommendedPaps,
+  usePaps,
 } from '../cache/paps';
 import { useTheme, BRAND, createShadow } from '../common/theme';
 
@@ -159,14 +161,66 @@ const QUICK_CATEGORIES = [
   { id: 'remote', label: 'Remote', icon: '🏠' },
 ];
 
+interface QuickFiltersProps {
+  selected: string;
+  onSelect: (id: string) => void;
+  onOpenFilter: (filterId: string, title: string, subtitle: string, paps: Paps[]) => void;
+  allPaps: Paps[];
+}
+
 function QuickFilters({
   selected,
   onSelect,
-}: {
-  selected: string;
-  onSelect: (id: string) => void;
-}) {
+  onOpenFilter,
+  allPaps,
+}: QuickFiltersProps) {
   const { colors, isDark } = useTheme();
+  
+  // Apply filter to paps based on filter type
+  const getFilteredPaps = (filterId: string): Paps[] => {
+    switch (filterId) {
+      case 'all':
+        return allPaps;
+      case 'nearby':
+        return allPaps.filter(p => p.location_lat && p.location_lng);
+      case 'urgent':
+        // Jobs with start date within 3 days
+        const urgentDate = new Date();
+        urgentDate.setDate(urgentDate.getDate() + 3);
+        return allPaps.filter(p => {
+          if (!p.start_datetime) return false;
+          return new Date(p.start_datetime) <= urgentDate;
+        });
+      case 'high-pay':
+        // Jobs paying above $100
+        return allPaps.filter(p => p.payment_amount >= 100).sort((a, b) => b.payment_amount - a.payment_amount);
+      case 'remote':
+        // Jobs without location (assumed remote)
+        return allPaps.filter(p => !p.location_address || p.location_address.toLowerCase().includes('remote'));
+      default:
+        return allPaps;
+    }
+  };
+  
+  const getFilterInfo = (filterId: string): { title: string; subtitle: string } => {
+    switch (filterId) {
+      case 'all': return { title: 'All Jobs', subtitle: 'Browse all available jobs' };
+      case 'nearby': return { title: 'Nearby Jobs', subtitle: 'Jobs with location data' };
+      case 'urgent': return { title: 'Urgent Jobs', subtitle: 'Starting within 3 days' };
+      case 'high-pay': return { title: 'High Pay Jobs', subtitle: 'Jobs paying $100+' };
+      case 'remote': return { title: 'Remote Jobs', subtitle: 'Work from anywhere' };
+      default: return { title: 'Jobs', subtitle: '' };
+    }
+  };
+  
+  const handlePress = (cat: typeof QUICK_CATEGORIES[0]) => {
+    onSelect(cat.id);
+    if (cat.id !== 'all') {
+      const filtered = getFilteredPaps(cat.id);
+      const { title, subtitle } = getFilterInfo(cat.id);
+      onOpenFilter(cat.id, title, subtitle, filtered);
+    }
+  };
   
   return (
     <ScrollView
@@ -185,7 +239,7 @@ function QuickFilters({
               { backgroundColor: colors.card, borderColor: colors.borderLight },
               isActive && { backgroundColor: colors.primary, borderColor: colors.primary },
             ]}
-            onPress={() => onSelect(cat.id)}
+            onPress={() => handlePress(cat)}
           >
             <Text style={styles.filterIcon}>{cat.icon}</Text>
             <Text
@@ -214,8 +268,16 @@ export default function PapsFeed() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+  
+  // Modal state for "See All" views
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalListType, setModalListType] = useState<PapsListType>('featured');
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalSubtitle, setModalSubtitle] = useState('');
+  const [modalPaps, setModalPaps] = useState<Paps[]>([]);
 
   // Use cached data from Jotai atoms
+  const { paps: allPaps } = usePaps();
   const { paps: featuredPaps, loading: featuredLoading, error: featuredError, refresh: refreshFeatured } = useFeaturedPaps();
   const { paps: newestPaps, loading: newestLoading, error: newestError, refresh: refreshNewest } = useNewestPaps();
   const { paps: nearbyPaps, loading: nearbyLoading, error: nearbyError, refresh: refreshNearby } = useNearbyPaps();
@@ -225,10 +287,28 @@ export default function PapsFeed() {
   const filterOwnPaps = (paps: Paps[]) => 
     paps.filter(pap => pap.owner_username !== currentUser?.username);
 
+  const filteredAllPaps = filterOwnPaps(allPaps);
   const filteredFeaturedPaps = filterOwnPaps(featuredPaps);
   const filteredNewestPaps = filterOwnPaps(newestPaps);
   const filteredNearbyPaps = filterOwnPaps(nearbyPaps);
   const filteredRecommendedPaps = filterOwnPaps(recommendedPaps);
+
+  // ========================================================================
+  // OPEN SEE ALL MODAL
+  // ========================================================================
+  
+  const openSeeAllModal = useCallback((
+    type: PapsListType,
+    title: string,
+    subtitle: string,
+    paps: Paps[]
+  ) => {
+    setModalListType(type);
+    setModalTitle(title);
+    setModalSubtitle(subtitle);
+    setModalPaps(paps);
+    setModalVisible(true);
+  }, []);
 
   // ========================================================================
   // DATA FETCHING - handled by cache, just need refresh
@@ -248,9 +328,18 @@ export default function PapsFeed() {
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) return;
     
-    // TODO: Navigate to search results page
-    console.log('Searching for:', searchQuery);
-  }, [searchQuery]);
+    // Client-side search on cached paps
+    const query = searchQuery.toLowerCase();
+    const searchResults = filteredAllPaps.filter(
+      (pap) =>
+        pap.title?.toLowerCase().includes(query) ||
+        pap.description?.toLowerCase().includes(query) ||
+        pap.owner_username?.toLowerCase().includes(query) ||
+        pap.location_address?.toLowerCase().includes(query)
+    );
+    
+    openSeeAllModal('search', `Search: "${searchQuery}"`, `${searchResults.length} results`, searchResults);
+  }, [searchQuery, filteredAllPaps, openSeeAllModal]);
 
   // ========================================================================
   // CHECK IF ALL LOADING
@@ -320,7 +409,12 @@ export default function PapsFeed() {
         </View>
 
         {/* Quick Filters */}
-        <QuickFilters selected={activeFilter} onSelect={setActiveFilter} />
+        <QuickFilters 
+          selected={activeFilter} 
+          onSelect={setActiveFilter}
+          onOpenFilter={(filterId, title, subtitle, paps) => openSeeAllModal('filter', title, subtitle, paps)}
+          allPaps={filteredAllPaps}
+        />
 
         {/* Featured Jobs Section */}
         <View style={styles.section}>
@@ -328,7 +422,7 @@ export default function PapsFeed() {
             title="Featured Jobs"
             subtitle="Top opportunities"
             icon="⭐"
-            onSeeAll={() => console.log('See all featured')}
+            onSeeAll={() => openSeeAllModal('featured', 'Featured Jobs', 'Top paying opportunities', filteredFeaturedPaps)}
             count={filteredFeaturedPaps.length}
           />
           <HorizontalPapsList
@@ -347,7 +441,7 @@ export default function PapsFeed() {
             title="Newest Paps"
             subtitle="Just posted"
             icon="🆕"
-            onSeeAll={() => console.log('See all newest')}
+            onSeeAll={() => openSeeAllModal('newest', 'Newest Paps', 'Recently posted jobs', filteredNewestPaps)}
             count={filteredNewestPaps.length}
           />
           <HorizontalPapsList
@@ -366,7 +460,7 @@ export default function PapsFeed() {
             title="Near You"
             subtitle="Jobs in your area"
             icon="📍"
-            onSeeAll={() => console.log('See all nearby')}
+            onSeeAll={() => openSeeAllModal('nearby', 'Near You', 'Jobs in your area', filteredNearbyPaps)}
             count={filteredNearbyPaps.length}
           />
           <HorizontalPapsList
@@ -385,7 +479,7 @@ export default function PapsFeed() {
             title="You Might Like"
             subtitle="Based on your interests"
             icon="💡"
-            onSeeAll={() => console.log('See all recommended')}
+            onSeeAll={() => openSeeAllModal('recommended', 'You Might Like', 'Recommendations based on your interests', filteredRecommendedPaps)}
             count={filteredRecommendedPaps.length}
           />
           <HorizontalPapsList
@@ -401,6 +495,17 @@ export default function PapsFeed() {
         {/* Bottom padding */}
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      {/* PapsListModal for "See All" views */}
+      <PapsListModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        paps={modalPaps}
+        title={modalTitle}
+        subtitle={modalSubtitle}
+        listType={modalListType}
+        showSearch={true}
+      />
     </SafeAreaView>
   );
 }
