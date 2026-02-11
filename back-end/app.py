@@ -53,9 +53,6 @@ def setup_media_from_test():
                 shutil.copy2(item, dest)
         log.info(f"Test media copied to {media_dir}")
 
-# Run media setup
-setup_media_from_test()
-
 # start and configure flask service
 import FlaskSimpleAuth as fsa
 from flask.json.provider import DefaultJSONProvider
@@ -75,6 +72,10 @@ app = fsa.Flask(os.environ["APP_NAME"], static_folder="media", static_url_path="
 app.json_provider_class = CustomJSONProvider
 app.json = CustomJSONProvider(app)
 app.config.from_envvar("APP_CONFIG")
+
+if app.config.get("APP_TESTING", False):
+    # Run media setup
+    setup_media_from_test()
 
 # setup application log
 log.setLevel(app.config.get("APP_LOGGING_LEVEL", logging.NOTSET))

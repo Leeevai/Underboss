@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta charset="UTF-8" />
+    <link
+      rel="stylesheet"
+      href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css"
+    />
+  </head>
+  <body>
+    <nav>
+     <a href="#/DOC">Design</a>
+     <a href="#/DEV">Developer</a>
+     <a href="#/ROUTES">Routes</a>
+    </nav>
+    <div id="app"></div>
+    <script>
+      window.$docsify = {
+        name: "Underboss",
+        // logo: "/underboss.png",
+        homepage: "README.md",
+        repo: "true",
+        corner: {
+          url: "https://gitlab.cri.minesparis.psl.eu/mobapp-2025/underboss",
+          icon: "gitlab"
+        },
+        relativePath: true,
+        routes: {
+          // show /api/… results
+          "/api/.*": (path, _m, next) => {
+            fetch(path)
+            .then(res => res.json().then(json => ({ msg: res.status + " " + res.statusText, json: json})))
+            .then(data => ("## `GET` " + path + ": " + data.msg + "\n\n" +
+                           "```json\n" +
+                           JSON.stringify(data.json, null, 2) + "\n" +
+                           "```\n"))
+            .catch(err => `## Error: ${err}`)
+            .then(next)
+          }
+        },
+        plugins: [
+          function repoLinks(hook, vm) {
+            // send simple links to repos
+            hook.beforeEach(md => {
+              let base = window.$docsify.corner.url + "/-/blob/main/back-end"
+              return md.replaceAll(/\[([^\]]+)\]\((M?[-_a-z0-9\.]+)\)/g, `[$1](${base}/$2)`)
+            })
+          }
+        ]
+      };
+    </script>
+    <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
+    <script type="module">
+      // mermaid
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true });
+      window.mermaid = mermaid;
+    </script>
+    <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify-copy-code/dist/docsify-copy-code.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify-corner/dist/docsify-corner.min.js"></script>
+    <script src="//unpkg.com/docsify-mermaid@2/dist/docsify-mermaid.js"></script>
+  </body>
+</html>
