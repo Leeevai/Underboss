@@ -11,6 +11,10 @@
 %.be:
 	$(MAKE) -C back-end $*
 
+# check target only runs on back-end (front-end has no checks)
+check:
+	$(MAKE) check.be
+
 # parallel forward to both subdirectories
 %:
 	$(MAKE) $*.fe $*.be
