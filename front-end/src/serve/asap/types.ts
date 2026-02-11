@@ -23,8 +23,10 @@ export interface Asap {
   paps_title: string;
   accepted_user_id: UUID;
   owner_id: UUID;
+  owner_username: string;
+  owner_display_name: string | null;
   status: AsapStatus;
-  created_at: ISODateTime;
+  assigned_at: ISODateTime;
   started_at: ISODateTime | null;
   completed_at: ISODateTime | null;
   worker_confirmed: boolean;

@@ -53,10 +53,9 @@ export default function CalendarScreen() {
 
   // Fetch ASAPs on mount
   useEffect(() => {
-    if (allAsaps.length === 0 && !loading && !error) {
-      refresh();
-    }
-  }, [allAsaps.length, loading, error, refresh]);
+    // Always attempt to refresh on mount
+    refresh();
+  }, []);  // Empty deps - only run once on mount
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -209,8 +208,8 @@ export default function CalendarScreen() {
 
         {/* Date info */}
         <View style={styles.dateInfo}>
-          <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Created:</Text>
-          <Text style={[styles.dateValue, { color: colors.text }]}>{formatDate(item.created_at)}</Text>
+          <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Assigned:</Text>
+          <Text style={[styles.dateValue, { color: colors.text }]}>{formatDate(item.assigned_at)}</Text>
         </View>
 
         {/* Started/Completed info */}
@@ -432,8 +431,8 @@ export default function CalendarScreen() {
               <View style={styles.modalSection}>
                 <Text style={[styles.modalSectionTitle, { color: colors.textSecondary }]}>Timeline</Text>
                 <View style={[styles.timelineItem, { borderBottomColor: colors.border }]}>
-                  <Text style={[styles.timelineLabel, { color: colors.textSecondary }]}>Created</Text>
-                  <Text style={[styles.timelineValue, { color: colors.text }]}>{formatDate(selectedAsap.created_at)}</Text>
+                  <Text style={[styles.timelineLabel, { color: colors.textSecondary }]}>Assigned</Text>
+                  <Text style={[styles.timelineValue, { color: colors.text }]}>{formatDate(selectedAsap.assigned_at)}</Text>
                 </View>
                 {selectedAsap.started_at && (
                   <View style={[styles.timelineItem, { borderBottomColor: colors.border }]}>

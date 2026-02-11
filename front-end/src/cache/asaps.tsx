@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { atom, useAtom, useAtomValue } from "jotai";
 import type { Asap, AsapDetail, AsapMyResponse, AsapMediaListResponse } from "../serve/asap";
 import type { AsapStatus, MediaItem } from "../serve/common/types";
@@ -63,8 +63,8 @@ export const allAsapsAtom = atom((get) => {
   const asWorker = get(asWorkerAtom);
   const asOwner = get(asOwnerAtom);
   return [...asWorker, ...asOwner].sort((a, b) => {
-    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    const dateA = a.assigned_at ? new Date(a.assigned_at).getTime() : 0;
+    const dateB = b.assigned_at ? new Date(b.assigned_at).getTime() : 0;
     return dateB - dateA;
   });
 });
@@ -75,9 +75,20 @@ export const asapsByDateAtom = atom((get) => {
   const byDate = new Map<string, AsapWithMedia[]>();
   
   allAsaps.forEach((asap) => {
-    // Use created_at date as the calendar date, skip if undefined
-    if (!asap.created_at) return;
-    const dateStr = asap.created_at.split('T')[0]; // YYYY-MM-DD
+    // Use assigned_at date as the calendar date (per routes.md)
+    if (!asap.assigned_at) return;
+    
+    // Parse the date robustly - handle various timestamp formats
+    // Convert to local date string to match calendar selection
+    const date = new Date(asap.assigned_at);
+    if (isNaN(date.getTime())) return; // Skip invalid dates
+    
+    // Format as YYYY-MM-DD in local timezone (matches calendar date selection)
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
     const existing = byDate.get(dateStr) || [];
     byDate.set(dateStr, [...existing, asap]);
   });
@@ -104,9 +115,14 @@ export const useAsaps = () => {
   const [ownerLoading, setOwnerLoading] = useAtom(asOwnerLoadingAtom);
   const [workerError, setWorkerError] = useAtom(asWorkerErrorAtom);
   const [ownerError, setOwnerError] = useAtom(asOwnerErrorAtom);
+  
+  // Use ref to track fetching state to avoid recreating callback
+  const fetchingRef = useRef(false);
 
   const fetchAsaps = useCallback(async (forceRefresh = false) => {
-    if (loading && !forceRefresh) return;
+    // Use ref for loading check to prevent callback recreation
+    if (fetchingRef.current && !forceRefresh) return;
+    fetchingRef.current = true;
     setLoading(true);
     setWorkerLoading(true);
     setOwnerLoading(true);
@@ -122,11 +138,12 @@ export const useAsaps = () => {
       setWorkerError(message);
       setOwnerError(message);
     } finally {
+      fetchingRef.current = false;
       setLoading(false);
       setWorkerLoading(false);
       setOwnerLoading(false);
     }
-  }, [loading, setAsWorker, setAsOwner, setLoading, setWorkerLoading, setOwnerLoading, setWorkerError, setOwnerError]);
+  }, [setAsWorker, setAsOwner, setLoading, setWorkerLoading, setOwnerLoading, setWorkerError, setOwnerError]);
 
   // Fetch media for a specific ASAP
   const fetchAsapMedia = useCallback(async (asapId: string) => {
