@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, useRef } from "react";
-import { atom, useAtom, useAtomValue } from "jotai";
+import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { UserProfile } from "../serve/profile/types";
 import { serv, getMediaUrl } from "../serve";
+import AppSettings from "../AppSettings";
 
 // =============================================================================
 // BASE ATOMS - Map of username -> UserProfile
@@ -15,6 +16,19 @@ const fetchingUsernamesAtom = atom<Set<string>>(new Set<string>());
 
 // Module-level in-flight request tracker to prevent duplicate calls across hook instances
 const inFlightRequests = new Map<string, Promise<UserProfile | null | void>>();
+
+// =============================================================================
+// CURRENT USER PROFILE ATOM
+// =============================================================================
+
+/** Atom for the current logged-in user's profile */
+export const currentUserProfileAtom = atom<UserProfile | null>(null);
+
+/** Loading state for current user profile */
+const currentUserLoadingAtom = atom<boolean>(false);
+
+/** Avatar cache version - increment to force image refresh */
+const avatarVersionAtom = atom<number>(Date.now());
 
 // =============================================================================
 // DERIVED ATOMS
@@ -221,3 +235,82 @@ export const useAvatarUrl = (username: string | undefined) => {
   const { avatarUrl, loading } = useProfile(username);
   return { avatarUrl, loading };
 };
+
+// =============================================================================
+// CURRENT USER PROFILE HOOK
+// =============================================================================
+
+/**
+ * Hook to manage current user's profile with reactive updates
+ * Use this in components that need to react to profile changes
+ */
+export const useCurrentUserProfile = () => {
+  const [profile, setProfile] = useAtom(currentUserProfileAtom);
+  const [loading, setLoading] = useAtom(currentUserLoadingAtom);
+  const [avatarVersion, setAvatarVersion] = useAtom(avatarVersionAtom);
+
+  /**
+   * Fetch/refresh the current user's profile from the server
+   */
+  const refreshProfile = useCallback(async (): Promise<UserProfile | null> => {
+    if (!AppSettings.isAuthenticated()) return null;
+    
+    setLoading(true);
+    try {
+      const fetchedProfile = await serv('profile.get');
+      setProfile(fetchedProfile);
+      AppSettings.userProfile = fetchedProfile;
+      // Bump avatar version to force image refresh
+      setAvatarVersion(Date.now());
+      return fetchedProfile;
+    } catch (err) {
+      console.error('[useCurrentUserProfile] Failed to fetch profile:', err);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [setProfile, setLoading, setAvatarVersion]);
+
+  /**
+   * Update the profile in cache (call after avatar upload, profile update, etc.)
+   */
+  const updateProfile = useCallback((updates: Partial<UserProfile>) => {
+    setProfile(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      AppSettings.userProfile = updated;
+      return updated;
+    });
+    // Bump avatar version if avatar was updated to bust image cache
+    if (updates.avatar_url) {
+      setAvatarVersion(Date.now());
+    }
+  }, [setProfile, setAvatarVersion]);
+
+  /**
+   * Clear the cached profile (call on logout)
+   */
+  const clearProfile = useCallback(() => {
+    setProfile(null);
+  }, [setProfile]);
+
+  // Avatar URL with cache-busting version parameter
+  const avatarUrl = profile?.avatar_url 
+    ? `${getMediaUrl(profile.avatar_url)}?v=${avatarVersion}` 
+    : null;
+
+  return {
+    profile,
+    avatarUrl,
+    avatarVersion,
+    loading,
+    refreshProfile,
+    updateProfile,
+    clearProfile,
+  };
+};
+
+/**
+ * Get setter for current user profile atom (for use outside of components)
+ */
+export const useSetCurrentUserProfile = () => useSetAtom(currentUserProfileAtom);

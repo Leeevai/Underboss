@@ -39,9 +39,12 @@ export type { CategoryColor } from './categories';
 export {
   profileByUsernameAtom,
   avatarByUsernameAtom,
+  currentUserProfileAtom,
   useProfileCache,
   useProfile,
   useAvatarUrl,
+  useCurrentUserProfile,
+  useSetCurrentUserProfile,
 } from './profiles';
 
 // Spaps cache (applications)

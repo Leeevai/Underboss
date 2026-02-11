@@ -14,6 +14,7 @@ import { useSortedChats } from '../cache/chats';
 import { getMediaUrl } from '../serve';
 import type { ChatThread } from '../serve/chat';
 import { useTheme, BRAND } from '../common/theme';
+import { useRefreshOnFocus } from '../common/useRefreshOnFocus';
 
 interface ChatListProps {
   onSelectThread: (thread: ChatThread) => void;
@@ -47,6 +48,9 @@ export default function ChatList({ onSelectThread }: ChatListProps) {
     refresh(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-refresh when screen comes into focus (e.g., tab switch, back navigation)
+  useRefreshOnFocus(() => refresh(true), { skipFirstFocus: true });
 
   const onRefresh = async () => {
     setRefreshing(true);
