@@ -74,7 +74,7 @@ def register_routes(app):
         # Validate and normalize recurrence_rule (DB uses uppercase: DAILY, WEEKLY, MONTHLY, YEARLY, CRON)
         valid_rules = ['daily', 'weekly', 'monthly', 'yearly', 'cron']
         rule_upper = recurrence_rule.upper()
-        fsa.checkVal(rule_upper in [r.upper() for r in valid_rules], 
+        fsa.checkVal(rule_upper in [r.upper() for r in valid_rules],
                      f"Invalid recurrence_rule. Must be one of: {', '.join(valid_rules)}", 400)
 
         # If CRON rule, cron_expression is required
@@ -199,7 +199,7 @@ def register_routes(app):
 
         # Validate recurrence_rule (DB uses uppercase: DAILY, WEEKLY, MONTHLY, YEARLY, CRON)
         valid_rules = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', 'CRON']
-        fsa.checkVal(final_recurrence_rule in valid_rules, 
+        fsa.checkVal(final_recurrence_rule in valid_rules,
                      f"Invalid recurrence_rule. Must be one of: {', '.join([r.lower() for r in valid_rules])}", 400)
 
         # If CRON rule, cron_expression is required

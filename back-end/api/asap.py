@@ -28,7 +28,7 @@ def register_routes(app):
         as_worker = list(db.get_asaps_by_user(user_id=auth.aid))
         # Get assignments where user is the PAPS owner
         as_owner = list(db.get_asaps_by_owner(owner_id=auth.aid))
-        
+
         return fsa.jsonify({
             "as_worker": as_worker,
             "as_owner": as_owner,
@@ -175,13 +175,13 @@ def register_routes(app):
         # Try to complete (only succeeds if both have confirmed)
         now = datetime.datetime.now(datetime.timezone.utc)
         result = db.try_complete_asap(asap_id=asap_id, completed_at=now)
-        
+
         if result:
             # Both confirmed - create payment record with proper calculation
             paps = db.get_paps_by_id_admin(id=asap['paps_id'])
             if paps and paps['payment_amount']:
                 amount = paps['payment_amount']
-                
+
                 # Calculate hourly payment: hours worked * rate
                 if paps.get('payment_type') == 'hourly' and asap.get('started_at'):
                     started_at = asap['started_at']
@@ -192,7 +192,7 @@ def register_routes(app):
                     # Convert Decimal to float for multiplication
                     rate = float(paps['payment_amount'])
                     amount = max(0.01, round(hours_worked * rate, 2))  # Minimum $0.01
-                
+
                 db.insert_payment(
                     paps_id=asap['paps_id'],
                     payer_id=asap['owner_id'],
@@ -201,14 +201,14 @@ def register_routes(app):
                     currency=paps['payment_currency'] or 'USD',
                     payment_method=None
                 )
-            
+
             # Check if all ASAPs for this PAPS are completed
             paps_id = str(asap['paps_id'])
             incomplete_count = db.get_incomplete_asap_count(paps_id=paps_id)
             if incomplete_count == 0:
                 # All assignments completed - mark PAPS as completed
                 db.update_paps_status(paps_id=paps_id, status='completed')
-            
+
             return fsa.jsonify({
                 "status": "completed",
                 "message": "Assignment completed successfully"
@@ -393,11 +393,11 @@ def register_routes(app):
         # Use media_id from database record for safety
         db_media_id = media['media_id']
         ext = media['file_extension']
-        
+
         # Delete from database FIRST
         db.delete_asap_media(media_id=db_media_id)
-        
+
         # Then delete file from disk using MediaHandler
         media_handler.delete_asap_media(db_media_id, ext)
-        
+
         return "", 204

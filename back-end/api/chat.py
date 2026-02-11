@@ -114,7 +114,7 @@ def register_routes(app):
         fsa.checkVal(len(content.strip()) >= 1, "Message content cannot be empty", 400)
         fsa.checkVal(len(content) <= 5000, "Message content too long (max 5000 chars)", 400)
         fsa.checkVal(message_type in ('text', 'image', 'video', 'document', 'system'),
-                    "Invalid message type", 400)
+                     "Invalid message type", 400)
 
         thread = db.get_chat_thread_by_id(thread_id=thread_id)
         if not thread:

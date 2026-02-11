@@ -43,11 +43,11 @@ def register_routes(app):
     # POST /categories - create category (admin only)
     @app.post("/categories", authz="ADMIN")
     def post_category(auth: model.CurrentAuth, name: str, slug: str,
-                     description: str|None = None, parent_id: str|None = None,
-                     icon_url: str|None = None):
+                      description: str|None = None, parent_id: str|None = None,
+                      icon_url: str|None = None):
         """Create a new category (admin only)."""
         fsa.checkVal(len(name.strip()) >= 2, "Name must be at least 2 characters", 400)
-        fsa.checkVal(re.match(r'^[a-z0-9-]+$', slug), "Slug must be lowercase letters, numbers, and hyphens", 400)
+        fsa.checkVal(bool(re.match(r'^[a-z0-9-]+$', slug)), "Slug must be lowercase letters, numbers, and hyphens", 400)
 
         if parent_id:
             try:
@@ -68,9 +68,9 @@ def register_routes(app):
     # PATCH /categories/<category_id> - update category (admin only)
     @app.patch("/categories/<category_id>", authz="ADMIN")
     def patch_category(category_id: str, auth: model.CurrentAuth, name: str|None = None,
-                      slug: str|None = None, description: str|None = None,
-                      parent_id: str|None = None, icon_url: str|None = None,
-                      is_active: bool|None = None):
+                       slug: str|None = None, description: str|None = None,
+                       parent_id: str|None = None, icon_url: str|None = None,
+                       is_active: bool|None = None):
         """Update a category (admin only)."""
         try:
             uuid.UUID(category_id)
@@ -85,7 +85,7 @@ def register_routes(app):
             fsa.checkVal(len(name.strip()) >= 2, "Name must be at least 2 characters", 400)
 
         if slug is not None:
-            fsa.checkVal(re.match(r'^[a-z0-9-]+$', slug), "Slug must be lowercase letters, numbers, and hyphens", 400)
+            fsa.checkVal(bool(re.match(r'^[a-z0-9-]+$', slug)), "Slug must be lowercase letters, numbers, and hyphens", 400)
 
         db.update_category(
             category_id=category_id,
@@ -165,24 +165,27 @@ def register_routes(app):
                 filename = "icon.svg"
         else:
             fsa.checkVal(False, "No image data provided", 400)
+            return {"error": "No image data provided"}, 400  # Never reached but helps type checker
 
         # Validate file type - only images for icons
         icon_extensions = config.get("icon_extensions", {"jpg", "jpeg", "png", "gif", "webp", "svg"})
         ext = filename.rsplit(".", 1)[1].lower() if "." in filename else "png"
         fsa.checkVal(ext in icon_extensions,
-                    f"File type not allowed for icons. Allowed: {', '.join(icon_extensions)}", 415)
+                     f"File type not allowed for icons. Allowed: {', '.join(icon_extensions)}", 415)
 
         # Handle SVG separately (no compression)
         if ext == "svg":
             max_size = config.get("max_icon_size", 1 * 1024 * 1024)  # 1MB for icons
+            assert image_data is not None
             fsa.checkVal(len(image_data) <= max_size,
-                        f"File too large (max {max_size / 1024 / 1024}MB)", 413)
+                         f"File too large (max {max_size / 1024 / 1024}MB)", 413)
         else:
             # Compress before storage
             max_size = config.get("max_icon_size", 1 * 1024 * 1024)
+            assert image_data is not None
             image_data = _compress_icon(image_data, ext, max_size, config)
             fsa.checkVal(len(image_data) <= max_size,
-                        f"File too large (max {max_size / 1024 / 1024}MB)", 413)
+                         f"File too large (max {max_size / 1024 / 1024}MB)", 413)
 
         # Delete old icon if exists (different extension)
         _delete_category_icon_file(category_id)
@@ -190,6 +193,7 @@ def register_routes(app):
         # Save file with category_id as name to ensure uniqueness
         filename = secure_filename(f"{category_id}.{ext}")
         filepath = CATEGORY_IMG_DIR / filename
+        assert image_data is not None
         filepath.write_bytes(image_data)
 
         # Update icon_url in database
@@ -247,6 +251,7 @@ def register_routes(app):
             img = Image.open(BytesIO(data))
         except Exception:
             fsa.checkVal(False, "Invalid image data", 400)
+            raise  # Never reached but helps type checker
 
         img_format = {
             "jpg": "JPEG",
@@ -259,6 +264,7 @@ def register_routes(app):
         if img_format == "JPEG" and img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
 
+        out = BytesIO()
         if img_format in ("JPEG", "WEBP"):
             quality = int(config.get("icon_quality", 85))
             for q in [quality, 80, 75, 70, 60, 50]:
@@ -268,14 +274,13 @@ def register_routes(app):
                     return out.getvalue()
             return out.getvalue()
 
-        out = BytesIO()
         img.save(out, format=img_format, optimize=True)
         return out.getvalue()
 
     def _delete_category_icon_file(category_id: str):
         """Delete category icon file from filesystem."""
         from werkzeug.utils import secure_filename
-        
+
         # Check all possible extensions
         for ext in ["png", "jpg", "jpeg", "gif", "webp", "svg"]:
             filename = secure_filename(f"{category_id}.{ext}")

@@ -16,21 +16,21 @@ def register_routes(app):
         """Register a new user with username, email, optional phone, and password."""
         # Validate username length
         fsa.checkVal(len(username.strip()) >= 3 and len(username.strip()) <= 50,
-                    "Username must be 3-50 characters", 400)
-        
+                     "Username must be 3-50 characters", 400)
+
         # Validate username format (no spaces, must start with letter)
         username_regex = r'^[a-zA-Z][-a-zA-Z0-9_\.]*$'
-        fsa.checkVal(re.match(username_regex, username.strip()),
-                    "Username can only contain letters, numbers, hyphens, underscores, and dots. Must start with a letter.", 400)
+        fsa.checkVal(bool(re.match(username_regex, username.strip())),
+                     "Username can only contain letters, numbers, hyphens, underscores, and dots. Must start with a letter.", 400)
 
         # Validate email format
         email_regex = r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
-        fsa.checkVal(re.match(email_regex, email), "Invalid email format", 400)
+        fsa.checkVal(bool(re.match(email_regex, email)), "Invalid email format", 400)
 
         # Validate phone if provided
         if phone:
             phone_regex = r'^\+?[1-9]\d{1,14}$'
-            fsa.checkVal(re.match(phone_regex, phone), "Invalid phone format", 400)
+            fsa.checkVal(bool(re.match(phone_regex, phone)), "Invalid phone format", 400)
 
         # Insert user
         aid = db.insert_user(

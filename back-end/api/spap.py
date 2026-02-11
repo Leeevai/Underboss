@@ -40,20 +40,20 @@ def register_routes(app):
         applicant_id = str(spap['applicant_id'])
         owner_id = str(paps['owner_id'])
         spap_id = str(spap['id'])
-        
+
         # Check current ASAP count
         current_asaps = db.get_asap_count_for_paps(paps_id=paps_id)
         max_assignees = paps.get('max_assignees', 1)
-        
+
         if current_asaps >= max_assignees:
             return None, "Maximum number of assignees already reached"
-        
+
         # Create ASAP
         asap_id = db.insert_asap(
             paps_id=paps_id,
             accepted_user_id=applicant_id
         )
-        
+
         # Transfer chat thread from SPAP to ASAP
         chat_thread = db.get_chat_thread_by_spap(spap_id=spap_id)
         if chat_thread:
@@ -65,25 +65,25 @@ def register_routes(app):
             thread_id = db.insert_chat_thread_for_asap(paps_id=paps_id, asap_id=asap_id, thread_type='asap_discussion')
             db.insert_chat_participant(thread_id=thread_id, user_id=applicant_id, role='assignee')
             db.insert_chat_participant(thread_id=thread_id, user_id=owner_id, role='owner')
-        
+
         # Update SPAP status to 'accepted' (keep record, don't delete)
         db.update_spap_status(spap_id=spap_id, status='accepted')
-        
+
         # Check if we've reached max_assignees
         new_asap_count = current_asaps + 1
         if new_asap_count >= max_assignees:
             # Close the PAPS
             db.update_paps_status(paps_id=paps_id, status='closed')
-            
+
             # Reject all remaining pending SPAPs (keep records)
             db.reject_pending_spaps_for_paps(paps_id=paps_id)
-            
+
             # Create group chat if multiple assignees
             if max_assignees > 1:
                 all_asaps = list(db.get_asaps_for_paps(paps_id=paps_id))
                 if len(all_asaps) > 1:
                     group_thread_id = db.insert_chat_thread_for_asap(
-                        paps_id=paps_id, 
+                        paps_id=paps_id,
                         asap_id=asap_id,  # Link to the latest ASAP
                         thread_type='group_chat'
                     )
@@ -92,11 +92,11 @@ def register_routes(app):
                     # Add all assignees as participants
                     for a in all_asaps:
                         db.insert_chat_participant(
-                            thread_id=group_thread_id, 
-                            user_id=str(a['accepted_user_id']), 
+                            thread_id=group_thread_id,
+                            user_id=str(a['accepted_user_id']),
                             role='assignee'
                         )
-        
+
         return asap_id, None
 
     # ============================================
@@ -188,9 +188,10 @@ def register_routes(app):
         # Validate coordinates if provided
         if location_lat is not None or location_lng is not None:
             fsa.checkVal(location_lat is not None and location_lng is not None,
-                        "Both lat and lng must be provided", 400)
-            fsa.checkVal(-90 <= location_lat <= 90, "Invalid latitude", 400)
-            fsa.checkVal(-180 <= location_lng <= 180, "Invalid longitude", 400)
+                         "Both lat and lng must be provided", 400)
+            if location_lat is not None and location_lng is not None:
+                fsa.checkVal(-90 <= location_lat <= 90, "Invalid latitude", 400)
+                fsa.checkVal(-180 <= location_lng <= 180, "Invalid longitude", 400)
 
         # Validate proposed_payment if provided
         if proposed_payment is not None:
@@ -265,7 +266,7 @@ def register_routes(app):
         # Cannot withdraw if already accepted or rejected
         if spap['status'] in ('accepted', 'rejected'):
             return {"error": f"Cannot withdraw application with status: {spap['status']}"}, 400
-        
+
         # Cannot withdraw if already withdrawn
         if spap['status'] == 'withdrawn':
             return {"error": "Application already withdrawn"}, 400
@@ -459,7 +460,7 @@ def register_routes(app):
             media_url = media_handler.get_media_url(
                 MediaType.SPAP,
                 media_id,
-                result.file_extension
+                result.file_extension or ""
             )
             uploaded_media.append({
                 "media_id": media_id,
@@ -502,11 +503,11 @@ def register_routes(app):
         # Use media_id from database record for safety
         db_media_id = media['media_id']
         ext = media['file_extension']
-        
+
         # Delete from database FIRST
         db.delete_spap_media(media_id=db_media_id)
-        
+
         # Then delete file from disk using MediaHandler
         media_handler.delete_spap_media(db_media_id, ext)
-        
+
         return "", 204

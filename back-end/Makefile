@@ -132,6 +132,7 @@ clean: full-stop
 	[ -f app.log ] && echo -e "# REMOVING app.log! RESTART \"make log\"…" >> app.log
 	$(RM) app.log app.pid $(F.gen) $(F.csv) .coverage *~
 	$(RM) -r __pycache__ .pytype .pytest_cache .postgres htmlcov .ruff_cache
+	$(RM) -r api/__pycache__
 	dropdb $(DB) || exit 0
 
 .PHONY: clean.dev
@@ -507,7 +508,7 @@ check.pyright: $(PYTHON_DEV) $(F.py) $(F.gen)
 	# Checking types with pyright
 	#
 	source $(PYTHON_VENV)/bin/activate
-	pyright $(F.py) $(F.gen) test.py
+	pyright $(F.py) $(F.gen) test.py api/*.py
 
 .PHONY: check.mypy
 check.mypy: $(PYTHON_DEV) $(F.py) $(F.gen)
@@ -551,7 +552,7 @@ check.ruff: $(PYTHON_DEV) $(F.py)
 	# Checking style with ruff
 	#
 	source $(PYTHON_VENV)/bin/activate
-	ruff check --ignore=$(IGNORE) $(F.py) test.py
+	ruff check --ignore=$(IGNORE) $(F.py) test.py api/*.py
 
 .PHONY: check.flake8
 check.flake8: $(PYTHON_DEV) $(F.py) $(F.gen)
@@ -560,7 +561,7 @@ check.flake8: $(PYTHON_DEV) $(F.py) $(F.gen)
 	# Checking style with flake8
 	#
 	source $(PYTHON_VENV)/bin/activate
-	flake8 --ignore=E126,E127,$(IGNORE),W503,W504 $(F.py) $(F.gen) test.py
+	flake8 --ignore=E126,E127,$(IGNORE),W503,W504 $(F.py) $(F.gen) test.py api/*.py
 
 .PHONY: check
 check: clean

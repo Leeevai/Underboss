@@ -94,7 +94,10 @@ def register_routes(app):
     def get_stats():
         from utils import print
         print("generating pool stats…")
-        return db._pool.stats()
+        pool = db._pool
+        if pool is None:
+            return {"error": "No database pool"}, 500
+        return pool.stats()
 
     # GET /who-am-i
     @app.get("/who-am-i", authz="AUTH", authn=ADMIN_AUTHN)

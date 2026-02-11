@@ -40,7 +40,7 @@ def register_routes(app):
         Get PAPS postings with optional filters.
         - Admins see ALL paps (no limit)
         - Non-admin users see up to 1000 paps, ranked by interest match score
-        
+
         Filters:
         - status: draft, published, closed, cancelled
         - category_id: Filter by category UUID
@@ -66,13 +66,13 @@ def register_routes(app):
 
         # Validate payment_type if provided
         if payment_type:
-            fsa.checkVal(payment_type in ("fixed", "hourly", "negotiable"), 
-                        "Invalid payment_type. Must be: fixed, hourly, negotiable", 400)
+            fsa.checkVal(payment_type in ("fixed", "hourly", "negotiable"),
+                         "Invalid payment_type. Must be: fixed, hourly, negotiable", 400)
 
         # Validate max_distance requires lat and lng
         if max_distance is not None:
             fsa.checkVal(lat is not None and lng is not None,
-                        "max_distance requires both lat and lng parameters", 400)
+                         "max_distance requires both lat and lng parameters", 400)
             fsa.checkVal(max_distance > 0, "max_distance must be positive", 400)
 
         # Validate lat/lng ranges if provided
@@ -165,15 +165,16 @@ def register_routes(app):
         fsa.checkVal(payment_type in ("fixed", "hourly", "negotiable"), "Invalid payment type", 400)
         fsa.checkVal(max_applicants > 0 and max_applicants <= 100, "Max applicants must be 1-100", 400)
         fsa.checkVal(max_assignees > 0 and max_assignees <= max_applicants,
-                    "Max assignees must be positive and not exceed max applicants", 400)
+                     "Max assignees must be positive and not exceed max applicants", 400)
         fsa.checkVal(status in ('draft', 'published', 'closed', 'cancelled'), "Invalid status", 400)
 
         # Validate location if provided
         if location_lat is not None or location_lng is not None:
             fsa.checkVal(location_lat is not None and location_lng is not None,
-                        "Both lat and lng must be provided", 400)
-            fsa.checkVal(-90 <= location_lat <= 90, "Invalid latitude", 400)
-            fsa.checkVal(-180 <= location_lng <= 180, "Invalid longitude", 400)
+                         "Both lat and lng must be provided", 400)
+            if location_lat is not None and location_lng is not None:
+                fsa.checkVal(-90 <= location_lat <= 90, "Invalid latitude", 400)
+                fsa.checkVal(-180 <= location_lng <= 180, "Invalid longitude", 400)
 
         # Validate dates if provided
         start_dt = None
@@ -197,8 +198,8 @@ def register_routes(app):
             # Validate end_datetime doesn't exceed start + duration
             if start_dt and end_dt:
                 max_end_dt = start_dt + datetime.timedelta(minutes=estimated_duration_minutes)
-                fsa.checkVal(end_dt <= max_end_dt, 
-                            f"End datetime cannot exceed start datetime + duration ({estimated_duration_minutes} minutes)", 400)
+                fsa.checkVal(end_dt <= max_end_dt,
+                             f"End datetime cannot exceed start datetime + duration ({estimated_duration_minutes} minutes)", 400)
 
         # Validate publish_at
         publish_dt = None
@@ -255,7 +256,7 @@ def register_routes(app):
                 else:
                     category_id = cat
                     is_primary = False
-                
+
                 if category_id:
                     try:
                         db.insert_paps_category(paps_id=pid, category_id=category_id, is_primary=is_primary)
@@ -343,7 +344,7 @@ def register_routes(app):
         start_dt = None
         end_dt = None
         duration = None
-        
+
         # Get start_datetime (from update or existing)
         if 'start_datetime' in kwargs and kwargs['start_datetime']:
             try:
@@ -356,7 +357,7 @@ def register_routes(app):
                 start_dt = datetime.datetime.fromisoformat(start_dt.replace('Z', '+00:00'))
             elif start_dt.tzinfo is None:
                 start_dt = start_dt.replace(tzinfo=datetime.timezone.utc)
-        
+
         # Get end_datetime (from update or existing)
         if 'end_datetime' in kwargs and kwargs['end_datetime']:
             try:
@@ -369,37 +370,37 @@ def register_routes(app):
                 end_dt = datetime.datetime.fromisoformat(end_dt.replace('Z', '+00:00'))
             elif end_dt.tzinfo is None:
                 end_dt = end_dt.replace(tzinfo=datetime.timezone.utc)
-        
+
         # Get duration (from update or existing)
         if 'estimated_duration_minutes' in kwargs and kwargs['estimated_duration_minutes']:
             duration = kwargs['estimated_duration_minutes']
             fsa.checkVal(duration > 0, "Duration must be positive", 400)
         elif paps.get('estimated_duration_minutes'):
             duration = paps['estimated_duration_minutes']
-        
+
         # Validate end_datetime is after start_datetime
         if start_dt and end_dt:
             fsa.checkVal(end_dt > start_dt, "End datetime must be after start datetime", 400)
-            
+
             # Validate end_datetime doesn't exceed start + duration
             if duration:
                 max_end_dt = start_dt + datetime.timedelta(minutes=duration)
-                fsa.checkVal(end_dt <= max_end_dt, 
-                            f"End datetime cannot exceed start datetime + duration ({duration} minutes)", 400)
+                fsa.checkVal(end_dt <= max_end_dt,
+                             f"End datetime cannot exceed start datetime + duration ({duration} minutes)", 400)
 
         # Extract other fields from kwargs (with simple validation)
-        simple_fields = ['subtitle', 'status', 'location_address', 'location_lat', 'location_lng', 
-                        'location_timezone', 'start_datetime', 'end_datetime', 'estimated_duration_minutes',
-                        'payment_currency', 'payment_type', 'max_applicants', 'max_assignees', 
-                        'is_public', 'publish_at', 'expires_at']
+        simple_fields = ['subtitle', 'status', 'location_address', 'location_lat', 'location_lng',
+                         'location_timezone', 'start_datetime', 'end_datetime', 'estimated_duration_minutes',
+                         'payment_currency', 'payment_type', 'max_applicants', 'max_assignees',
+                         'is_public', 'publish_at', 'expires_at']
         for field in simple_fields:
             if field in kwargs:
                 updates[field] = kwargs[field]
 
         # Add all missing fields with None defaults to match SQL query signature
-        all_fields = ['title', 'subtitle', 'description', 'status', 'location_address', 'location_lat', 
-                      'location_lng', 'location_timezone', 'start_datetime', 'end_datetime', 
-                      'estimated_duration_minutes', 'payment_amount', 'payment_currency', 'payment_type', 
+        all_fields = ['title', 'subtitle', 'description', 'status', 'location_address', 'location_lat',
+                      'location_lng', 'location_timezone', 'start_datetime', 'end_datetime',
+                      'estimated_duration_minutes', 'payment_amount', 'payment_currency', 'payment_type',
                       'max_applicants', 'max_assignees', 'is_public', 'publish_at', 'expires_at']
         for field in all_fields:
             if field not in updates:
@@ -413,13 +414,13 @@ def register_routes(app):
     def update_paps_status(paps_id: str, auth: model.CurrentAuth, status: str):
         """
         Update PAPS status. Only owner or admin can update.
-        
+
         Valid transitions:
         - draft -> published (opens for applications)
         - published -> closed (manually close, rejects remaining SPAPs)
         - published -> cancelled (cancel job)
         - closed -> published (reopen, if max_assignees not reached)
-        
+
         When closing: All pending SPAPs are deleted, their chat threads deleted
         """
         try:
@@ -438,11 +439,11 @@ def register_routes(app):
             return {"error": "Not authorized to update this PAP"}, 403
 
         current_status = paps['status']
-        
+
         # Validate transitions
         if current_status == 'draft' and status not in ('published', 'open'):
             fsa.checkVal(False, "Draft PAPS can only be published/opened", 400)
-        
+
         if current_status == 'cancelled':
             fsa.checkVal(False, "Cancelled PAPS cannot be modified", 400)
 
@@ -453,7 +454,7 @@ def register_routes(app):
             for spap in pending_spaps:
                 spap_media_list = list(db.get_spap_media(spap_id=str(spap['id'])))
                 media_handler.delete_media_batch(MediaType.SPAP, spap_media_list)
-            
+
             # Delete all pending SPAPs (cascades to media and chat threads in DB)
             db.delete_pending_spaps_for_paps(paps_id=paps_id)
 
@@ -466,7 +467,7 @@ def register_routes(app):
 
         # Update the status
         db.update_paps_status(paps_id=paps_id, status=status)
-        
+
         return fsa.jsonify({"status": status}), 200
 
     # DELETE /paps/<paps_id> - soft delete paps
@@ -627,13 +628,13 @@ def register_routes(app):
 
         # Get all media for this paps
         media_list = list(db.get_paps_media(paps_id=paps_id))
-        
+
         # Build response with static media URLs
         result = []
         for media in media_list:
             media_url = media_handler.get_media_url(
-                MediaType.PAPS, 
-                media['media_id'], 
+                MediaType.PAPS,
+                media['media_id'],
                 media['file_extension']
             )
             result.append({
@@ -758,10 +759,10 @@ def register_routes(app):
         # Use media_id from database record, not URL parameter, for safety
         db_media_id = media['media_id']
         ext = media['file_extension']
-        
+
         # Delete from database FIRST to prevent orphaned file references
         db.delete_paps_media(media_id=db_media_id)
-        
+
         # Then delete file from disk using MediaHandler
         media_handler.delete_paps_media(db_media_id, ext)
 

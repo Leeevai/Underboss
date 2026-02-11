@@ -59,7 +59,7 @@ def register_routes(app):
         Rate a user after ASAP completion.
         - PAPS owner rates the worker
         - Worker can also rate the owner (bidirectional)
-        
+
         Note: Individual ratings are NOT stored. Only the user's moving average
         is updated. This endpoint can only be called ONCE per rater/ratee/asap combination.
         """
@@ -112,7 +112,7 @@ def register_routes(app):
             return {"error": "Invalid ASAP ID format"}, 400
 
         rating_check = db.can_rate_asap(asap_id=asap_id, rater_id=auth.aid)
-        
+
         if not rating_check:
             return fsa.jsonify({
                 "can_rate": False,

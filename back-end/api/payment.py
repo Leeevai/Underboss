@@ -21,11 +21,11 @@ def register_routes(app):
     def get_my_payments(auth: model.CurrentAuth):
         """Get all payments where the current user is payer or payee."""
         payments = list(db.get_payments_by_user(user_id=auth.aid))
-        
+
         # Separate into sent and received
         sent = [p for p in payments if p.get('user_role') == 'payer']
         received = [p for p in payments if p.get('user_role') == 'payee']
-        
+
         return fsa.jsonify({
             "payments": payments,
             "sent": sent,
@@ -91,7 +91,7 @@ def register_routes(app):
             return {"error": "Invalid payment ID format"}, 400
 
         fsa.checkVal(status in ('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled'),
-                    "Invalid status", 400)
+                     "Invalid status", 400)
 
         payment = db.get_payment_by_id(payment_id=payment_id)
         if not payment:
@@ -139,10 +139,10 @@ def register_routes(app):
 
         fsa.checkVal(amount > 0, "Amount must be positive", 400)
         fsa.checkVal(currency in ('USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY'),
-                    "Invalid currency", 400)
+                     "Invalid currency", 400)
         if payment_method:
             fsa.checkVal(payment_method in ('transfer', 'cash', 'check', 'crypto', 'paypal', 'stripe', 'other'),
-                        "Invalid payment method", 400)
+                         "Invalid payment method", 400)
 
         paps = db.get_paps_by_id_admin(id=paps_id)
         if not paps:

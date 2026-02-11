@@ -34,7 +34,7 @@ def register_routes(app):
         else:
             # Invalid format
             raise ValueError(f"invalid user identifier: {user_identifier}")
-    
+
     # Admin's /users routes for testing
     if app.config.get("APP_USERS", False):
         log.warning("/users testing routes are active")
@@ -48,8 +48,8 @@ def register_routes(app):
         def post_users(login: str, password: str, email: str|None = None, phone: str|None = None, is_admin: bool = False):
             # Validate username (login) format
             fsa.checkVal(len(login) >= 3, "username must be at least 3 characters", 400)
-            fsa.checkVal(re.match(USERNAME_REGEX, login), "username must start with a letter and contain only letters, digits, hyphens, underscores, or dots", 400)
-            
+            fsa.checkVal(bool(re.match(USERNAME_REGEX, login)), "username must start with a letter and contain only letters, digits, hyphens, underscores, or dots", 400)
+
             aid = db.insert_user(username=login, email=email, phone=phone,
                                  password=app.hash_password(password), is_admin=is_admin, user_id=None)
             fsa.checkVal(aid, f"user {login} already created", 409)
@@ -57,11 +57,13 @@ def register_routes(app):
 
         @app.get("/users/<user_id>", authz="ADMIN")
         def get_users_id(user_id: str):
+            res = None
             try:
                 res, _ = resolve_user_id(user_id)
             except ValueError as e:
                 fsa.checkVal(False, str(e), 400)
-            
+                return {"error": str(e)}, 400  # Never reached
+
             fsa.checkVal(res, f"no such user: {user_id}", 404)
             return res, 200
 
@@ -69,19 +71,23 @@ def register_routes(app):
         def patch_users_id(user_id: str, password: str|None = None, email: str|None = None,
                            phone: str|None = None, is_admin: bool|None = None):
             import re
+            user_data = None
+            resolved_id = None
             try:
                 user_data, resolved_id = resolve_user_id(user_id)
             except ValueError as e:
                 fsa.checkVal(False, str(e), 400)
-            
+                return {"error": str(e)}, 400  # Never reached
+
             fsa.checkVal(user_data, f"no such user: {user_id}", 404)
-            
+            assert resolved_id is not None
+
             if password is not None:
                 db.set_user_password(user_id=resolved_id, password=app.hash_password(password))
             if email is not None:
                 # Validate email format
                 email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-                fsa.checkVal(re.match(email_pattern, email), f"Invalid email format: {email}", 400)
+                fsa.checkVal(bool(re.match(email_pattern, email)), f"Invalid email format: {email}", 400)
                 db.set_user_email(user_id=resolved_id, email=email)
             if phone is not None:
                 db.set_user_phone(user_id=resolved_id, phone=phone)
@@ -90,20 +96,24 @@ def register_routes(app):
             return "", 204
 
         @app.put("/users/<user_id>", authz="ADMIN")
-        def put_users_id(user_id: str, auth: dict = None):
-            """Replace user data completely."""         
+        def put_users_id(user_id: str, auth: dict|None = None):
+            """Replace user data completely."""
+            user_data = None
+            resolved_id = None
             try:
                 user_data, resolved_id = resolve_user_id(user_id)
             except ValueError as e:
                 fsa.checkVal(False, str(e), 400)
-            
+                return {"error": str(e)}, 400  # Never reached
+
             fsa.checkVal(user_data, f"no such user: {user_id}", 404)
-            
+            assert resolved_id is not None
+
             if auth:
                 # Validate the auth dict has required login matching the user_id
                 login = auth.get('login')
                 fsa.checkVal(login and login == user_id, f"login must match user: {user_id}", 400)
-                
+
                 # Update all fields
                 if 'password' in auth:
                     db.set_user_password(user_id=resolved_id, password=app.hash_password(auth['password']))
@@ -111,16 +121,21 @@ def register_routes(app):
                     db.set_user_email(user_id=resolved_id, email=auth['email'])
                 if 'isadmin' in auth:
                     db.set_user_is_admin(user_id=resolved_id, is_admin=auth['isadmin'])
-            
+
             return "", 204
 
         @app.delete("/users/<user_id>", authz="ADMIN")
         def delete_users_id(user_id: str):
+            user_data = None
+            resolved_id = None
             try:
                 user_data, resolved_id = resolve_user_id(user_id)
             except ValueError as e:
                 fsa.checkVal(False, str(e), 400)
-            
+                return {"error": str(e)}, 400  # Never reached
+
+            fsa.checkVal(user_data is not None, f"no such user: {user_id}", 404)
+            fsa.checkVal(resolved_id is not None, f"no such user: {user_id}", 404)
             current_user_data = db.get_user_data(login=app.get_user())
             fsa.checkVal(resolved_id != current_user_data['aid'], "cannot delete oneself", 400)
 
@@ -144,7 +159,7 @@ def register_routes(app):
             try:
                 # Get all paps IDs for media cleanup
                 user_paps = db.get_user_paps_ids(owner_id=resolved_id)
-                
+
                 # Delete paps media files from disk
                 for paps in user_paps:
                     paps_id = paps['paps_id']
@@ -154,10 +169,10 @@ def register_routes(app):
                         if os.path.exists(media_path):
                             os.remove(media_path)
                             log.info(f"Deleted paps media: {media_path}")
-                
+
                 # Delete PAPS_CATEGORY records first (foreign key constraint)
                 db.delete_user_paps_categories(owner_id=resolved_id)
-                
+
                 # Hard delete all user's PAPS (cascades to PAPS_MEDIA in DB)
                 db.hard_delete_user_paps(owner_id=resolved_id)
                 log.info(f"Hard deleted all PAPS for user {user_id}")
