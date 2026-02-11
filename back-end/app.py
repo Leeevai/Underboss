@@ -34,12 +34,12 @@ def setup_media_from_test():
     app_dir = Path(__file__).parent
     test_media_dir = app_dir / "test_media"
     media_dir = app_dir / "media"
-    
+
     if test_media_dir.exists() and test_media_dir.is_dir():
-        log.info(f"Copying test_media to media directory...")
+        log.info("Copying test_media to media directory...")
         # Create media directory if it doesn't exist
         media_dir.mkdir(exist_ok=True)
-        
+
         # Copy all contents from test_media to media
         for item in test_media_dir.iterdir():
             dest = media_dir / item.name
@@ -55,7 +55,7 @@ def setup_media_from_test():
 
 # start and configure flask service
 import FlaskSimpleAuth as fsa
-from flask.json.provider import DefaultJSONProvider
+from flask.json.provider import DefaultJSONProvider  # type: ignore[import-not-found]
 
 # Custom JSON provider to handle Decimal and other types
 class CustomJSONProvider(DefaultJSONProvider):
