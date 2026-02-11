@@ -275,16 +275,16 @@ export default function SpapFeed() {
               return (
                 <TouchableOpacity 
                   key={group.paps_id}
-                  style={[styles.papsSectionHeader, { backgroundColor: colors.primary }]}
-                  onPress={() => openApplicationsModal(group.paps_id, group.paps_title)}
+                  style={[styles.papsSectionHeader, { backgroundColor:  BRAND.primary }]}
+                  onPress={() => openApplicationsModal(group.paps_id, group.paps_title)}  
                   activeOpacity={0.7}
                 >
                   <View style={styles.papsSectionTitleContainer}>
                     <Text style={styles.papsSectionTitle}>{group.paps_title}</Text>
                     <Text style={styles.papsSectionSubtitle}>View all applications →</Text>
                   </View>
-                  <View style={[styles.applicationCount, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
-                    <Text style={styles.applicationCountText}>{group.applications.length}</Text>
+                  <View style={[styles.applicationCount, { backgroundColor: '#FEF3C7' }]}>
+                    <Text style={{ color: '#D97706' }}>{group.applications.length}</Text>
                   </View>
                 </TouchableOpacity>
               );
