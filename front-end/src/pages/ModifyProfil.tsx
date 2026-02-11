@@ -4,6 +4,7 @@ import { serv, ApiError, UserProfile } from '../serve';
 import ProfilePage from './ProfilePage';
 import UnderbossBar from '../header/underbossbar';
 import { useTheme, BRAND, SPACING, RADIUS, FONT_SIZE, createShadow } from '../common/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ModifyProfil = ({ navigation}: any) => {
 	const { colors, isDark } = useTheme();
@@ -53,10 +54,7 @@ const ModifyProfil = ({ navigation}: any) => {
 	}
 
 	return (
-		<KeyboardAvoidingView 
-			behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-			style={[styles.screen, { backgroundColor: colors.background }]}
-		>
+		 <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]} edges={['top']}>
 			<UnderbossBar />
 			<ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
 				<View style={[styles.header, { backgroundColor: colors.card }]}>
@@ -151,7 +149,7 @@ const ModifyProfil = ({ navigation}: any) => {
 					</TouchableOpacity>
 				</View>
 			</ScrollView>
-		</KeyboardAvoidingView>
+		</SafeAreaView>
 	)
 }
 
