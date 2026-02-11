@@ -5,7 +5,7 @@
 # Include from the main Makefile: -include media.mk
 #
 # Source files are stored in media/test/ and copied to media/ on demand.
-# The copy uses rsync --ignore-existing to never overwrite existing files.
+# Uses cp -n (no-clobber) to never overwrite existing files.
 #
 
 MEDIA_DIR = media
@@ -18,7 +18,15 @@ test_media:
 	# Populating media from test sources (without overwriting)
 	#
 	@if [ -d "$(TEST_MEDIA_DIR)" ]; then \
-		rsync -av --ignore-existing $(TEST_MEDIA_DIR)/ $(MEDIA_DIR)/ --exclude test; \
+		for src in $$(find $(TEST_MEDIA_DIR) -type f); do \
+			rel=$$(echo "$$src" | sed 's|$(TEST_MEDIA_DIR)/||'); \
+			dest="$(MEDIA_DIR)/$$rel"; \
+			mkdir -p "$$(dirname "$$dest")"; \
+			if [ ! -f "$$dest" ]; then \
+				cp "$$src" "$$dest"; \
+				echo "Copied: $$rel"; \
+			fi; \
+		done; \
 		echo "Media populated from $(TEST_MEDIA_DIR) (existing files preserved)"; \
 	else \
 		echo "Error: $(TEST_MEDIA_DIR) not found"; \
@@ -32,7 +40,13 @@ test_media.force:
 	# Populating media from test sources (OVERWRITING existing files)
 	#
 	@if [ -d "$(TEST_MEDIA_DIR)" ]; then \
-		rsync -av $(TEST_MEDIA_DIR)/ $(MEDIA_DIR)/ --exclude test; \
+		for src in $$(find $(TEST_MEDIA_DIR) -type f); do \
+			rel=$$(echo "$$src" | sed 's|$(TEST_MEDIA_DIR)/||'); \
+			dest="$(MEDIA_DIR)/$$rel"; \
+			mkdir -p "$$(dirname "$$dest")"; \
+			cp "$$src" "$$dest"; \
+			echo "Copied: $$rel"; \
+		done; \
 		echo "Media populated from $(TEST_MEDIA_DIR) (existing files overwritten)"; \
 	else \
 		echo "Error: $(TEST_MEDIA_DIR) not found"; \
