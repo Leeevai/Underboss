@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { View, FlatList, ActivityIndicator, Text, StyleSheet, RefreshControl, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRefreshOnFocus } from '../common/useRefreshOnFocus';
 import { SpapStatus } from '../serve';
 import { useSpaps, useReceivedSpaps } from '../cache';
 import SpapPoster from './SpapPoster';
@@ -53,6 +54,18 @@ export default function SpapFeed() {
       fetchReceivedSpaps();
     }
   }, [mainTab, receivedSpaps.length, receivedLoading, receivedError, fetchReceivedSpaps]);
+
+  // Auto-refresh when screen comes into focus
+  useRefreshOnFocus(
+    useCallback(() => {
+      if (mainTab === 'my-applications') {
+        return fetchSpaps(true);
+      } else {
+        return fetchReceivedSpaps(true);
+      }
+    }, [mainTab, fetchSpaps, fetchReceivedSpaps]),
+    { skipFirstFocus: true }
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);

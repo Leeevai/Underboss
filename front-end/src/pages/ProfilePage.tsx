@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import UnderbossBar from '../header/underbossbar';
-import ModifyProfil from './ModifyProfil.tsx';
 import { serv, ApiError, UserProfile, getMediaUrl, getCurrentUser } from '../serve';
+import { useCurrentUserProfile } from '../cache';
+import { launchImageLibrary } from 'react-native-image-picker';
 import PapsPost from '../feed/PapsPost';
 import type { Paps } from '../serve/paps';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
 import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
 
 
@@ -20,14 +21,20 @@ export default function ProfilePage({ navigation }: any) {
     const currentUser = getCurrentUser();
     const isOwnProfile = !viewUsername || viewUsername === currentUser?.username;
     
+    // Hook for updating the cached current user profile (includes cache-busting avatarUrl)
+    const { updateProfile: updateCachedProfile, avatarVersion } = useCurrentUserProfile();
+    
     const [user, setUser] = useState<UserProfile>()
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
-    const [error, setError] = useState('')
+    const [_error, setError] = useState('')
 
     // PAPs state
     const [paps, setPaps] = useState<Paps[]>([]);
     const [loadingPaps, setLoadingPaps] = useState(false);
+
+    // Avatar editing state
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
     const fetchProfile = async () => {
         try {
@@ -87,6 +94,54 @@ export default function ProfilePage({ navigation }: any) {
         }
     };
 
+    // Pick and upload new avatar
+    const handleChangeAvatar = async () => {
+        try {
+            const result = await launchImageLibrary({
+                mediaType: 'photo',
+                selectionLimit: 1,
+                quality: 0.8,
+                maxWidth: 800,
+                maxHeight: 800,
+            });
+
+            if (result.assets && result.assets.length > 0) {
+                const selectedAsset = result.assets[0];
+                if (!selectedAsset.uri) return;
+
+                setUploadingAvatar(true);
+                try {
+                    const file = {
+                        uri: selectedAsset.uri,
+                        type: selectedAsset.type || 'image/jpeg',
+                        name: selectedAsset.fileName || 'avatar.jpg',
+                    };
+
+                    const response = await serv('avatar.upload', { file });
+                    
+                    // Update local user state with new avatar
+                    setUser(prev => prev ? { ...prev, avatar_url: response.avatar_url } : prev);
+                    
+                    // Update the cached current user profile so header reflects the change
+                    if (isOwnProfile) {
+                        updateCachedProfile({ avatar_url: response.avatar_url });
+                    }
+                    
+                    Alert.alert('Success', 'Profile photo updated!');
+                } catch (err) {
+                    console.error('Failed to upload avatar:', err);
+                    const msg = err instanceof ApiError ? err.getUserMessage() : 'Failed to upload photo';
+                    Alert.alert('Upload Failed', msg);
+                } finally {
+                    setUploadingAvatar(false);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to pick avatar:', err);
+            Alert.alert('Error', 'Failed to select photo');
+        }
+    };
+
     const InfoRow = ({ label, value }: { label: string; value?: string | null }) => (
         <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
             <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
@@ -136,10 +191,18 @@ export default function ProfilePage({ navigation }: any) {
 
                 <View style={styles.bottomSpacer} />
                 <View style={[styles.header, { backgroundColor: colors.card }, createShadow(3, isDark)]}>
-                    <View style={styles.avatarContainer}>
+                    <TouchableOpacity 
+                        style={styles.avatarContainer}
+                        onPress={isOwnProfile ? handleChangeAvatar : undefined}
+                        disabled={uploadingAvatar || !isOwnProfile}
+                        activeOpacity={isOwnProfile ? 0.7 : 1}
+                    >
                         {user?.avatar_url ? (
                             <Image 
-                                source={{ uri: getMediaUrl(user.avatar_url) ?? undefined }} 
+                                source={{ uri: isOwnProfile 
+                                    ? `${getMediaUrl(user.avatar_url)}?v=${avatarVersion}` 
+                                    : getMediaUrl(user.avatar_url) ?? undefined 
+                                }} 
                                 style={styles.avatar} 
                             />
                         ) : (
@@ -147,8 +210,18 @@ export default function ProfilePage({ navigation }: any) {
                                 <Text style={styles.avatarPlaceholderText}>👤</Text>
                             </View>
                         )}
+                        {uploadingAvatar && (
+                            <View style={styles.avatarLoadingOverlay}>
+                                <ActivityIndicator size="small" color="#fff" />
+                            </View>
+                        )}
+                        {isOwnProfile && !uploadingAvatar && (
+                            <View style={styles.avatarEditBadge}>
+                                <Text style={styles.avatarEditIcon}>📷</Text>
+                            </View>
+                        )}
                         <View style={styles.onlineIndicator} />
-                    </View>
+                    </TouchableOpacity>
                     
                     <Text style={[styles.username, { color: colors.text }]}>
                         @{user?.username}
@@ -309,6 +382,29 @@ const styles = StyleSheet.create({
         backgroundColor: BRAND.accent,
         borderWidth: 3,
         borderColor: BRAND.primary,
+    },
+    avatarLoadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 55,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarEditBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: BRAND.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#fff',
+    },
+    avatarEditIcon: {
+        fontSize: 16,
     },
     username: {
         fontSize: FONT_SIZE.xl,

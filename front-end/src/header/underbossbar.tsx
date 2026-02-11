@@ -1,12 +1,12 @@
 import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT, BRAND, createShadow } from '../common/theme';
-import AppSettings from '../AppSettings';
-import { getMediaUrl } from '../serve';
+import { useCurrentUserProfile } from '../cache';
 
 export default function UnderbossBar() {
     const navigation = useNavigation<any>();
     const { colors, isDark } = useTheme();
+    const { avatarUrl } = useCurrentUserProfile();
 
     return (
         <View style={[
@@ -50,8 +50,8 @@ export default function UnderbossBar() {
                         activeOpacity={0.6}
                         onPress={() => navigation.navigate('ProfilePage')}
                     >
-                        {AppSettings.userProfile?.avatar_url ? (
-                            <Image source={{ uri: getMediaUrl(AppSettings.userProfile.avatar_url) || undefined }} style={{ width: 42, height: 42, borderRadius: 21 }} />
+                        {avatarUrl ? (
+                            <Image source={{ uri: avatarUrl }} style={{ width: 42, height: 42, borderRadius: 21 }} />
                         ) : (
                             <Text style={styles.iconEmoji}>👤</Text>
                         )}

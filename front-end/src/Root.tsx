@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react'
-import { View, StyleSheet, Text, Button, ActivityIndicator } from 'react-native'
+import React, { useState, useEffect, useCallback } from 'react'
+import { View, StyleSheet, ActivityIndicator } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import Login from './login/Login'
+import ProfileSetupScreen from './login/ProfileSetupScreen'
 import MainView from './main/MainView'
 import Header from './header/Header'
 import AppSettings from './AppSettings'
 import { serv, ApiError } from './serve'
+import { useCurrentUserProfile } from './cache'
 import { ThemeProvider, useTheme, BRAND } from './common/theme'
 
 const styles = StyleSheet.create({
@@ -14,20 +16,6 @@ const styles = StyleSheet.create({
     height: '100%',
   }
 })
-
-// --- Placeholder for ProfileSetup ---
-const ProfileSetup = ({ onComplete }: { onComplete: () => void }) => {
-  const { colors } = useTheme();
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: colors.background }}>
-      <Text style={{ fontSize: 18, marginBottom: 20, color: colors.text }}>Profile Setup Required</Text>
-      <Text style={{ textAlign: 'center', marginBottom: 20, color: colors.textSecondary }}>
-        (This is a placeholder. Build your profile form here.)
-      </Text>
-      <Button title="Complete Profile" onPress={onComplete} color={BRAND.primary} />
-    </View>
-  );
-}
 
 // Loading screen component
 const LoadingScreen = () => {
@@ -43,33 +31,28 @@ function RootContent() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
   const [isProfileComplete, setIsProfileComplete] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
+  
+  // Hook for reactive profile updates
+  const { refreshProfile, clearProfile } = useCurrentUserProfile();
 
-  // Check authentication status on mount
-  useEffect(() => {
-    checkAuthStatus()
-  }, [])
-
-  const checkAuthStatus = async () => {
-    // Check if token exists in AppSettings
-    if (AppSettings.token) {
-      setIsAuthenticated(true)
-      // Check if profile is complete
-      await checkProfileStatus()
-    }
-    setIsLoading(false)
-  }
-
-  const checkProfileStatus = async () => {
+  const checkProfileStatus = useCallback(async () => {
     try {
-      // serv auto-caches profile in AppSettings
-      const profile = await serv('profile.get')
+      // Fetch profile and update the Jotai atom cache
+      const profile = await refreshProfile();
       
-      // Check if essential profile fields are filled
+      if (!profile) {
+        AppSettings.isProfileComplete = false
+        setIsProfileComplete(false)
+        return
+      }
+      
+      // Check if essential profile fields are filled (including avatar)
       const isComplete = !!(
         profile.first_name &&
         profile.last_name &&
         profile.display_name &&
-        profile.bio
+        profile.bio &&
+        profile.avatar_url
       )
       
       AppSettings.isProfileComplete = isComplete
@@ -81,6 +64,7 @@ function RootContent() {
       if (error instanceof ApiError && error.isAuthError()) {
         console.log('Token invalid, logging out')
         AppSettings.clearSession()
+        clearProfile()
         setIsAuthenticated(false)
         setIsProfileComplete(false)
         return
@@ -90,7 +74,21 @@ function RootContent() {
       AppSettings.isProfileComplete = false
       setIsProfileComplete(false)
     }
-  }
+  }, [refreshProfile, clearProfile]);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      // Check if token exists in AppSettings
+      if (AppSettings.token) {
+        setIsAuthenticated(true)
+        // Check if profile is complete
+        await checkProfileStatus()
+      }
+      setIsLoading(false)
+    }
+    checkAuthStatus()
+  }, [checkProfileStatus])
 
   const onLoginSuccess = async (username: string, token: string) => {
     AppSettings.username = username
@@ -101,13 +99,14 @@ function RootContent() {
     await checkProfileStatus()
   }
 
-  const onProfileComplete = () => {
-    AppSettings.isProfileComplete = true
-    setIsProfileComplete(true)
+  const onProfileComplete = async () => {
+    // Refresh profile to get the latest data including avatar
+    await checkProfileStatus()
   }
 
   const onLogout = () => {
     AppSettings.clearSession()
+    clearProfile()
     setIsAuthenticated(false)
     setIsProfileComplete(false)
   }
@@ -123,7 +122,7 @@ function RootContent() {
     }
     
     if (!isProfileComplete) {
-      return <ProfileSetup onComplete={onProfileComplete} />
+      return <ProfileSetupScreen onComplete={onProfileComplete} />
     }
     
     return <MainView logoutUser={onLogout} />

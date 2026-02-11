@@ -21,6 +21,7 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
+import { useRefreshOnFocus } from '../common/useRefreshOnFocus';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Paps } from '../serve/paps';
 import { getCurrentUser } from '../serve';
@@ -283,6 +284,9 @@ export default function PapsFeed() {
   const { paps: newestPaps, loading: newestLoading, error: newestError, refresh: refreshNewest } = useNewestPaps();
   const { paps: nearbyPaps, loading: nearbyLoading, error: nearbyError, refresh: refreshNearby } = useNearbyPaps();
   const { paps: recommendedPaps, loading: recommendedLoading, error: recommendedError, refresh: refreshRecommended } = useRecommendedPaps();
+
+  // Auto-refresh when screen comes into focus
+  useRefreshOnFocus(refreshFeatured, { skipFirstFocus: true });
 
   // Filter out current user's own PAPS
   const filterOwnPaps = (paps: Paps[]) => 
