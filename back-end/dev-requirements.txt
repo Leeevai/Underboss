@@ -1,0 +1,10 @@
+# mypy
+types-flask
+pyright
+# pytype
+black
+flake8
+coverage
+ruff
+FlaskTester >= 5.1
+types-requests
