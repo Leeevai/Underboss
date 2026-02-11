@@ -26,6 +26,7 @@ import type { Paps } from '../serve/paps';
 import { getCurrentUser } from '../serve';
 import PapsPost from './PapsPost';
 import PapsListModal, { PapsListType } from './PapsListModal';
+import NearbyPapsMap from './NearbyPapsMap';
 import UnderbossBar from '../header/underbossbar';
 import {
   useFeaturedPaps,
@@ -407,6 +408,12 @@ export default function PapsFeed() {
             )}
           </View>
         </View>
+
+        {/* Map showing nearby jobs */}
+        <NearbyPapsMap 
+          paps={filteredNearbyPaps}
+          loading={nearbyLoading}
+        />
 
         {/* Quick Filters */}
         <QuickFilters 
