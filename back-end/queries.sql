@@ -56,8 +56,8 @@ JOIN ROLE r ON u.role_id = r.id
 WHERE u.id = :user_id::uuid;
 
 -- name: get_all_user_data(login)^
-SELECT u.id::text as aid, u.username as login, u.password_hash as password, 
-       u.email, u.phone, (r.name = 'admin') as is_admin
+SELECT u.id::text as aid, u.username as login, u.password_hash as password,
+       u.email, (r.name = 'admin') as is_admin
 FROM "USER" u
 JOIN ROLE r ON u.role_id = r.id
 WHERE u.username = :login OR u.email = :login OR u.phone = :login;

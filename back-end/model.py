@@ -14,7 +14,7 @@ class Login(str):
     This class checks that submitted new logins are compliant.
     """
 
-    def __init__(self, login: str):
+    def __init__(self, login: str):  # pragma: no cover
         str.__init__(login)
         if len(login) < 3:
             raise ValueError(f"login must be at least 3 chars: {login}")

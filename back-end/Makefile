@@ -583,6 +583,11 @@ check: clean
 #
 -include deploy.mk
 
+#
+# MEDIA
+#
+-include media.mk
+
 .PHONY: www
 www:
 	# see at http://localhost:3000/
