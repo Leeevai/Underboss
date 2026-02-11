@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android --active-arch-only",
-    "ios": "react-native run-ios",
+    "ios": "node scripts/run-ios.js",
+    "ios:device": "node scripts/run-ios.js --device",
     "lint": "eslint .",
     "web": "webpack serve --mode=development --config webpack.config.js",
     "start": "react-native start",
