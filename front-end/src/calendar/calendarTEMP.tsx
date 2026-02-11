@@ -123,8 +123,8 @@ export default function CalendarScreen() {
     const currentUser = getCurrentUser();
     if (!currentUser) return { canConfirm: false, alreadyConfirmed: false, isWorker: false, isOwner: false };
     
-    const isWorker = asap.accepted_user_id === currentUser.id;
-    const isOwner = asap.owner_id === currentUser.id;
+    const isWorker = asap.accepted_user_id === currentUser.userId;
+    const isOwner = asap.owner_id === currentUser.userId;
     
     const alreadyConfirmed = (isWorker && asap.worker_confirmed) || (isOwner && asap.owner_confirmed);
     const canConfirmNow = asap.status === 'in_progress' && (isWorker || isOwner) && !alreadyConfirmed;
@@ -397,19 +397,23 @@ export default function CalendarScreen() {
             </View>
 
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              {/* Role badge */}
-              <View style={[
-                styles.modalRoleBadge,
-                getAsapRole(selectedAsap.asap_id) === 'owner' 
-                  ? styles.ownerBadge 
-                  : styles.workerBadge
-              ]}>
-                <Text style={[styles.modalRoleBadgeText, { color: colors.text }]}>
-                  {getAsapRole(selectedAsap.asap_id) === 'owner' 
-                    ? '👔 You hired someone (Underboss)' 
-                    : '🔧 You are working (Under Worker)'}
-                </Text>
-              </View>
+              {(() => {
+                const confirmStatus = canConfirm(selectedAsap);
+                return (
+                  <>
+                    {/* Role badge */}
+                    <View style={[
+                      styles.modalRoleBadge,
+                      getAsapRole(selectedAsap.asap_id) === 'owner' 
+                        ? styles.ownerBadge 
+                        : styles.workerBadge
+                    ]}>
+                      <Text style={[styles.modalRoleBadgeText, { color: colors.text }]}>
+                        {getAsapRole(selectedAsap.asap_id) === 'owner' 
+                          ? '👔 You hired someone (Underboss)' 
+                          : '🔧 You are working (Under Worker)'}
+                      </Text>
+                    </View>
 
               {/* Status */}
               <View style={[
@@ -447,7 +451,42 @@ export default function CalendarScreen() {
                   </View>
                 )}
               </View>
+              {/* Confirmation status */}
+              <View style={[styles.confirmStatusBox, { backgroundColor: colors.inputBg }]}>
+                <View style={styles.confirmStatusRow}>
+                  <Text style={[styles.confirmStatusLabel, { color: colors.textSecondary }]}>Worker:</Text>
+                  <Text style={[styles.confirmStatusValue, { color: selectedAsap.worker_confirmed ? '#38A169' : colors.text }]}>
+                    {selectedAsap.worker_confirmed ? '✓ Confirmed' : 'Pending'}
+                  </Text>
+                </View>
+                <View style={styles.confirmStatusRow}>
+                  <Text style={[styles.confirmStatusLabel, { color: colors.textSecondary }]}>Owner:</Text>
+                  <Text style={[styles.confirmStatusValue, { color: selectedAsap.owner_confirmed ? '#38A169' : colors.text }]}>
+                    {selectedAsap.owner_confirmed ? '✓ Confirmed' : 'Pending'}
+                  </Text>
+                </View>
+              </View>
 
+              {/* Confirm button */}
+              {confirmStatus.canConfirm && (
+                <TouchableOpacity
+                  style={[styles.confirmButton, { backgroundColor: BRAND.accent }]}
+                  onPress={handleConfirmCompletion}
+                  disabled={confirming}
+                >
+                  {confirming ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.confirmButtonText}>✓ Confirm Completion</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {confirmStatus.alreadyConfirmed && (
+                <Text style={[styles.alreadyConfirmedText, { color: '#38A169' }]}>
+                  You have already confirmed. Waiting for the other party.
+                </Text>
+              )}
               {/* Media section */}
               {selectedAsap.media && selectedAsap.media.length > 0 && (
                 <View style={styles.modalSection}>
@@ -463,7 +502,7 @@ export default function CalendarScreen() {
                       <View key={mediaItem.media_id || index} style={styles.mediaItem}>
                         {mediaItem.media_type === 'image' ? (
                           <Image
-                            source={{ uri: getMediaUrl(mediaItem.media_path) }}
+                            source={{ uri: getMediaUrl(mediaItem.media_url)! }}
                             style={[styles.mediaImage, { backgroundColor: colors.inputBg }]}
                             resizeMode="cover"
                           />
@@ -502,50 +541,7 @@ export default function CalendarScreen() {
                 </View>
               )}
 
-              {/* Confirmation section */}
-              {selectedAsap.status === 'in_progress' && (() => {
-                const confirmStatus = canConfirm(selectedAsap);
-                return (
-                  <View style={styles.modalSection}>
-                    <Text style={[styles.modalSectionTitle, { color: colors.textSecondary }]}>Completion</Text>
-                    
-                    {/* Confirmation status */}
-                    <View style={[styles.confirmStatusBox, { backgroundColor: colors.inputBg }]}>
-                      <View style={styles.confirmStatusRow}>
-                        <Text style={[styles.confirmStatusLabel, { color: colors.textSecondary }]}>Worker:</Text>
-                        <Text style={[styles.confirmStatusValue, { color: selectedAsap.worker_confirmed ? '#38A169' : colors.text }]}>
-                          {selectedAsap.worker_confirmed ? '✓ Confirmed' : 'Pending'}
-                        </Text>
-                      </View>
-                      <View style={styles.confirmStatusRow}>
-                        <Text style={[styles.confirmStatusLabel, { color: colors.textSecondary }]}>Owner:</Text>
-                        <Text style={[styles.confirmStatusValue, { color: selectedAsap.owner_confirmed ? '#38A169' : colors.text }]}>
-                          {selectedAsap.owner_confirmed ? '✓ Confirmed' : 'Pending'}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Confirm button */}
-                    {confirmStatus.canConfirm && (
-                      <TouchableOpacity
-                        style={[styles.confirmButton, { backgroundColor: BRAND.accent }]}
-                        onPress={handleConfirmCompletion}
-                        disabled={confirming}
-                      >
-                        {confirming ? (
-                          <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                          <Text style={styles.confirmButtonText}>✓ Confirm Completion</Text>
-                        )}
-                      </TouchableOpacity>
-                    )}
-
-                    {confirmStatus.alreadyConfirmed && (
-                      <Text style={[styles.alreadyConfirmedText, { color: '#38A169' }]}>
-                        You have already confirmed. Waiting for the other party.
-                      </Text>
-                    )}
-                  </View>
+                  </>
                 );
               })()}
             </ScrollView>
