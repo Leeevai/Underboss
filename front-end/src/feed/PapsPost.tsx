@@ -400,11 +400,11 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
           />
           
           {/* Modal Content - does not dismiss on tap */}
-          <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.card }]} edges={['bottom']}>
               {/* Modal Header */}
-              <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-                <View style={[styles.modalDragIndicator, { backgroundColor: colors.border }]} />
+              <View style={[styles.modalHeader, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
+                <View style={[styles.modalDragIndicator, { backgroundColor: colors.borderDark }]} />
                 <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>Job Details</Text>
                 <TouchableOpacity
                   style={[styles.modalCloseBtn, { backgroundColor: colors.backgroundTertiary }]}
@@ -624,7 +624,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                 {/* Comments Section */}
                 <View style={styles.modalSection}>
                   <View style={styles.commentsSectionHeader}>
-                    <Text style={styles.sectionTitle}>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>
                       Comments {comments.length > 0 && `(${comments.length})`}
                     </Text>
                   </View>
@@ -632,9 +632,9 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                   {/* Add Comment Input */}
                   <View style={[styles.addCommentBox]}>
                     <TextInput
-                      style={[styles.commentInput, {backgroundColor: colors.backgroundTertiary}, {borderColor: colors.borderLight}]}
+                      style={[styles.commentInput, {backgroundColor: colors.backgroundTertiary, borderColor: colors.borderLight, color: colors.text}]}
                       placeholder="Write a comment..."
-                      placeholderTextColor="#A0AEC0"
+                      placeholderTextColor={colors.textMuted}
                       value={newComment}
                       onChangeText={setNewComment}
                       multiline
@@ -643,7 +643,8 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                     <TouchableOpacity
                       style={[
                         styles.postCommentBtn,
-                        (!newComment.trim() || postingComment) && styles.postCommentBtnDisabled,
+                        { backgroundColor: colors.primary },
+                        (!newComment.trim() || postingComment) && { backgroundColor: colors.textMuted },
                       ]}
                       onPress={handlePostComment}
                       disabled={!newComment.trim() || postingComment}
@@ -659,40 +660,40 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                   {/* Comments List */}
                   {loadingComments ? (
                     <View style={styles.commentsLoading}>
-                      <ActivityIndicator size="small" color="#3182CE" />
-                      <Text style={styles.loadingText}>Loading comments...</Text>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                      <Text style={[styles.loadingText, { color: colors.textTertiary }]}>Loading comments...</Text>
                     </View>
                   ) : comments.length === 0 ? (
                     <View style={styles.noComments}>
-                      <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
+                      <Text style={[styles.noCommentsText, { color: colors.textTertiary }]}>No comments yet. Be the first to comment!</Text>
                     </View>
                   ) : (
                     <View style={styles.commentsList}>
                       {(showAllComments ? comments : comments.slice(0, 3)).map((comment) => (
                         <View key={comment.comment_id} style={[styles.commentItem, {backgroundColor: colors.backgroundTertiary}]}>
-                          <View style={[styles.commentHeader,{}]}>
-                            <View style={styles.commentAvatar}>
+                          <View style={styles.commentHeader}>
+                            <View style={[styles.commentAvatar, { backgroundColor: colors.border }]}>
                               {comment.author_avatar ? (
                                 <Image 
                                   source={{ uri: getMediaUrl(comment.author_avatar)! }} 
                                   style={styles.commentAvatarImage} 
                                 />
                               ) : (
-                                <Text style={styles.commentAvatarInitial}>
+                                <Text style={[styles.commentAvatarInitial, { color: colors.textSecondary }]}>
                                   {comment.author_username?.charAt(0)?.toUpperCase() || '?'}
                                 </Text>
                               )}
                             </View>
                             <View style={styles.commentMeta}>
                               <Text style={[styles.commentUsername,{color:colors.text}]}>@{comment.author_username}</Text>
-                              <Text style={[styles.commentTime]}>
+                              <Text style={[styles.commentTime, { color: colors.textMuted }]}>
                                 {formatRelativeTime(comment.created_at)}
                               </Text>
                             </View>
                           </View>
-                          <Text style={[styles.commentContent,{color:colors.textTertiary}]}>{comment.content}</Text>
+                          <Text style={[styles.commentContent,{color:colors.textSecondary}]}>{comment.content}</Text>
                           {comment.reply_count > 0 && (
-                            <Text style={styles.replyCount}>
+                            <Text style={[styles.replyCount, { color: colors.primary }]}>
                               {comment.reply_count} {comment.reply_count === 1 ? 'reply' : 'replies'}
                             </Text>
                           )}
@@ -703,7 +704,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                           style={styles.showMoreCommentsBtn}
                           onPress={() => setShowAllComments(true)}
                         >
-                          <Text style={styles.showMoreCommentsText}>
+                          <Text style={[styles.showMoreCommentsText, { color: colors.primary }]}>
                             Show {comments.length - 3} more comments
                           </Text>
                         </TouchableOpacity>
@@ -718,12 +719,12 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
               )}
 
               {/* Footer Actions */}
-              <View style={[styles.modalFooter, {backgroundColor: colors.backgroundTertiary}]}>
+              <View style={[styles.modalFooter, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
                 <TouchableOpacity
-                  style={styles.closeBtn}
+                  style={[styles.closeBtn, { backgroundColor: colors.backgroundTertiary }]}
                   onPress={() => setModalVisible(false)}
                 >
-                  <Text style={styles.closeBtnText}>Close</Text>
+                  <Text style={[styles.closeBtnText, { color: colors.textSecondary }]}>Close</Text>
                 </TouchableOpacity>
                 {isOwner && canChangeStatus && (
                   <TouchableOpacity
@@ -737,7 +738,8 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
                   <TouchableOpacity
                     style={[
                       styles.applyBtn,
-                      (hasApplied || isOwner) && styles.applyBtnDisabled,
+                      { backgroundColor: colors.primary },
+                      (hasApplied || isOwner) && { backgroundColor: colors.textMuted },
                     ]}
                     onPress={openApplyModal}
                     disabled={hasApplied || isOwner}
@@ -769,44 +771,44 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
             activeOpacity={1}
             onPress={() => setApplyModalVisible(false)}
           />
-          <View style={styles.applyModalContent}>
-            <View style={styles.applyModalHeader}>
-              <Text style={styles.applyModalTitle}>Apply to Job</Text>
+          <View style={[styles.applyModalContent, { backgroundColor: colors.card }]}>
+            <View style={[styles.applyModalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.applyModalTitle, { color: colors.text }]}>Apply to Job</Text>
               <TouchableOpacity
-                style={styles.modalCloseBtn}
+                style={[styles.modalCloseBtn, { backgroundColor: colors.backgroundTertiary }]}
                 onPress={() => setApplyModalVisible(false)}
               >
-                <Text style={styles.modalCloseBtnText}>✕</Text>
+                <Text style={[styles.modalCloseBtnText, { color: colors.textTertiary }]}>✕</Text>
               </TouchableOpacity>
             </View>
             
             <View style={styles.applyModalBody}>
-              <Text style={styles.applyJobTitle} numberOfLines={2}>{pap.title}</Text>
-              <Text style={styles.applyInputLabel}>Your Message</Text>
+              <Text style={[styles.applyJobTitle, { color: colors.text }]} numberOfLines={2}>{pap.title}</Text>
+              <Text style={[styles.applyInputLabel, { color: colors.textSecondary }]}>Your Message</Text>
               <TextInput
-                style={styles.applicationInput}
+                style={[styles.applicationInput, { backgroundColor: colors.backgroundTertiary, borderColor: colors.border, color: colors.text }]}
                 placeholder="Write a message to the job poster..."
-                placeholderTextColor="#A0AEC0"
+                placeholderTextColor={colors.textMuted}
                 value={applicationMessage}
                 onChangeText={setApplicationMessage}
                 multiline
                 maxLength={1000}
                 textAlignVertical="top"
               />
-              <Text style={styles.applicationCharCount}>
+              <Text style={[styles.applicationCharCount, { color: colors.textMuted }]}>
                 {applicationMessage.length}/1000
               </Text>
             </View>
             
-            <View style={styles.applyModalFooter}>
+            <View style={[styles.applyModalFooter, { borderTopColor: colors.border }]}>
               <TouchableOpacity
-                style={styles.cancelApplyBtn}
+                style={[styles.cancelApplyBtn, { backgroundColor: colors.backgroundTertiary }]}
                 onPress={() => setApplyModalVisible(false)}
               >
-                <Text style={styles.cancelApplyBtnText}>Cancel</Text>
+                <Text style={[styles.cancelApplyBtnText, { color: colors.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.submitApplyBtn, applying && styles.applyBtnDisabled]}
+                style={[styles.submitApplyBtn, { backgroundColor: colors.primary }, applying && { backgroundColor: colors.textMuted }]}
                 onPress={handleSubmitApplication}
                 disabled={applying}
               >
