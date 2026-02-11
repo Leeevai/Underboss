@@ -33,8 +33,8 @@ def register_routes(app):
         1. Check if max_assignees is not reached
         2. Create ASAP
         3. Transfer chat thread from SPAP to ASAP
-        4. Delete the SPAP
-        5. If max_assignees reached, close PAPS and delete remaining SPAPs
+        4. Update SPAP status to 'accepted'
+        5. If max_assignees reached, close PAPS and reject remaining SPAPs
         """
         paps_id = str(spap['paps_id'])
         applicant_id = str(spap['applicant_id'])
@@ -66,12 +66,8 @@ def register_routes(app):
             db.insert_chat_participant(thread_id=thread_id, user_id=applicant_id, role='assignee')
             db.insert_chat_participant(thread_id=thread_id, user_id=owner_id, role='owner')
         
-        # Delete SPAP media files from disk
-        media_list = list(db.get_spap_media(spap_id=spap_id))
-        media_handler.delete_media_batch(MediaType.SPAP, media_list)
-        
-        # Delete the SPAP (cascades to media in DB)
-        db.delete_spap(spap_id=spap_id)
+        # Update SPAP status to 'accepted' (keep record, don't delete)
+        db.update_spap_status(spap_id=spap_id, status='accepted')
         
         # Check if we've reached max_assignees
         new_asap_count = current_asaps + 1
@@ -79,15 +75,8 @@ def register_routes(app):
             # Close the PAPS
             db.update_paps_status(paps_id=paps_id, status='closed')
             
-            # Delete all remaining pending SPAPs and their chat threads
-            remaining_spaps = list(db.get_spaps_for_paps(paps_id=paps_id))
-            for remaining_spap in remaining_spaps:
-                # Delete SPAP media
-                remaining_media = list(db.get_spap_media(spap_id=str(remaining_spap['id'])))
-                media_handler.delete_media_batch(MediaType.SPAP, remaining_media)
-            
-            # Delete all remaining SPAPs (cascades to media and chat threads in DB)
-            db.delete_pending_spaps_for_paps(paps_id=paps_id)
+            # Reject all remaining pending SPAPs (keep records)
+            db.reject_pending_spaps_for_paps(paps_id=paps_id)
             
             # Create group chat if multiple assignees
             if max_assignees > 1:
@@ -259,7 +248,7 @@ def register_routes(app):
     # DELETE /spap/<spap_id> - withdraw application (applicant only)
     @app.delete("/spap/<spap_id>", authz="AUTH")
     def withdraw_application(spap_id: str, auth: model.CurrentAuth):
-        """Withdraw an application. Only the applicant can withdraw."""
+        """Withdraw an application. Only the applicant can withdraw. Sets status to 'withdrawn'."""
         try:
             uuid.UUID(spap_id)
         except ValueError:
@@ -273,16 +262,16 @@ def register_routes(app):
         if not auth.is_admin and str(spap['applicant_id']) != auth.aid:
             return {"error": "Not authorized to withdraw this application"}, 403
 
-        # Cannot withdraw if already accepted (shouldn't happen as SPAP is deleted on accept)
-        if spap['status'] == 'accepted':
-            return {"error": "Cannot withdraw accepted application"}, 400
+        # Cannot withdraw if already accepted or rejected
+        if spap['status'] in ('accepted', 'rejected'):
+            return {"error": f"Cannot withdraw application with status: {spap['status']}"}, 400
+        
+        # Cannot withdraw if already withdrawn
+        if spap['status'] == 'withdrawn':
+            return {"error": "Application already withdrawn"}, 400
 
-        # Delete media files from disk using MediaHandler
-        media_list = list(db.get_spap_media(spap_id=spap_id))
-        media_handler.delete_media_batch(MediaType.SPAP, media_list)
-
-        # Delete application (cascades to media and chat thread in DB)
-        db.delete_spap(spap_id=spap_id)
+        # Update status to 'withdrawn' instead of deleting
+        db.update_spap_status(spap_id=spap_id, status='withdrawn')
         return "", 204
 
     # PUT /spap/<spap_id>/accept - accept an application (owner only)
@@ -292,8 +281,8 @@ def register_routes(app):
         Accept an application.
         - Creates an ASAP
         - Transfers chat thread to ASAP
-        - Deletes the SPAP
-        - If max_assignees reached: closes PAPS and deletes remaining SPAPs
+        - Updates SPAP status to 'accepted'
+        - If max_assignees reached: closes PAPS and rejects remaining SPAPs
         """
         try:
             uuid.UUID(spap_id)
@@ -328,8 +317,8 @@ def register_routes(app):
     def reject_spap(spap_id: str, auth: model.CurrentAuth):
         """
         Reject an application.
-        - Deletes the SPAP
-        - Deletes the associated chat thread
+        - Updates SPAP status to 'rejected'
+        - Keeps the record for history
         """
         try:
             uuid.UUID(spap_id)
@@ -352,12 +341,8 @@ def register_routes(app):
         if not auth.is_admin and str(paps['owner_id']) != auth.aid:
             return {"error": "Not authorized to reject applications"}, 403
 
-        # Delete SPAP media files from disk
-        media_list = list(db.get_spap_media(spap_id=spap_id))
-        media_handler.delete_media_batch(MediaType.SPAP, media_list)
-
-        # Delete the SPAP (cascades to media and chat thread in DB)
-        db.delete_spap(spap_id=spap_id)
+        # Update SPAP status to 'rejected'
+        db.update_spap_status(spap_id=spap_id, status='rejected')
 
         return "", 204
 

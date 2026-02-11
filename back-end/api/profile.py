@@ -205,7 +205,7 @@ def register_routes(app):
     # POST /profile/experiences - add experience to current user
     @app.post("/profile/experiences", authz="AUTH")
     def post_experience(auth: model.CurrentAuth, title: str, company: str|None = None,
-                       description: str|None = None, start_date: str = None,
+                       description: str|None = None, start_date: str|None = None,
                        end_date: str|None = None, is_current: bool = False,
                        display_order: int|None = None):
         """Add work experience to current user's profile."""

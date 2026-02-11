@@ -476,7 +476,7 @@ WHERE p.id = :id::uuid
   AND p.deleted_at IS NULL
   AND (
     p.owner_id = :user_id::uuid
-    OR (p.status = 'published' AND p.is_public = TRUE AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP))
+    OR ( p.is_public = TRUE AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP))
   );
 
 -- Get single paps by ID for admin (see everything)
@@ -783,12 +783,8 @@ INSERT INTO SPAP (paps_id, applicant_id, message)
 VALUES (:paps_id::uuid, :applicant_id::uuid, :message)
 RETURNING id;
 
--- name: update_spap_status(spap_id, status, reviewed_at, accepted_at, rejected_at)!
-UPDATE SPAP SET
-    status = COALESCE(:status, status),
-    reviewed_at = COALESCE(:reviewed_at, reviewed_at),
-    accepted_at = COALESCE(:accepted_at, accepted_at),
-    rejected_at = COALESCE(:rejected_at, rejected_at)
+-- name: update_spap_status(spap_id, status)!
+UPDATE SPAP SET status = :status
 WHERE id = :spap_id::uuid;
 
 -- name: delete_spap(spap_id)!
@@ -1455,13 +1451,22 @@ WHERE a.id = :asap_id::uuid AND a.status = 'completed';
 -- name: get_pending_spap_count(paps_id)$
 SELECT COUNT(*) FROM SPAP WHERE paps_id = :paps_id::uuid AND status = 'pending';
 
--- Update PAPS status (used when max_assignees reached)
+-- Update PAPS status (used when max_assignees reached or all completed)
 -- name: update_paps_status(paps_id, status)!
 UPDATE PAPS SET status = :status WHERE id = :paps_id::uuid;
 
--- Delete all pending SPAPs for a PAPS (when closing)
+-- Reject all pending SPAPs for a PAPS (when closing or all slots filled)
+-- name: reject_pending_spaps_for_paps(paps_id)!
+UPDATE SPAP SET status = 'rejected'
+WHERE paps_id = :paps_id::uuid AND status = 'pending';
+
+-- Delete all pending SPAPs for a PAPS (when closing) - DEPRECATED: use reject_pending_spaps_for_paps
 -- name: delete_pending_spaps_for_paps(paps_id)!
 DELETE FROM SPAP WHERE paps_id = :paps_id::uuid AND status = 'pending';
+
+-- Check if all ASAPs for a PAPS are completed
+-- name: get_incomplete_asap_count(paps_id)$
+SELECT COUNT(*) FROM ASAP WHERE paps_id = :paps_id::uuid AND status != 'completed';
 
 -- Get group chat thread for a PAPS (for multiple assignees)
 -- name: get_group_chat_for_paps(paps_id)^

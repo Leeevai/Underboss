@@ -1672,18 +1672,34 @@ def test_spap(api):
     # Third party cannot view SPAP
     api.get(f"/spap/{spap_id}", 403, login=NOADM)
 
-    # Test SPAP rejection (deletes the SPAP)
+    # Test SPAP rejection (updates status to 'rejected')
     api.put(f"/spap/{spap_id}/reject", 204, login=owner)
 
-    # Verify rejection - SPAP is deleted, should return 404
-    api.get(f"/spap/{spap_id}", 404, login=owner)
+    # Verify rejection - SPAP still exists with status='rejected'
+    res = api.get(f"/spap/{spap_id}", 200, login=owner)
+    assert res.json["status"] == "rejected", f"Expected 'rejected', got {res.json['status']}"
 
-    # Cannot accept deleted SPAP
-    api.put(f"/spap/{spap_id}/accept", 404, login=owner)
+    # Cannot accept rejected SPAP
+    api.put(f"/spap/{spap_id}/accept", 400, login=owner)
 
-    # Apply again after rejection
-    res = api.post(f"/paps/{paps_id}/apply", 201, json={
-        "cover_letter": "Applying again after rejection."
+    # Cannot reject again
+    api.put(f"/spap/{spap_id}/reject", 400, login=owner)
+
+    # Create a new PAPS for testing acceptance flow
+    res = api.post("/paps", 201, json={
+        "title": "Test PAPS for Accept Flow",
+        "description": "Testing the acceptance workflow for job applications.",
+        "payment_type": "fixed",
+        "payment_amount": 100.00,
+        "payment_currency": "USD",
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id2 = res.json.get("paps_id")
+
+    # Apply to new PAPS
+    res = api.post(f"/paps/{paps_id2}/apply", 201, json={
+        "cover_letter": "Applying to test acceptance."
     }, login=applicant)
     spap_id2 = res.json.get("spap_id")
 
@@ -1692,14 +1708,19 @@ def test_spap(api):
     asap_id = res.json.get("asap_id")
     assert asap_id is not None
 
-    # SPAP should be deleted after acceptance (converted to ASAP)
-    api.get(f"/spap/{spap_id2}", 404, login=owner)
+    # SPAP still exists with status='accepted'
+    res = api.get(f"/spap/{spap_id2}", 200, login=owner)
+    assert res.json["status"] == "accepted", f"Expected 'accepted', got {res.json['status']}"
+
+    # Cannot accept again
+    api.put(f"/spap/{spap_id2}/accept", 400, login=owner)
 
     # Cleanup - delete ASAP first since it references PAPS
     api.delete(f"/asap/{asap_id}", 204, login=owner)
 
-    # Delete PAPS
+    # Delete PAPS (both of them)
     api.delete(f"/paps/{paps_id}", 204, login=owner)
+    api.delete(f"/paps/{paps_id2}", 204, login=owner)
 
     # Delete users
     res = api.get(f"/user/{owner}/profile", 200, login=None)

@@ -202,6 +202,13 @@ def register_routes(app):
                     payment_method=None
                 )
             
+            # Check if all ASAPs for this PAPS are completed
+            paps_id = str(asap['paps_id'])
+            incomplete_count = db.get_incomplete_asap_count(paps_id=paps_id)
+            if incomplete_count == 0:
+                # All assignments completed - mark PAPS as completed
+                db.update_paps_status(paps_id=paps_id, status='completed')
+            
             return fsa.jsonify({
                 "status": "completed",
                 "message": "Assignment completed successfully"

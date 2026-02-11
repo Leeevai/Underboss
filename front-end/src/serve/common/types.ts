@@ -28,7 +28,7 @@ export type AuthLevel = 'OPEN' | 'AUTH' | 'ADMIN';
 // =============================================================================
 
 /** PAPS (Job Posting) status - matches backend exactly */
-export type PapsStatus = 'draft' | 'published' | 'open' | 'closed' | 'cancelled';
+export type PapsStatus = 'draft' | 'published' | 'open' | 'closed' | 'cancelled' | 'expired' | 'completed';
 
 /** SPAP (Application) status */
 export type SpapStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
