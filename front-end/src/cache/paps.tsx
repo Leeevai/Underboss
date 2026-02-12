@@ -33,12 +33,11 @@ export const newestPapsAtom = atom((get) => {
     .slice(0, 10);
 });
 
-// Nearby: only paps with location data
+// Nearby: only paps with location data (no limit - show all on map)
 export const nearbyPapsAtom = atom((get) => {
   const paps = get(papsAtom);
   return paps
-    .filter((p) => p.location_lat && p.location_lng)
-    .slice(0, 10);
+    .filter((p) => p.location_lat && p.location_lng);
 });
 
 // Recommended: shuffled selection

@@ -21,7 +21,6 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
 import { WebView } from 'react-native-webview';
 import type { MediaItem, MediaType } from '../serve/common/types';
 import { getMediaUrl } from '../serve';
@@ -188,7 +187,6 @@ function SingleMedia({ item, size, onPress }: SingleMediaProps) {
 function FullscreenViewer({ visible, media, initialIndex, onClose }: FullscreenViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const flatListRef = useRef<FlatList>(null);
-  const videoRef = useRef<Video>(null);
 
   const currentItem = media[currentIndex];
   const mediaUrl = getMediaUrl(currentItem?.media_url);
@@ -218,16 +216,23 @@ function FullscreenViewer({ visible, media, initialIndex, onClose }: FullscreenV
     }
 
     if (item.media_type === 'video' || isVideo(item.mime_type)) {
+      // Use thumbnail + external link instead of expo-av Video (which has compatibility issues)
       return (
         <View style={styles.fullscreenItemContainer}>
-          <Video
-            ref={videoRef}
-            source={{ uri: url || '' }}
-            style={styles.fullscreenVideo}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            shouldPlay={false}
-          />
+          <View style={styles.videoFallbackContainer}>
+            <Text style={styles.videoIcon}>🎬</Text>
+            <Text style={styles.videoLabel}>{item.original_filename || 'Video'}</Text>
+            <Pressable
+              style={styles.videoPlayButton}
+              onPress={async () => {
+                if (url) {
+                  await Linking.openURL(url);
+                }
+              }}
+            >
+              <Text style={styles.videoPlayButtonText}>▶ Open Video</Text>
+            </Pressable>
+          </View>
         </View>
       );
     }
@@ -489,6 +494,29 @@ const styles = StyleSheet.create({
   videoLabel: {
     color: '#E2E8F0',
     fontSize: 11,
+    fontWeight: '600',
+  },
+  videoFallbackContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1A202C',
+    padding: 32,
+  },
+  videoIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  videoPlayButton: {
+    marginTop: 20,
+    backgroundColor: '#5A67D8',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  videoPlayButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
   playButton: {
