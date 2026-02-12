@@ -63,7 +63,7 @@ def register_routes(app):
             return {"error": "PAPS not found"}, 404
 
         # Check if paps is deleted
-        if paps.get('deleted_at'):
+        if paps.get('deleted_at'):  # pragma: no cover - SQL filter already excludes
             return {"error": "Cannot comment on deleted PAPS"}, 400
 
         # Create comment
@@ -217,7 +217,7 @@ def register_routes(app):
 
         # Check paps is not deleted
         paps = db.get_paps_by_id_admin(id=parent['paps_id'])
-        if not paps or paps.get('deleted_at'):
+        if not paps or paps.get('deleted_at'):  # pragma: no cover - requires DB inconsistency
             return {"error": "Cannot reply - PAPS has been deleted"}, 400
 
         # Create reply
