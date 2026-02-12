@@ -120,3 +120,11 @@ def register_routes(app):
     # Note: All media files are now served statically via Flask's built-in static file serving
     # Configuration in app.py: static_folder="media", static_url_path="/media"
     # This handles all paths like /media/post/<file>, /media/user/profile/<file>, etc.
+
+    # GET /config - Public endpoint for frontend config
+    @app.get("/config", authz="OPEN", authn="none")
+    def get_config():
+        config = app.config.get("UNDERBOSS", {})
+        return {
+            "default_avatar_url": config.get("default_avatar_url", "/media/user/profile/avatar.png"),
+        }, 200
