@@ -72,6 +72,7 @@ def register_routes(app):
 
         # Check if rating is allowed
         rating_check = db.can_rate_asap(asap_id=asap_id, rater_id=auth.aid)
+
         if not rating_check:
             return {"error": "Assignment not found or not completed"}, 404
 
@@ -79,6 +80,7 @@ def register_routes(app):
             return {"error": "Can only rate completed assignments"}, 400
 
         can_rate_user_id = rating_check.get('can_rate_user_id')
+
         if not can_rate_user_id:
             return {"error": "You are not authorized to rate this assignment"}, 403
 
