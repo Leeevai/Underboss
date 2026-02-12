@@ -39,6 +39,18 @@ export const systemEndpoints: Record<string, EndpointConfig> = {
     path: '/uptime',
     auth: false,
   },
+
+  /**
+   * Public app configuration
+   * No authentication required
+   * 
+   * Response: { default_avatar_url }
+   */
+  'system.config': {
+    method: 'GET',
+    path: '/config',
+    auth: false,
+  },
   
   /**
    * Detailed system information
