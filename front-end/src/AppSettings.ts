@@ -48,6 +48,11 @@ export default class AppSettings {
   static notifications: boolean = true;
 
   /**
+   * Default avatar URL from backend config.
+   */
+  static defaultAvatarUrl: string = '/media/user/profile/avatar.png';
+
+  /**
    * Clear all session data (used on logout).
    */
   static clearSession(): void {
