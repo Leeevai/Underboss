@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { serv, getMediaUrl, ApiError } from '../serve';
 import type { Spap } from '../serve/spap';
+import type { MediaItem } from '../serve/common/types';
 import { useTheme, BRAND } from '../common/theme';
 
 // Get screen width for responsive design
@@ -22,24 +23,46 @@ export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
   const [loadingPaps, setLoadingPaps] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
   
-  // Fetch PAPS details when modal opens
+  // SPAP media state
+  const [spapMedia, setSpapMedia] = useState<MediaItem[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+  
+  // Fetch PAPS details and SPAP media when modal opens
   useEffect(() => {
-    const fetchPapsDetails = async () => {
-      if (!modalVisible || papsDetail) return;
+    const fetchData = async () => {
+      if (!modalVisible) return;
       
-      setLoadingPaps(true);
-      try {
-        const details = await serv('paps.get', { paps_id: spap.paps_id });
-        setPapsDetail(details);
-      } catch (error: any) {
-        console.error("Error fetching PAPS details:", error);
-      } finally {
-        setLoadingPaps(false);
+      // Fetch PAPS details
+      if (!papsDetail) {
+        setLoadingPaps(true);
+        try {
+          const details = await serv('paps.get', { paps_id: spap.paps_id });
+          setPapsDetail(details);
+        } catch (error: any) {
+          console.error("Error fetching PAPS details:", error);
+        } finally {
+          setLoadingPaps(false);
+        }
+      }
+      
+      // Fetch SPAP media
+      if (spapMedia.length === 0) {
+        setLoadingMedia(true);
+        try {
+          const mediaResponse = await serv('spap.media.list', { spap_id: spap.id });
+          if (mediaResponse?.media) {
+            setSpapMedia(mediaResponse.media);
+          }
+        } catch (error: any) {
+          console.error("Error fetching SPAP media:", error);
+        } finally {
+          setLoadingMedia(false);
+        }
       }
     };
     
-    fetchPapsDetails();
-  }, [modalVisible, spap.paps_id]);
+    fetchData();
+  }, [modalVisible, spap.paps_id, spap.id]);
 
   // Format date helper
   const formatDate = (dateString: string) => {
@@ -183,6 +206,33 @@ export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
                     {spap.message || 'No message was included with this application.'}
                   </Text>
                 </View>
+
+                {/* Application Media */}
+                {(loadingMedia || spapMedia.length > 0) && (
+                  <View style={styles.modalSection}>
+                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+                      Attached Media {spapMedia.length > 0 && `(${spapMedia.length})`}
+                    </Text>
+                    {loadingMedia ? (
+                      <ActivityIndicator size="small" color={BRAND.primary} />
+                    ) : (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mediaScroll}>
+                        {spapMedia.map((media, index) => (
+                          <View key={media.media_id || index} style={styles.mediaItem}>
+                            <Image
+                              source={{ uri: getMediaUrl(media.media_url) }}
+                              style={styles.mediaThumb}
+                              resizeMode="cover"
+                            />
+                            <Text style={[styles.mediaType, { color: colors.textSecondary }]}>
+                              {media.media_type || 'Image'}
+                            </Text>
+                          </View>
+                        ))}
+                      </ScrollView>
+                    )}
+                  </View>
+                )}
 
                 {loadingPaps ? (
                   <View style={styles.modalSection}>
@@ -618,5 +668,25 @@ const styles = StyleSheet.create({
     color: '#2D3748',
     fontWeight: '700',
     flex: 1,
+  },
+  
+  // Media styles
+  mediaScroll: {
+    marginTop: 8,
+  },
+  mediaItem: {
+    marginRight: 12,
+    alignItems: 'center',
+  },
+  mediaThumb: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: '#E2E8F0',
+  },
+  mediaType: {
+    fontSize: 11,
+    marginTop: 4,
+    textTransform: 'capitalize',
   },
 })
