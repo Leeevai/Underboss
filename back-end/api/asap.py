@@ -180,18 +180,30 @@ def register_routes(app):
             # Both confirmed - create payment record with proper calculation
             paps = db.get_paps_by_id_admin(id=asap['paps_id'])
             if paps and paps['payment_amount']:
-                amount = paps['payment_amount']
+                amount = float(paps['payment_amount'])
+                payment_type = paps.get('payment_type', 'fixed')
 
-                # Calculate hourly payment: hours worked * rate
-                if paps.get('payment_type') == 'hourly' and asap.get('started_at'):
+                # Calculate payment based on type
+                if payment_type == 'hourly' and asap.get('started_at'):
+                    # Hourly: hours worked * hourly rate
                     started_at = asap['started_at']
                     # Ensure both datetimes are timezone-aware for subtraction
                     if started_at.tzinfo is None:
                         started_at = started_at.replace(tzinfo=datetime.timezone.utc)
                     hours_worked = (now - started_at).total_seconds() / 3600
-                    # Convert Decimal to float for multiplication
-                    rate = float(paps['payment_amount'])
-                    amount = max(0.01, round(hours_worked * rate, 2))  # Minimum $0.01
+                    amount = max(0.01, round(hours_worked * amount, 2))  # Minimum $0.01
+
+                elif payment_type == 'negotiable':
+                    # Negotiable: use the proposed_payment from the accepted SPAP if available
+                    spap = db.get_spap_by_paps_and_applicant(
+                        paps_id=asap['paps_id'],
+                        applicant_id=asap['accepted_user_id']
+                    )
+                    if spap and spap.get('proposed_payment'):
+                        amount = float(spap['proposed_payment'])
+                    # Otherwise use the original paps payment_amount as fallback
+
+                # Fixed payment type uses amount as-is (already set above)
 
                 db.insert_payment(
                     paps_id=asap['paps_id'],
@@ -201,6 +213,41 @@ def register_routes(app):
                     currency=paps['payment_currency'] or 'USD',
                     payment_method=None
                 )
+
+            # Auto-create experience for the worker
+            if paps:
+                # Get owner info for "company" field
+                owner_profile = db.get_user_profile(user_id=str(asap['owner_id']))
+                owner_name = None
+                if owner_profile:
+                    owner_name = owner_profile.get('display_name') or owner_profile.get('first_name')
+
+                # Calculate dates
+                start_date = None
+                end_date = None
+                if asap.get('started_at'):
+                    started_at = asap['started_at']
+                    if hasattr(started_at, 'date'):
+                        start_date = started_at.date()
+                if hasattr(now, 'date'):
+                    end_date = now.date()
+
+                # Create experience entry for the worker
+                db.insert_user_experience(
+                    user_id=str(asap['accepted_user_id']),
+                    title=paps.get('title', 'Completed Assignment'),
+                    company=owner_name,
+                    description=paps.get('description'),
+                    start_date=start_date,
+                    end_date=end_date,
+                    is_current=False,
+                    display_order=0
+                )
+
+            # Delete chat thread associated with this ASAP
+            chat_thread = db.get_chat_thread_by_asap(asap_id=asap_id)
+            if chat_thread:
+                db.delete_chat_thread(thread_id=str(chat_thread['thread_id']))
 
             # Check if all ASAPs for this PAPS are completed
             paps_id = str(asap['paps_id'])
