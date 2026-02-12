@@ -25,6 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import { serv, getMediaUrl, getCurrentUser } from '../serve';
+import { useSpaps } from '../cache/spaps';
 import type { Paps, PapsDetail } from '../serve/paps';
 import type { MediaItem } from '../serve/common/types';
 import type { Comment } from '../serve/comments';
@@ -117,6 +118,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
   const { colors, isDark } = useTheme();
   const navigation = useNavigation<any>();
   const currentUser = getCurrentUser();
+  const { fetchSpaps } = useSpaps();
   
   const [modalVisible, setModalVisible] = useState(false);
   const [papsDetail, setPapsDetail] = useState<PapsDetail | null>(null);
@@ -311,6 +313,8 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
       setHasApplied(true);
       setApplyModalVisible(false);
       setApplicationMedia([]);
+      // Refresh spaps list to show the new application
+      fetchSpaps(true);
       Alert.alert('Success', 'Your application has been submitted!', [
         { text: 'OK' },
       ]);
@@ -324,7 +328,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
     } finally {
       setApplying(false);
     }
-  }, [pap.id, applicationMessage, applicationMedia]);
+  }, [pap.id, applicationMessage, applicationMedia, fetchSpaps]);
 
   // Handle status change
   const handleStatusChange = useCallback(async (newStatus: string) => {

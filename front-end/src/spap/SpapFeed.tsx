@@ -117,6 +117,8 @@ export default function SpapFeed() {
 
   const handleWithdraw = (spapId: string) => {
     removeSpap(spapId);
+    // Force refresh after withdraw
+    fetchSpaps(true);
   };
 
   const handleAccept = useCallback(async (spapId: string) => {

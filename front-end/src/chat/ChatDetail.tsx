@@ -13,9 +13,9 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useChatMessages, useChats } from '../cache/chats';
+import { useChatMessages, useChats, getThreadDetails } from '../cache/chats';
 import { getMediaUrl, getCurrentUser } from '../serve';
-import type { ChatThread, ChatMessage } from '../serve/chat';
+import type { ChatThread, ChatMessage, ChatParticipant } from '../serve/chat';
 import ChatBubble from './ChatBubble';
 import { useTheme, BRAND } from '../common/theme';
 // import Underboss from '../../App';
@@ -34,10 +34,23 @@ export default function ChatDetail({ thread, onBack }: ChatDetailProps) {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+  const [participants, setParticipants] = useState<ChatParticipant[]>(thread.participants || []);
   const flatListRef = useRef<FlatList>(null);
   
   const currentUser = getCurrentUser();
   const currentUserId = currentUser?.userId;
+
+  // Fetch thread details to get participants
+  useEffect(() => {
+    if (!threadId) return;
+    getThreadDetails(threadId)
+      .then((details) => {
+        if (details?.participants) {
+          setParticipants(details.participants);
+        }
+      })
+      .catch((err) => console.warn('[ChatDetail] Failed to fetch thread details:', err));
+  }, [threadId]);
 
   // Group messages by date (must be before early return)
   const groupMessagesByDate = useCallback((msgs: ChatMessage[]) => {
@@ -70,6 +83,15 @@ export default function ChatDetail({ thread, onBack }: ChatDetailProps) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]);
+
+  // Poll for new messages every 1 second
+  useEffect(() => {
+    if (!threadId) return;
+    const intervalId = setInterval(() => {
+      fetchMessages();
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, [threadId, fetchMessages]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -133,7 +155,6 @@ export default function ChatDetail({ thread, onBack }: ChatDetailProps) {
   };
 
   // Get display title
-  const participants = thread.participants || [];
   const getDisplayTitle = () => {
     if (thread.paps_title) return thread.paps_title;
     const otherParticipants = participants.filter((p) => p.user_id !== currentUserId);
@@ -228,17 +249,25 @@ export default function ChatDetail({ thread, onBack }: ChatDetailProps) {
 
         {/* Participants preview */}
         <View style={styles.participantsPreview}>
-          {participants.slice(0, 3).map((p, i) => (
-            <View key={p.user_id} style={[styles.participantAvatar, i > 0 && styles.participantAvatarStacked]}>
-              {p.avatar_url ? (
-                <Image source={{ uri: getMediaUrl(p.avatar_url)! }} style={styles.participantAvatarImage} />
-              ) : (
-                <View style={[styles.participantAvatarPlaceholder, { backgroundColor: BRAND.primary }]}>
-                  <Text style={styles.participantAvatarText}>{p.username[0].toUpperCase()}</Text>
-                </View>
-              )}
-            </View>
-          ))}
+          {(() => {
+            // For individual chats (not group_chat), show only the other participant
+            const isGroupChat = thread.thread_type === 'group_chat' || participants.length > 2;
+            const displayParticipants = isGroupChat
+              ? participants.slice(0, 3)
+              : participants.filter((p) => p.user_id !== currentUserId).slice(0, 1);
+            
+            return displayParticipants.map((p, i) => (
+              <View key={p.user_id} style={[styles.participantAvatar, i > 0 && styles.participantAvatarStacked]}>
+                {p.avatar_url ? (
+                  <Image source={{ uri: getMediaUrl(p.avatar_url)! }} style={styles.participantAvatarImage} />
+                ) : (
+                  <View style={[styles.participantAvatarPlaceholder, { backgroundColor: BRAND.primary }]}>
+                    <Text style={styles.participantAvatarText}>{p.username[0].toUpperCase()}</Text>
+                  </View>
+                )}
+              </View>
+            ));
+          })()}
         </View>
       </View>
 

@@ -234,19 +234,17 @@ export const useReceivedSpaps = () => {
   // Accept an application - returns the new asap_id
   const acceptSpap = useCallback(async (spapId: string): Promise<string | null> => {
     const response = await serv("spap.accept", { spap_id: spapId });
-    setSpaps((prev) =>
-      prev.map((s) => (s.id === spapId ? { ...s, status: "accepted" as const } : s))
-    );
+    // Force refresh to get updated data
+    fetchReceivedSpaps(true);
     return response?.asap_id || null;
-  }, [setSpaps]);
+  }, [fetchReceivedSpaps]);
 
   // Reject an application
   const rejectSpap = useCallback(async (spapId: string) => {
     await serv("spap.reject", { spap_id: spapId });
-    setSpaps((prev) =>
-      prev.map((s) => (s.id === spapId ? { ...s, status: "rejected" as const } : s))
-    );
-  }, [setSpaps]);
+    // Force refresh to get updated data
+    fetchReceivedSpaps(true);
+  }, [fetchReceivedSpaps]);
 
   return { 
     spaps, 

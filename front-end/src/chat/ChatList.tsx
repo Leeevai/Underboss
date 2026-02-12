@@ -116,11 +116,10 @@ export default function ChatList({ onSelectThread }: ChatListProps) {
     
     const typeInfo = getThreadTypeInfo(item.thread_type);
     const hasUnread = item.unread_count > 0;
-    const participants = item.participants || [];
     
-    // Get the other participant(s) for display
-    const otherParticipants = participants.filter((p) => p.role !== 'owner');
-    const displayParticipant = otherParticipants[0] || participants[0];
+    // Use other_username and other_avatar_url from backend (the other participant)
+    const otherUsername = (item as any).other_username;
+    const otherAvatarUrl = (item as any).other_avatar_url;
     
     return (
       <TouchableOpacity
@@ -134,15 +133,15 @@ export default function ChatList({ onSelectThread }: ChatListProps) {
       >
         {/* Avatar */}
         <View style={styles.avatarContainer}>
-          {displayParticipant?.avatar_url ? (
+          {otherAvatarUrl ? (
             <Image
-              source={{ uri: getMediaUrl(displayParticipant.avatar_url)! }}
+              source={{ uri: getMediaUrl(otherAvatarUrl)! }}
               style={styles.avatar}
             />
           ) : (
             <View style={[styles.avatarPlaceholder, { backgroundColor: typeInfo.color }]}>
               <Text style={styles.avatarPlaceholderText}>
-                {displayParticipant?.username?.[0]?.toUpperCase() || typeInfo.icon}
+                {otherUsername?.[0]?.toUpperCase() || typeInfo.icon}
               </Text>
             </View>
           )}
@@ -161,7 +160,7 @@ export default function ChatList({ onSelectThread }: ChatListProps) {
           <View style={styles.threadHeader}>
             <View style={styles.threadTitleContainer}>
               <Text style={[styles.threadTitle, { color: colors.text }, hasUnread && styles.textBold]} numberOfLines={1}>
-                {item.paps_title || displayParticipant?.username || 'Chat'}
+                {item.paps_title || otherUsername || 'Chat'}
               </Text>
               <View style={[styles.typeBadge, { backgroundColor: typeInfo.color + '20' }]}>
                 <Text style={[styles.typeBadgeText, { color: typeInfo.color }]}>
@@ -173,13 +172,6 @@ export default function ChatList({ onSelectThread }: ChatListProps) {
               {item.last_message ? formatRelativeTime(item.last_message.sent_at) : ''}
             </Text>
           </View>
-
-          {/* Participants row */}
-          {participants.length > 1 && (
-            <Text style={[styles.participantsText, { color: colors.textSecondary }]} numberOfLines={1}>
-              {participants.map((p) => p.username).join(', ')}
-            </Text>
-          )}
 
           {/* Last message */}
           {item.last_message && (

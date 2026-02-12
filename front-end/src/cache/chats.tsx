@@ -244,13 +244,10 @@ export const useChatMessages = (threadId: string) => {
       if (options?.before) {
         setMessagesByThread((prev) => {
           const current = prev.get(threadId) || [];
-          return new Map(prev).set(threadId, [...fetchedMessages, ...current]);
-        });
-      } else if (options?.after) {
-        // Append newer messages
-        setMessagesByThread((prev) => {
-          const current = prev.get(threadId) || [];
-          return new Map(prev).set(threadId, [...current, ...fetchedMessages]);
+          // Deduplicate by id
+          const existingIds = new Set(current.map((m) => m.id));
+          const newMessages = fetchedMessages.filter((m) => !existingIds.has(m.id));
+          return new Map(prev).set(threadId, [...newMessages, ...current]);
         });
       } else {
         // Replace all
@@ -362,5 +359,6 @@ export const getUnreadCount = async (threadId: string): Promise<number> => {
 // Get thread details
 export const getThreadDetails = async (threadId: string): Promise<ChatThread> => {
   const response = await serv("chat.get", { thread_id: threadId });
-  return response.thread;
+  // Backend returns thread directly, not wrapped in { thread: ... }
+  return response.thread || response;
 };

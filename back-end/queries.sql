@@ -1275,7 +1275,19 @@ SELECT
     p.title as paps_title,
     cp.role as user_role,
     (SELECT COUNT(*) FROM CHAT_MESSAGE cm WHERE cm.thread_id = ct.id AND cm.is_read = FALSE AND cm.sender_id != :user_id::uuid) as unread_count,
-    (SELECT MAX(sent_at) FROM CHAT_MESSAGE cm WHERE cm.thread_id = ct.id) as last_message_at
+    (SELECT MAX(sent_at) FROM CHAT_MESSAGE cm WHERE cm.thread_id = ct.id) as last_message_at,
+    -- Get other participant info (the one who isn't the current user)
+    (SELECT u2.username FROM CHAT_PARTICIPANT cp2 
+     JOIN "USER" u2 ON cp2.user_id = u2.id 
+     WHERE cp2.thread_id = ct.id AND cp2.user_id != :user_id::uuid AND cp2.left_at IS NULL 
+     LIMIT 1) as other_username,
+    (SELECT up2.avatar_url FROM CHAT_PARTICIPANT cp2 
+     JOIN USER_PROFILE up2 ON cp2.user_id = up2.user_id 
+     WHERE cp2.thread_id = ct.id AND cp2.user_id != :user_id::uuid AND cp2.left_at IS NULL 
+     LIMIT 1) as other_avatar_url,
+    (SELECT cp2.user_id::text FROM CHAT_PARTICIPANT cp2 
+     WHERE cp2.thread_id = ct.id AND cp2.user_id != :user_id::uuid AND cp2.left_at IS NULL 
+     LIMIT 1) as other_user_id
 FROM CHAT_THREAD ct
 JOIN CHAT_PARTICIPANT cp ON ct.id = cp.thread_id
 JOIN PAPS p ON ct.paps_id = p.id
