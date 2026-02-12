@@ -124,7 +124,68 @@ INSERT INTO CATEGORY (id, name, slug, description, icon_url) VALUES
   ('00000000-0000-0000-0002-000000000005', 'Data Science', 'data-science', 'Data analysis, machine learning, and AI', '/media/category/data-science.png'),
   ('00000000-0000-0000-0002-000000000006', 'Writing', 'writing', 'Content writing, copywriting, and editing', '/media/category/writing.png'),
   ('00000000-0000-0000-0002-000000000007', 'Photography', 'photography', 'Photo and video services', '/media/category/photography.png'),
-  ('00000000-0000-0000-0002-000000000008', 'Music', 'music', 'Music production and audio services', '/media/category/music.png');
+  ('00000000-0000-0000-0002-000000000008', 'Music', 'music', 'Music production and audio services', '/media/category/music.png'),
+  -- Home & Garden
+  ('00000000-0000-0000-0002-000000000009', 'Plumbing', 'plumbing', 'Plumbing repairs and installations', '/media/category/plumbing.png'),
+  ('00000000-0000-0000-0002-000000000010', 'Electrical', 'electrical', 'Electrical work and installations', '/media/category/electrical.png'),
+  ('00000000-0000-0000-0002-000000000011', 'Carpentry', 'carpentry', 'Woodworking and furniture building', '/media/category/carpentry.png'),
+  ('00000000-0000-0000-0002-000000000012', 'Painting', 'painting', 'House painting and decorating', '/media/category/painting.png'),
+  ('00000000-0000-0000-0002-000000000013', 'Landscaping', 'landscaping', 'Garden design and maintenance', '/media/category/landscaping.png'),
+  ('00000000-0000-0000-0002-000000000014', 'Cleaning', 'cleaning', 'House cleaning and organization', '/media/category/cleaning.png'),
+  ('00000000-0000-0000-0002-000000000015', 'Moving', 'moving', 'Moving and relocation services', '/media/category/moving.png'),
+  ('00000000-0000-0000-0002-000000000016', 'Handyman', 'handyman', 'General repairs and odd jobs', '/media/category/handyman.png'),
+  -- Personal Services
+  ('00000000-0000-0000-0002-000000000017', 'Tutoring', 'tutoring', 'Academic tutoring and lessons', '/media/category/tutoring.png'),
+  ('00000000-0000-0000-0002-000000000018', 'Pet Care', 'pet-care', 'Pet sitting, walking, and grooming', '/media/category/pet-care.png'),
+  ('00000000-0000-0000-0002-000000000019', 'Child Care', 'child-care', 'Babysitting and child supervision', '/media/category/child-care.png'),
+  ('00000000-0000-0000-0002-000000000020', 'Elder Care', 'elder-care', 'Senior assistance and companionship', '/media/category/elder-care.png'),
+  ('00000000-0000-0000-0002-000000000021', 'Personal Training', 'personal-training', 'Fitness coaching and training', '/media/category/personal-training.png'),
+  ('00000000-0000-0000-0002-000000000022', 'Life Coaching', 'life-coaching', 'Personal development and coaching', '/media/category/life-coaching.png'),
+  ('00000000-0000-0000-0002-000000000023', 'Massage', 'massage', 'Massage therapy and relaxation', '/media/category/massage.png'),
+  ('00000000-0000-0000-0002-000000000024', 'Beauty', 'beauty', 'Hair, makeup, and beauty services', '/media/category/beauty.png'),
+  -- Events & Entertainment
+  ('00000000-0000-0000-0002-000000000025', 'Event Planning', 'event-planning', 'Party and event organization', '/media/category/event-planning.png'),
+  ('00000000-0000-0000-0002-000000000026', 'Catering', 'catering', 'Food preparation and service', '/media/category/catering.png'),
+  ('00000000-0000-0000-0002-000000000027', 'DJ Services', 'dj-services', 'Music entertainment for events', '/media/category/dj-services.png'),
+  ('00000000-0000-0000-0002-000000000028', 'Videography', 'videography', 'Video production and editing', '/media/category/videography.png'),
+  ('00000000-0000-0000-0002-000000000029', 'Acting', 'acting', 'Acting and performance services', '/media/category/acting.png'),
+  ('00000000-0000-0000-0002-000000000030', 'Voice Over', 'voice-over', 'Voice recording and narration', '/media/category/voice-over.png'),
+  -- Automotive
+  ('00000000-0000-0000-0002-000000000031', 'Auto Repair', 'auto-repair', 'Car repairs and maintenance', '/media/category/auto-repair.png'),
+  ('00000000-0000-0000-0002-000000000032', 'Auto Detailing', 'auto-detailing', 'Car washing and cleaning', '/media/category/auto-detailing.png'),
+  ('00000000-0000-0000-0002-000000000033', 'Driving', 'driving', 'Driving lessons and chauffeur services', '/media/category/driving.png'),
+  -- Professional Services
+  ('00000000-0000-0000-0002-000000000034', 'Accounting', 'accounting', 'Bookkeeping and financial services', '/media/category/accounting.png'),
+  ('00000000-0000-0000-0002-000000000035', 'Legal', 'legal', 'Legal advice and document preparation', '/media/category/legal.png'),
+  ('00000000-0000-0000-0002-000000000036', 'Translation', 'translation', 'Language translation and interpretation', '/media/category/translation.png'),
+  ('00000000-0000-0000-0002-000000000037', 'Consulting', 'consulting', 'Business and strategy consulting', '/media/category/consulting.png'),
+  ('00000000-0000-0000-0002-000000000038', 'Virtual Assistant', 'virtual-assistant', 'Administrative and remote support', '/media/category/virtual-assistant.png'),
+  ('00000000-0000-0000-0002-000000000039', 'Customer Service', 'customer-service', 'Customer support and help desk', '/media/category/customer-service.png'),
+  -- Tech Services
+  ('00000000-0000-0000-0002-000000000040', 'IT Support', 'it-support', 'Technical support and troubleshooting', '/media/category/it-support.png'),
+  ('00000000-0000-0000-0002-000000000041', 'Cybersecurity', 'cybersecurity', 'Security audits and protection', '/media/category/cybersecurity.png'),
+  ('00000000-0000-0000-0002-000000000042', 'Cloud Services', 'cloud-services', 'Cloud setup and management', '/media/category/cloud-services.png'),
+  ('00000000-0000-0000-0002-000000000043', 'Database Admin', 'database-admin', 'Database management and optimization', '/media/category/database-admin.png'),
+  ('00000000-0000-0000-0002-000000000044', 'DevOps', 'devops', 'CI/CD and infrastructure automation', '/media/category/devops.png'),
+  ('00000000-0000-0000-0002-000000000045', 'Game Development', 'game-development', 'Video game design and development', '/media/category/game-development.png'),
+  ('00000000-0000-0000-0002-000000000046', 'Blockchain', 'blockchain', 'Blockchain and smart contract development', '/media/category/blockchain.png'),
+  -- Creative Services
+  ('00000000-0000-0000-0002-000000000047', 'Animation', 'animation', '2D and 3D animation services', '/media/category/animation.png'),
+  ('00000000-0000-0000-0002-000000000048', 'Illustration', 'illustration', 'Digital and traditional illustration', '/media/category/illustration.png'),
+  ('00000000-0000-0000-0002-000000000049', '3D Modeling', '3d-modeling', '3D design and rendering', '/media/category/3d-modeling.png'),
+  ('00000000-0000-0000-0002-000000000050', 'Logo Design', 'logo-design', 'Logo creation and branding', '/media/category/logo-design.png'),
+  -- Trades & Labor
+  ('00000000-0000-0000-0002-000000000051', 'Roofing', 'roofing', 'Roof repair and installation', '/media/category/roofing.png'),
+  ('00000000-0000-0000-0002-000000000052', 'HVAC', 'hvac', 'Heating and cooling services', '/media/category/hvac.png'),
+  ('00000000-0000-0000-0002-000000000053', 'Masonry', 'masonry', 'Brick and stone work', '/media/category/masonry.png'),
+  ('00000000-0000-0000-0002-000000000054', 'Welding', 'welding', 'Metal fabrication and repair', '/media/category/welding.png'),
+  ('00000000-0000-0000-0002-000000000055', 'Flooring', 'flooring', 'Floor installation and repair', '/media/category/flooring.png'),
+  -- Lifestyle
+  ('00000000-0000-0000-0002-000000000056', 'Cooking', 'cooking', 'Personal chef and meal prep', '/media/category/cooking.png'),
+  ('00000000-0000-0000-0002-000000000057', 'Fashion', 'fashion', 'Styling and wardrobe consulting', '/media/category/fashion.png'),
+  ('00000000-0000-0000-0002-000000000058', 'Interior Design', 'interior-design', 'Home and office interior design', '/media/category/interior-design.png'),
+  ('00000000-0000-0000-0002-000000000059', 'Tailoring', 'tailoring', 'Clothing alterations and custom tailoring', '/media/category/tailoring.png'),
+  ('00000000-0000-0000-0002-000000000060', 'Arts & Crafts', 'arts-crafts', 'Handmade crafts and artisanal work', '/media/category/arts-crafts.png');
 
 -- ============================================
 -- USER INTERESTS
