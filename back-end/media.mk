@@ -79,10 +79,12 @@ test_media.clean:
 	#
 	# Removing media files (keeps test sources)
 	#
-	@for dir in asap category post spap user; do \
-		if [ -d "$(MEDIA_DIR)/$$dir" ] && [ "$$dir" != "test" ]; then \
-			rm -rf "$(MEDIA_DIR)/$$dir"; \
-			echo "Removed: $(MEDIA_DIR)/$$dir"; \
-		fi; \
-	done
+	@if [ -d "$(TEST_MEDIA_DIR)" ]; then \
+		for dir in $$(ls -d $(TEST_MEDIA_DIR)/*/ 2>/dev/null | xargs -I{} basename {}); do \
+			if [ -d "$(MEDIA_DIR)/$$dir" ]; then \
+				rm -rf "$(MEDIA_DIR)/$$dir"; \
+				echo "Removed: $(MEDIA_DIR)/$$dir"; \
+			fi; \
+		done; \
+	fi
 	@echo "Media cleaned. Run 'make test_media' to restore."
