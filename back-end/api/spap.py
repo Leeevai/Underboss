@@ -204,6 +204,10 @@ def register_routes(app):
             message=message.strip() if message else None
         )
 
+        # Transition PAPS from 'published' to 'open' when first application arrives
+        if paps['status'] == 'published':
+            db.update_paps_status(paps_id=paps_id, status='open')
+
         # Create chat thread for this application
         chat_thread_id = create_chat_thread_for_spap(
             paps_id=paps_id,
@@ -319,6 +323,7 @@ def register_routes(app):
         """
         Reject an application.
         - Updates SPAP status to 'rejected'
+        - Deletes the chat thread associated with this application
         - Keeps the record for history
         """
         try:
@@ -341,6 +346,11 @@ def register_routes(app):
         # Only paps owner or admin can reject
         if not auth.is_admin and str(paps['owner_id']) != auth.aid:
             return {"error": "Not authorized to reject applications"}, 403
+
+        # Delete the chat thread associated with this SPAP
+        chat_thread = db.get_chat_thread_by_spap(spap_id=spap_id)
+        if chat_thread:
+            db.delete_chat_thread(thread_id=str(chat_thread['thread_id']))
 
         # Update SPAP status to 'rejected'
         db.update_spap_status(spap_id=spap_id, status='rejected')
