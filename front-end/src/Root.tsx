@@ -46,13 +46,12 @@ function RootContent() {
         return
       }
       
-      // Check if essential profile fields are filled (including avatar)
+      // Check if essential profile fields are filled (avatar is optional - uses default)
       const isComplete = !!(
         profile.first_name &&
         profile.last_name &&
         profile.display_name &&
-        profile.bio &&
-        profile.avatar_url
+        profile.bio
       )
       
       AppSettings.isProfileComplete = isComplete
@@ -78,7 +77,17 @@ function RootContent() {
 
   // Check authentication status on mount
   useEffect(() => {
-    const checkAuthStatus = async () => {
+    const initApp = async () => {
+      // Fetch app config (default avatar URL, etc.)
+      try {
+        const config = await serv('system.config')
+        if (config?.default_avatar_url) {
+          AppSettings.defaultAvatarUrl = config.default_avatar_url
+        }
+      } catch (error) {
+        console.error('Failed to fetch app config:', error)
+      }
+
       // Check if token exists in AppSettings
       if (AppSettings.token) {
         // Check if profile is complete BEFORE setting authenticated
@@ -88,7 +97,7 @@ function RootContent() {
       }
       setIsLoading(false)
     }
-    checkAuthStatus()
+    initApp()
   }, [checkProfileStatus])
 
   const onLoginSuccess = async (username: string, token: string) => {
