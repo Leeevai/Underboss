@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import UnderbossBar from '../header/underbossbar';
 import { serv, ApiError, UserProfile, getMediaUrl, getCurrentUser } from '../serve';
+import type { UserRating, Experience } from '../serve';
 import { useCurrentUserProfile } from '../cache';
 import { launchImageLibrary } from 'react-native-image-picker';
 import PapsPost from '../feed/PapsPost';
@@ -35,6 +36,14 @@ export default function ProfilePage({ navigation }: any) {
 
     // Avatar editing state
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+    // Rating state
+    const [rating, setRating] = useState<UserRating | null>(null);
+    const [loadingRating, setLoadingRating] = useState(false);
+
+    // Experiences state
+    const [experiences, setExperiences] = useState<Experience[]>([]);
+    const [loadingExperiences, setLoadingExperiences] = useState(false);
 
     const fetchProfile = async () => {
         try {
@@ -72,6 +81,41 @@ export default function ProfilePage({ navigation }: any) {
         setLoadingPaps(false);
       }
     };
+
+    // Fetch rating
+    const fetchRating = async (userId?: string) => {
+      if (!userId) return;
+      setLoadingRating(true);
+      try {
+        const response = await serv('ratings.forUser', { user_id: userId });
+        setRating(response);
+      } catch (err) {
+        console.error('Error fetching rating:', err);
+        setRating(null);
+      } finally {
+        setLoadingRating(false);
+      }
+    };
+
+    // Fetch experiences
+    const fetchExperiences = async (username?: string) => {
+      if (!username) return;
+      setLoadingExperiences(true);
+      try {
+        let response;
+        if (isOwnProfile) {
+          response = await serv('experiences.list');
+        } else {
+          response = await serv('experiences.listByUsername', { username });
+        }
+        setExperiences(response || []);
+      } catch (err) {
+        console.error('Error fetching experiences:', err);
+        setExperiences([]);
+      } finally {
+        setLoadingExperiences(false);
+      }
+    };
     
     useEffect(() => {
         fetchProfile()
@@ -82,8 +126,16 @@ export default function ProfilePage({ navigation }: any) {
       const usernameToFetch = viewUsername || currentUser?.username;
       if (usernameToFetch) {
         fetchUserPaps(usernameToFetch);
+        fetchExperiences(usernameToFetch);
       }
     }, [viewUsername, currentUser?.username]);
+
+    // Fetch rating when user is loaded
+    useEffect(() => {
+      if (user?.user_id) {
+        fetchRating(user.user_id);
+      }
+    }, [user?.user_id]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -91,6 +143,10 @@ export default function ProfilePage({ navigation }: any) {
         const usernameToFetch = viewUsername || currentUser?.username;
         if (usernameToFetch) {
           fetchUserPaps(usernameToFetch);
+          fetchExperiences(usernameToFetch);
+        }
+        if (user?.user_id) {
+          fetchRating(user.user_id);
         }
     };
 
@@ -234,7 +290,15 @@ export default function ProfilePage({ navigation }: any) {
                     )}
                     
                     <View style={styles.ratingBadge}>
-                        <Text style={styles.ratingText}>⭐ Rating</Text>
+                        {loadingRating ? (
+                            <ActivityIndicator size="small" color={BRAND.accent} />
+                        ) : rating && rating.rating_count > 0 ? (
+                            <Text style={styles.ratingText}>
+                                ⭐ {rating.rating_average.toFixed(1)} ({rating.rating_count} {rating.rating_count === 1 ? 'review' : 'reviews'})
+                            </Text>
+                        ) : (
+                            <Text style={styles.ratingText}>⭐ No ratings yet</Text>
+                        )}
                     </View>
                 </View>
 
@@ -265,6 +329,59 @@ export default function ProfilePage({ navigation }: any) {
                         </Text>
                     </View>
                 )}
+
+                {/* EXPERIENCE SECTION */}
+                <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
+                    <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>
+                        Experience {experiences.length > 0 && `(${experiences.length})`}
+                    </Text>
+                    
+                    {loadingExperiences ? (
+                        <View style={styles.experienceLoadingContainer}>
+                            <ActivityIndicator size="small" color={BRAND.primary} />
+                        </View>
+                    ) : experiences.length === 0 ? (
+                        <Text style={[styles.experienceEmptyText, { color: colors.textTertiary }]}>
+                            No experiences yet
+                        </Text>
+                    ) : (
+                        experiences.map((exp, index) => (
+                            <View 
+                                key={exp.experience_id || `exp-${index}`} 
+                                style={[
+                                    styles.experienceItem, 
+                                    index < experiences.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }
+                                ]}
+                            >
+                                <View style={styles.experienceHeader}>
+                                    <Text style={[styles.experienceTitle, { color: colors.text }]}>
+                                        {exp.title}
+                                    </Text>
+                                    {exp.is_current && (
+                                        <View style={[styles.currentBadge, { backgroundColor: BRAND.accent }]}>
+                                            <Text style={styles.currentBadgeText}>Current</Text>
+                                        </View>
+                                    )}
+                                </View>
+                                {exp.company && (
+                                    <Text style={[styles.experienceCompany, { color: colors.textSecondary }]}>
+                                        {exp.company}
+                                    </Text>
+                                )}
+                                <Text style={[styles.experienceDate, { color: colors.textTertiary }]}>
+                                    {new Date(exp.start_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                    {' — '}
+                                    {exp.is_current ? 'Present' : exp.end_date ? new Date(exp.end_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A'}
+                                </Text>
+                                {exp.description && (
+                                    <Text style={[styles.experienceDescription, { color: colors.textSecondary }]}>
+                                        {exp.description}
+                                    </Text>
+                                )}
+                            </View>
+                        ))
+                    )}
+                </View>
 
                 {/* POSTED JOBS SECTION */}
                 <View style={[styles.papsSection, { marginHorizontal: SPACING.lg, marginTop: SPACING.lg }]}>
@@ -460,6 +577,55 @@ const styles = StyleSheet.create({
         fontSize: FONT_SIZE.md,
         lineHeight: 24,
     },
+    
+    // Experience section styles
+    experienceLoadingContainer: {
+        paddingVertical: SPACING.md,
+        alignItems: 'center',
+    },
+    experienceEmptyText: {
+        fontSize: FONT_SIZE.md,
+        textAlign: 'center',
+        paddingVertical: SPACING.md,
+    },
+    experienceItem: {
+        paddingVertical: SPACING.md,
+    },
+    experienceHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+    },
+    experienceTitle: {
+        fontSize: FONT_SIZE.md,
+        fontWeight: FONT_WEIGHT.semibold,
+        flex: 1,
+    },
+    currentBadge: {
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: 2,
+        borderRadius: RADIUS.sm,
+        marginLeft: SPACING.sm,
+    },
+    currentBadgeText: {
+        color: '#fff',
+        fontSize: FONT_SIZE.xs,
+        fontWeight: FONT_WEIGHT.medium,
+    },
+    experienceCompany: {
+        fontSize: FONT_SIZE.sm,
+        marginBottom: 2,
+    },
+    experienceDate: {
+        fontSize: FONT_SIZE.xs,
+        marginBottom: 6,
+    },
+    experienceDescription: {
+        fontSize: FONT_SIZE.sm,
+        lineHeight: 20,
+    },
+    
     editButton: {
         marginHorizontal: SPACING.lg,
         marginTop: SPACING.xxl,
