@@ -84,11 +84,15 @@ export default function ChatDetail({ thread, onBack }: ChatDetailProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]);
 
-  // Poll for new messages every 1 second
+  // Poll for new messages every 1 second (silently catch errors)
   useEffect(() => {
     if (!threadId) return;
-    const intervalId = setInterval(() => {
-      fetchMessages();
+    const intervalId = setInterval(async () => {
+      try {
+        await fetchMessages();
+      } catch {
+        // Silently ignore polling errors (e.g., thread not found)
+      }
     }, 1000);
     return () => clearInterval(intervalId);
   }, [threadId, fetchMessages]);

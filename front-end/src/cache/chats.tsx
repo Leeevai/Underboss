@@ -255,8 +255,11 @@ export const useChatMessages = (threadId: string) => {
       }
       
       return fetchedMessages;
-    } catch (err) {
-      console.error("Failed to fetch messages:", err);
+    } catch (err: any) {
+      // Only log if not a "not found" error (happens during polling when thread is deleted)
+      if (!err?.message?.includes('not found')) {
+        console.error("Failed to fetch messages:", err);
+      }
       return [];
     } finally {
       setLoadingMap((prev) => new Map(prev).set(threadId, false));
