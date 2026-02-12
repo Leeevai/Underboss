@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { View, Button, StyleSheet, Text, Alert, TouchableOpacity } from 'react-native'
+import { View, Button, StyleSheet, Text, Alert, TouchableOpacity, Pressable, Image } from 'react-native'
 import { serv, ApiError } from '../serve'
 import AppSettings from '../AppSettings'
 import { useTheme, BRAND, SPACING, RADIUS, FONT_SIZE, FONT_WEIGHT } from '../common/theme'
@@ -48,6 +48,12 @@ const styles = StyleSheet.create({
   },
   switchModeText: {
     fontSize: 16
+  },
+  passwordToggle: {
+    position: 'absolute',
+    right: 12,
+    top: 38,
+    padding: 4,
   }
 })
 
@@ -69,6 +75,7 @@ export default function Login({ onLogUser }: LoginProps) {
   // UI state
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const [showPassword, setShowPassword] = useState<boolean>(false)
 
   // Reset errors when user types
   const handleInputChange = (setter: (val: string) => void, value: string) => {
@@ -179,13 +186,24 @@ export default function Login({ onLogUser }: LoginProps) {
           />
         )}
 
-        <KivTextInput
-          label="Password"
-          value={password}
-          onChangeText={(val) => handleInputChange(setPassword, val)}
-          secureTextEntry
-          autoCapitalize="none"
-        />
+        <View style={{ position: 'relative' }}>
+          <KivTextInput
+            label="Password"
+            value={password}
+            onChangeText={(val) => handleInputChange(setPassword, val)}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+          />
+          <Pressable
+            style={styles.passwordToggle}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Image
+              source={showPassword ? require('../res/icons/hide.png') : require('../res/icons/show.png')}
+              style={{ width: 22, height: 22, tintColor: colors.textSecondary }}
+            />
+          </Pressable>
+        </View>
 
         <View style={styles.buttonContainer}>
           <Button
