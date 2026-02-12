@@ -169,7 +169,7 @@ export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <SafeAreaView edges={['bottom', 'left', 'right']}>
+            <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1 }}>
               <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
                 <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>Application Details</Text>
                 <TouchableOpacity
@@ -318,7 +318,13 @@ export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
                 >
                   <Text style={[styles.closeActionBtnText, { color: colors.text }]}>Close</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: BRAND.primary }]}>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: BRAND.primary }]}
+                  onPress={() => {
+                    setModalVisible(false);
+                    navigation.navigate('Main', { screen: 'Home' });
+                  }}
+                >
                   <Text style={styles.actionBtnText}>View Job</Text>
                 </TouchableOpacity>
               </View>
