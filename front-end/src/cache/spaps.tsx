@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { atom, useAtom, useAtomValue } from "jotai";
 import type { Spap, SpapDetail } from "../serve/spap";
 import { serv, getCurrentUser } from "../serve/serv";
@@ -102,9 +102,11 @@ export const useSpaps = () => {
   const [spaps, setSpaps] = useAtom(spapsAtom);
   const [loading, setLoading] = useAtom(spapsLoadingAtom);
   const [error, setError] = useAtom(spapsErrorAtom);
+  const fetchingRef = useRef(false);
 
   const fetchSpaps = useCallback(async (forceRefresh = false) => {
-    if (loading && !forceRefresh) return;
+    if (fetchingRef.current && !forceRefresh) return;
+    fetchingRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -114,8 +116,9 @@ export const useSpaps = () => {
       setError(err instanceof Error ? err.message : "Failed to load applications");
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
-  }, [loading, setSpaps, setLoading, setError]);
+  }, [setSpaps, setLoading, setError]);
 
   // Update a single spap in cache
   const updateSpap = useCallback((spapId: string, updates: Partial<Spap>) => {
@@ -174,9 +177,11 @@ export const useReceivedSpaps = () => {
   const [spaps, setSpaps] = useAtom(receivedSpapsAtom);
   const [loading, setLoading] = useAtom(receivedSpapsLoadingAtom);
   const [error, setError] = useAtom(receivedSpapsErrorAtom);
+  const fetchingRef = useRef(false);
 
   const fetchReceivedSpaps = useCallback(async (forceRefresh = false) => {
-    if (loading && !forceRefresh) return;
+    if (fetchingRef.current && !forceRefresh) return;
+    fetchingRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -222,15 +227,17 @@ export const useReceivedSpaps = () => {
       setError(err instanceof Error ? err.message : "Failed to load received applications");
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
-  }, [loading, setSpaps, setLoading, setError]);
+  }, [setSpaps, setLoading, setError]);
 
-  // Accept an application
-  const acceptSpap = useCallback(async (spapId: string) => {
-    await serv("spap.accept", { spap_id: spapId });
+  // Accept an application - returns the new asap_id
+  const acceptSpap = useCallback(async (spapId: string): Promise<string | null> => {
+    const response = await serv("spap.accept", { spap_id: spapId });
     setSpaps((prev) =>
       prev.map((s) => (s.id === spapId ? { ...s, status: "accepted" as const } : s))
     );
+    return response?.asap_id || null;
   }, [setSpaps]);
 
   // Reject an application
