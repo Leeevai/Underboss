@@ -59,6 +59,22 @@ export const totalSentAtom = atom((get) => {
     .reduce((sum, p) => sum + p.amount, 0);
 });
 
+// Pending amount received
+export const pendingReceivedAtom = atom((get) => {
+  const received = get(receivedPaymentsAtom);
+  return received
+    .filter((p) => p.status === "pending" || p.status === "processing")
+    .reduce((sum, p) => sum + p.amount, 0);
+});
+
+// Pending amount sent
+export const pendingSentAtom = atom((get) => {
+  const sent = get(sentPaymentsAtom);
+  return sent
+    .filter((p) => p.status === "pending" || p.status === "processing")
+    .reduce((sum, p) => sum + p.amount, 0);
+});
+
 // =============================================================================
 // HOOKS
 // =============================================================================
@@ -130,6 +146,8 @@ export const usePayments = () => {
   const failed = useAtomValue(failedPaymentsAtom);
   const totalReceived = useAtomValue(totalReceivedAtom);
   const totalSent = useAtomValue(totalSentAtom);
+  const pendingReceived = useAtomValue(pendingReceivedAtom);
+  const pendingSent = useAtomValue(pendingSentAtom);
 
   return {
     // Raw data
@@ -143,6 +161,8 @@ export const usePayments = () => {
     // Stats
     totalReceived,
     totalSent,
+    pendingReceived,
+    pendingSent,
     // State
     loading,
     error,
