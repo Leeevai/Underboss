@@ -226,9 +226,20 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
 
   // Handle apply - show apply modal
   const openApplyModal = useCallback(() => {
+    setModalVisible(false); // Close detail modal first
     setApplicationMessage('');
     setApplicationMedia([]);
-    setApplyModalVisible(true);
+    setTimeout(() => {
+      setApplyModalVisible(true);
+    }, 100); // Small delay to allow detail modal to close
+  }, []);
+
+  // Close apply modal and go back to detail
+  const closeApplyModalAndReturn = useCallback(() => {
+    setApplyModalVisible(false);
+    setTimeout(() => {
+      setModalVisible(true);
+    }, 100);
   }, []);
 
   // Pick media for application
@@ -824,7 +835,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
         visible={applyModalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setApplyModalVisible(false)}
+        onRequestClose={closeApplyModalAndReturn}
       >
         <KeyboardAvoidingView 
           style={styles.applyModalOverlay}
@@ -833,14 +844,14 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
-            onPress={() => setApplyModalVisible(false)}
+            onPress={closeApplyModalAndReturn}
           />
           <View style={[styles.applyModalContent, { backgroundColor: colors.card }]}>
             <View style={[styles.applyModalHeader, { borderBottomColor: colors.border }]}>
               <Text style={[styles.applyModalTitle, { color: colors.text }]}>Apply to Job</Text>
               <TouchableOpacity
                 style={[styles.modalCloseBtn, { backgroundColor: colors.backgroundTertiary }]}
-                onPress={() => setApplyModalVisible(false)}
+                onPress={closeApplyModalAndReturn}
               >
                 <Text style={[styles.modalCloseBtnText, { color: colors.textTertiary }]}>✕</Text>
               </TouchableOpacity>
@@ -903,7 +914,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
             <View style={[styles.applyModalFooter, { borderTopColor: colors.border }]}>
               <TouchableOpacity
                 style={[styles.cancelApplyBtn, { backgroundColor: colors.backgroundTertiary }]}
-                onPress={() => setApplyModalVisible(false)}
+                onPress={closeApplyModalAndReturn}
                 disabled={applying || uploadingApplicationMedia}
               >
                 <Text style={[styles.cancelApplyBtnText, { color: colors.textSecondary }]}>Cancel</Text>

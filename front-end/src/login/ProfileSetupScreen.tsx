@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
-import { serv, ApiError, getFullMediaUrl } from '../serve';
+import { serv, ApiError, getMediaUrl } from '../serve';
 import AppSettings from '../AppSettings';
 import { useActiveCategories } from '../cache';
 import { useTheme, BRAND, SPACING, RADIUS, FONT_SIZE, createShadow } from '../common/theme';
@@ -336,7 +336,7 @@ export default function ProfileSetupScreen({ onComplete }: ProfileSetupScreenPro
 
   const renderAvatarPicker = () => {
     const imageUri = avatar?.uri;
-    const defaultAvatarUri = getFullMediaUrl(AppSettings.defaultAvatarUrl);
+    const defaultAvatarUri = getMediaUrl(AppSettings.defaultAvatarUrl);
     
     return (
       <TouchableOpacity 
