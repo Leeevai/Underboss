@@ -6758,6 +6758,14 @@ def test_user_put_endpoint(api):
         }
     }, login=ADMIN)
 
+    # PUT with isadmin - line 123 in user.py
+    api.put(f"/users/{user}", 204, json={
+        "auth": {
+            "login": user,
+            "isadmin": True
+        }
+    }, login=ADMIN)
+
     # Invalid user ID format
     api.put("/users/****", 400, json={}, login=ADMIN)
     api.get("/users/****", 400, login=ADMIN)
@@ -8721,3 +8729,1099 @@ def test_user_delete_with_paps(api):
 
     api.setToken(user, None)
     api.setPass(user, None)
+
+
+# ============================================================================
+# COVERAGE COMPLETION TESTS - Targeting specific uncovered lines
+# ============================================================================
+
+def test_chat_no_thread_for_spap(api):
+    """
+    Test chat.py line 294: 'No chat thread found for this application'.
+
+    This edge case requires a SPAP to exist without an associated chat thread.
+    In normal operation, chat threads are created automatically with SPAP creation.
+    This test verifies the defensive check exists by checking the SPAP chat endpoint
+    with valid SPAPs (which should return 200 with thread).
+
+    Note: Testing line 294 specifically would require direct DB manipulation to
+    delete the chat thread while keeping the SPAP, which is not feasible through
+    the API alone.
+    """
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"chatnothread{suffix}"
+    worker = f"chatnothreadwork{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+
+    # Register users
+    for usr in [owner, worker]:
+        api.post("/register", 201, json={
+            "username": usr, "email": f"{usr}@test.com", "password": pswd
+        }, login=None)
+        api.setToken(usr, api.get("/login", 200, login=usr).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Chat No Thread Test",
+        "description": "Testing chat thread lookup for SPAP.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Worker applies (creates SPAP with chat thread)
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "Ready to work."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+
+    # Invalid SPAP ID format - line 280
+    api.get("/spap/not-a-uuid/chat", 400, login=owner)
+
+    # Non-existent SPAP - line 284
+    api.get("/spap/00000000-0000-0000-0000-000000000000/chat", 404, login=owner)
+
+    # Normal case: SPAP chat exists
+    api.get(f"/spap/{spap_id}/chat", 200, login=owner)
+    api.get(f"/spap/{spap_id}/chat", 200, login=worker)
+
+    # Cleanup
+    api.delete(f"/spap/{spap_id}", 204, login=worker)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    for usr in [owner, worker]:
+        res = api.get(f"/user/{usr}/profile", 200, login=None)
+        api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+        api.setToken(usr, None)
+        api.setPass(usr, None)
+
+
+def test_chat_no_thread_for_asap(api):
+    """
+    Test chat.py line 319: 'No chat thread found for this assignment'.
+
+    Similar to SPAP, ASAP chat threads are created automatically when SPAP is accepted.
+    This test verifies the ASAP chat endpoint authorization and validates the endpoint.
+
+    Note: Line 319 is a defensive check that requires database inconsistency to trigger.
+    """
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"asapnothread{suffix}"
+    worker = f"asapnothreadwork{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+
+    # Register users
+    for usr in [owner, worker]:
+        api.post("/register", 201, json={
+            "username": usr, "email": f"{usr}@test.com", "password": pswd
+        }, login=None)
+        api.setToken(usr, api.get("/login", 200, login=usr).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "ASAP Chat No Thread Test",
+        "description": "Testing chat thread lookup for ASAP.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Worker applies
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "Ready to work."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+
+    # Accept to create ASAP
+    res = api.put(f"/spap/{spap_id}/accept", 200, login=owner)
+    asap_id = res.json.get("asap_id")
+
+    # Invalid ASAP ID format - line 305
+    api.get("/asap/not-a-uuid/chat", 400, login=owner)
+
+    # Non-existent ASAP - line 309
+    api.get("/asap/00000000-0000-0000-0000-000000000000/chat", 404, login=owner)
+
+    # Normal case: ASAP chat exists
+    api.get(f"/asap/{asap_id}/chat", 200, login=owner)
+    api.get(f"/asap/{asap_id}/chat", 200, login=worker)
+
+    # Cleanup
+    api.delete(f"/asap/{asap_id}", 204, login=owner)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    for usr in [owner, worker]:
+        res = api.get(f"/user/{usr}/profile", 200, login=None)
+        api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+        api.setToken(usr, None)
+        api.setPass(usr, None)
+
+
+def test_comment_on_soft_deleted_paps(api):
+    """
+    Test commenting on soft-deleted PAPS.
+
+    Note: comment.py line 67 (`paps.get('deleted_at')` check) is unreachable code.
+    The get_paps_by_id_admin query filters `WHERE deleted_at IS NULL`, so soft-deleted
+    PAPS return None before the deleted_at check can run. The actual API returns 404.
+    """
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"cmtdelpaps{suffix}"
+    commenter = f"cmtdelpapscmt{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(commenter, pswd)
+
+    # Register users
+    for usr in [owner, commenter]:
+        api.post("/register", 201, json={
+            "username": usr, "email": f"{usr}@test.com", "password": pswd
+        }, login=None)
+        api.setToken(usr, api.get("/login", 200, login=usr).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Comment on Deleted PAPS Test",
+        "description": "Testing comment on soft-deleted PAPS.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Create a comment first while PAPS is active
+    api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "Initial comment before deletion"
+    }, login=commenter)
+
+    # Soft-delete the PAPS
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+
+    # Soft-deleted PAPS returns 404 (not found) because get_paps_by_id_admin
+    # filters WHERE deleted_at IS NULL
+    api.post(f"/paps/{paps_id}/comments", 404, json={
+        "content": "Comment after deletion"
+    }, login=commenter)
+
+    # Cleanup - delete users; PAPS is already soft-deleted
+    for usr in [owner, commenter]:
+        res = api.get(f"/user/{usr}/profile", 200, login=None)
+        api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+        api.setToken(usr, None)
+        api.setPass(usr, None)
+
+
+def test_comment_replies_on_deleted_comment(api):
+    """Test comment.py line 175: Cannot get replies of deleted comment."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    user = f"cmtreplydel{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(user, pswd)
+
+    api.post("/register", 201, json={
+        "username": user, "email": f"{user}@test.com", "password": pswd
+    }, login=None)
+    api.setToken(user, api.get("/login", 200, login=user).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Comment Replies on Deleted Test",
+        "description": "Testing get replies on deleted comment.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=user)
+    paps_id = res.json.get("paps_id")
+
+    # Create top-level comment
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "Parent comment"
+    }, login=user)
+    comment_id = res.json.get("comment_id")
+
+    # Create reply
+    res = api.post(f"/comments/{comment_id}/replies", 201, json={
+        "content": "Reply to parent"
+    }, login=user)
+
+    # Delete the parent comment
+    api.delete(f"/comments/{comment_id}", 204, login=user)
+
+    # Line 175: Get replies of deleted comment
+    api.get(f"/comments/{comment_id}/replies", 404, login=user)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=user)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+
+def test_comment_reply_to_deleted_comment(api):
+    """Test comment.py line 208: Cannot reply to a deleted comment."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    user = f"cmtreplytodelcmt{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(user, pswd)
+
+    api.post("/register", 201, json={
+        "username": user, "email": f"{user}@test.com", "password": pswd
+    }, login=None)
+    api.setToken(user, api.get("/login", 200, login=user).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Reply to Deleted Comment Test",
+        "description": "Testing reply to a deleted comment.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=user)
+    paps_id = res.json.get("paps_id")
+
+    # Create comment
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "Comment to delete"
+    }, login=user)
+    comment_id = res.json.get("comment_id")
+
+    # Delete the comment
+    api.delete(f"/comments/{comment_id}", 204, login=user)
+
+    # Line 208: Try to reply to deleted comment
+    api.post(f"/comments/{comment_id}/replies", 400, json={
+        "content": "Reply to deleted"
+    }, login=user)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=user)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+
+def test_comment_reply_when_paps_deleted(api):
+    """
+    Test replying when PAPS has been deleted.
+
+    Note: comment.py line 221 (`paps.get('deleted_at')` check) is unreachable code.
+    The get_paps_by_id_admin query filters `WHERE deleted_at IS NULL`, so soft-deleted
+    PAPS return None before the deleted_at check. The actual API returns 400 because
+    the parent comment lookup via get_comment_by_id still works, but then PAPS check
+    returns None.
+    """
+    suffix = uuid_mod.uuid4().hex[:8]
+    user = f"cmtreplypapsdel{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(user, pswd)
+
+    api.post("/register", 201, json={
+        "username": user, "email": f"{user}@test.com", "password": pswd
+    }, login=None)
+    api.setToken(user, api.get("/login", 200, login=user).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Reply When PAPS Deleted Test",
+        "description": "Testing reply when PAPS is deleted.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=user)
+    paps_id = res.json.get("paps_id")
+
+    # Create comment
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "Comment before PAPS deletion"
+    }, login=user)
+    comment_id = res.json.get("comment_id")
+
+    # Soft-delete the PAPS
+    api.delete(f"/paps/{paps_id}", 204, login=user)
+
+    # When PAPS is soft-deleted, get_paps_by_id_admin returns None,
+    # so the "not paps" check triggers 400 (same branch as deleted_at)
+    api.post(f"/comments/{comment_id}/replies", 400, json={
+        "content": "Reply after PAPS deletion"
+    }, login=user)
+
+    # Cleanup - delete user only; PAPS is already soft-deleted
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+
+def test_comment_thread_deleted_comment(api):
+    """Test comment.py lines 243-244, 248: get_comment_thread on deleted comment."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    user = f"cmtthreaddel{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(user, pswd)
+
+    api.post("/register", 201, json={
+        "username": user, "email": f"{user}@test.com", "password": pswd
+    }, login=None)
+    api.setToken(user, api.get("/login", 200, login=user).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Comment Thread Deleted Test",
+        "description": "Testing get_comment_thread on deleted comment.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=user)
+    paps_id = res.json.get("paps_id")
+
+    # Create comment
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "Comment for thread test"
+    }, login=user)
+    comment_id = res.json.get("comment_id")
+
+    # Get thread before deletion - should work
+    res = api.get(f"/comments/{comment_id}/thread", 200, login=user)
+    assert not res.json["is_reply"]
+
+    # Delete the comment
+    api.delete(f"/comments/{comment_id}", 204, login=user)
+
+    # Lines 243-244, 248: Get thread of deleted comment
+    api.get(f"/comments/{comment_id}/thread", 404, login=user)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=user)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+
+def test_comment_thread_reply_type(api):
+    """Test comment.py lines 262-264: get_comment_thread for reply returns is_reply=True."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    user = f"cmtthreadreply{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(user, pswd)
+
+    api.post("/register", 201, json={
+        "username": user, "email": f"{user}@test.com", "password": pswd
+    }, login=None)
+    api.setToken(user, api.get("/login", 200, login=user).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Comment Thread Reply Type Test",
+        "description": "Testing get_comment_thread returns is_reply correctly.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=user)
+    paps_id = res.json.get("paps_id")
+
+    # Create parent comment
+    res = api.post(f"/paps/{paps_id}/comments", 201, json={
+        "content": "Parent comment"
+    }, login=user)
+    parent_id = res.json.get("comment_id")
+
+    # Create reply
+    res = api.post(f"/comments/{parent_id}/replies", 201, json={
+        "content": "Reply comment"
+    }, login=user)
+    reply_id = res.json.get("comment_id")
+
+    # Get thread for parent - is_reply should be False
+    res = api.get(f"/comments/{parent_id}/thread", 200, login=user)
+    assert not res.json["is_reply"]
+    assert len(res.json["replies"]) == 1
+
+    # Lines 262-264: Get thread for reply - is_reply should be True
+    res = api.get(f"/comments/{reply_id}/thread", 200, login=user)
+    assert res.json["is_reply"]
+    assert res.json["replies"] == []
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=user)
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+
+def test_rating_not_completed_assignment(api):
+    """Test rating.py line 80: Can only rate completed assignments."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"ratencomp{suffix}"
+    worker = f"ratencompwork{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+
+    # Register users
+    for usr in [owner, worker]:
+        api.post("/register", 201, json={
+            "username": usr, "email": f"{usr}@test.com", "password": pswd
+        }, login=None)
+        api.setToken(usr, api.get("/login", 200, login=usr).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Rating Not Completed Test",
+        "description": "Testing rating on non-completed ASAP.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Worker applies
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "Ready to work."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+
+    # Accept to create ASAP
+    res = api.put(f"/spap/{spap_id}/accept", 200, login=owner)
+    asap_id = res.json.get("asap_id")
+
+    # Line 80: ASAP is pending, not completed - should fail
+    # Note: The actual error in the code checks if rating_check returns None
+    # (assignment not found or not completed) which returns 404
+    api.post(f"/asap/{asap_id}/rate", 404, json={"score": 5}, login=owner)
+
+    # Check can-rate returns proper reason
+    res = api.get(f"/asap/{asap_id}/can-rate", 200, login=owner)
+    assert not res.json["can_rate"]
+
+    # Cleanup
+    api.delete(f"/asap/{asap_id}", 204, login=owner)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    for usr in [owner, worker]:
+        res = api.get(f"/user/{usr}/profile", 200, login=None)
+        api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+        api.setToken(usr, None)
+        api.setPass(usr, None)
+
+
+def test_rating_non_participant(api):
+    """Test rating.py line 92: Only PAPS owner or worker can submit ratings."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"ratenonpart{suffix}"
+    worker = f"ratenonpartwork{suffix}"
+    third = f"ratenonpartthird{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+    api.setPass(third, pswd)
+
+    # Register users
+    for usr in [owner, worker, third]:
+        api.post("/register", 201, json={
+            "username": usr, "email": f"{usr}@test.com", "password": pswd
+        }, login=None)
+        api.setToken(usr, api.get("/login", 200, login=usr).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Rating Non-Participant Test",
+        "description": "Testing third party cannot rate.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Worker applies
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "Ready to work."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+
+    # Accept and complete
+    res = api.put(f"/spap/{spap_id}/accept", 200, login=owner)
+    asap_id = res.json.get("asap_id")
+    api.put(f"/asap/{asap_id}/status", 204, json={"status": "completed"}, login=owner)
+
+    # Line 92: Third party tries to rate
+    api.post(f"/asap/{asap_id}/rate", 403, json={"score": 5}, login=third)
+
+    # Cleanup
+    res = api.get(f"/paps/{paps_id}/payments", 200, login=owner)
+    for payment in res.json["payments"]:
+        api.delete(f"/payments/{payment['payment_id']}", 204, login=ADMIN)
+    api.delete(f"/paps/{paps_id}", 204, login=ADMIN)
+    for usr in [owner, worker, third]:
+        res = api.get(f"/user/{usr}/profile", 200, login=None)
+        api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+        api.setToken(usr, None)
+        api.setPass(usr, None)
+
+
+def test_rating_can_rate_non_participant(api):
+    """Test rating.py lines 125, 132: can-rate returns proper response for non-participant."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"canratenonp{suffix}"
+    worker = f"canratenonpwork{suffix}"
+    third = f"canratenonpthird{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+    api.setPass(third, pswd)
+
+    # Register users
+    for usr in [owner, worker, third]:
+        api.post("/register", 201, json={
+            "username": usr, "email": f"{usr}@test.com", "password": pswd
+        }, login=None)
+        api.setToken(usr, api.get("/login", 200, login=usr).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Can-Rate Non-Participant Test",
+        "description": "Testing can-rate for non-participant.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Worker applies
+    res = api.post(f"/paps/{paps_id}/apply", 201, json={
+        "cover_letter": "Ready to work."
+    }, login=worker)
+    spap_id = res.json.get("spap_id")
+
+    # Accept and complete
+    res = api.put(f"/spap/{spap_id}/accept", 200, login=owner)
+    asap_id = res.json.get("asap_id")
+    api.put(f"/asap/{asap_id}/status", 204, json={"status": "completed"}, login=owner)
+
+    # Line 125, 132: Third party checks can-rate
+    res = api.get(f"/asap/{asap_id}/can-rate", 200, login=third)
+    assert not res.json["can_rate"]
+    assert "not a participant" in res.json["reason"]
+
+    # Owner and worker can rate
+    res = api.get(f"/asap/{asap_id}/can-rate", 200, login=owner)
+    assert res.json["can_rate"]
+    res = api.get(f"/asap/{asap_id}/can-rate", 200, login=worker)
+    assert res.json["can_rate"]
+
+    # Cleanup
+    res = api.get(f"/paps/{paps_id}/payments", 200, login=owner)
+    for payment in res.json["payments"]:
+        api.delete(f"/payments/{payment['payment_id']}", 204, login=ADMIN)
+    api.delete(f"/paps/{paps_id}", 204, login=ADMIN)
+    for usr in [owner, worker, third]:
+        res = api.get(f"/user/{usr}/profile", 200, login=None)
+        api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+        api.setToken(usr, None)
+        api.setPass(usr, None)
+
+
+def test_schedule_authorization_get_specific(api):
+    """Test schedule.py line 138: Third party cannot get specific schedule."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"schedauthget{suffix}"
+    third = f"schedauthgetthird{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(third, pswd)
+
+    # Register users
+    for usr in [owner, third]:
+        api.post("/register", 201, json={
+            "username": usr, "email": f"{usr}@test.com", "password": pswd
+        }, login=None)
+        api.setToken(usr, api.get("/login", 200, login=usr).json.get("token"))
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Schedule Auth Get Test",
+        "description": "Testing schedule get authorization.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "draft"
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Create schedule
+    res = api.post(f"/paps/{paps_id}/schedules", 201, json={
+        "recurrence_rule": "daily",
+        "start_date": "2025-01-01"
+    }, login=owner)
+    schedule_id = res.json.get("schedule_id")
+
+    # Line 138: Third party cannot view specific schedule
+    api.get(f"/paps/{paps_id}/schedules/{schedule_id}", 403, login=third)
+
+    # Owner can view
+    api.get(f"/paps/{paps_id}/schedules/{schedule_id}", 200, login=owner)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}/schedules/{schedule_id}", 204, login=owner)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    for usr in [owner, third]:
+        res = api.get(f"/user/{usr}/profile", 200, login=None)
+        api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+        api.setToken(usr, None)
+        api.setPass(usr, None)
+
+
+def test_schedule_authorization_update(api):
+    """Test schedule.py line 177: Third party cannot update schedule."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"schedauthupd{suffix}"
+    third = f"schedauthupdthird{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(third, pswd)
+
+    # Register users
+    for usr in [owner, third]:
+        api.post("/register", 201, json={
+            "username": usr, "email": f"{usr}@test.com", "password": pswd
+        }, login=None)
+        api.setToken(usr, api.get("/login", 200, login=usr).json.get("token"))
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Schedule Auth Update Test",
+        "description": "Testing schedule update authorization.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "draft"
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Create schedule
+    res = api.post(f"/paps/{paps_id}/schedules", 201, json={
+        "recurrence_rule": "daily",
+        "start_date": "2025-01-01"
+    }, login=owner)
+    schedule_id = res.json.get("schedule_id")
+
+    # Line 177: Third party cannot update schedule
+    api.put(f"/paps/{paps_id}/schedules/{schedule_id}", 403, json={
+        "is_active": False
+    }, login=third)
+
+    # Owner can update
+    api.put(f"/paps/{paps_id}/schedules/{schedule_id}", 204, json={
+        "is_active": False
+    }, login=owner)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}/schedules/{schedule_id}", 204, login=owner)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    for usr in [owner, third]:
+        res = api.get(f"/user/{usr}/profile", 200, login=None)
+        api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+        api.setToken(usr, None)
+        api.setPass(usr, None)
+
+
+def test_schedule_update_date_format_errors(api):
+    """Test schedule.py line 207: Invalid start_date format in update."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"schedupdfmt{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+
+    api.post("/register", 201, json={
+        "username": owner, "email": f"{owner}@test.com", "password": pswd
+    }, login=None)
+    api.setToken(owner, api.get("/login", 200, login=owner).json.get("token"))
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Schedule Update Format Test",
+        "description": "Testing schedule update date format errors.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "draft"
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Create schedule
+    res = api.post(f"/paps/{paps_id}/schedules", 201, json={
+        "recurrence_rule": "daily",
+        "start_date": "2025-01-01"
+    }, login=owner)
+    schedule_id = res.json.get("schedule_id")
+
+    # Line 207: Invalid start_date format in update
+    api.put(f"/paps/{paps_id}/schedules/{schedule_id}", 400, json={
+        "start_date": "invalid-date"
+    }, login=owner)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}/schedules/{schedule_id}", 204, login=owner)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+
+
+def test_schedule_authorization_delete(api):
+    """Test schedule.py line 261: Third party cannot delete schedule."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"schedauthdel{suffix}"
+    third = f"schedauthdelthird{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(third, pswd)
+
+    # Register users
+    for usr in [owner, third]:
+        api.post("/register", 201, json={
+            "username": usr, "email": f"{usr}@test.com", "password": pswd
+        }, login=None)
+        api.setToken(usr, api.get("/login", 200, login=usr).json.get("token"))
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Schedule Auth Delete Test",
+        "description": "Testing schedule delete authorization.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "draft"
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Create schedule
+    res = api.post(f"/paps/{paps_id}/schedules", 201, json={
+        "recurrence_rule": "daily",
+        "start_date": "2025-01-01"
+    }, login=owner)
+    schedule_id = res.json.get("schedule_id")
+
+    # Line 261: Third party cannot delete schedule
+    api.delete(f"/paps/{paps_id}/schedules/{schedule_id}", 403, login=third)
+
+    # Owner can delete
+    api.delete(f"/paps/{paps_id}/schedules/{schedule_id}", 204, login=owner)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    for usr in [owner, third]:
+        res = api.get(f"/user/{usr}/profile", 200, login=None)
+        api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+        api.setToken(usr, None)
+        api.setPass(usr, None)
+
+
+def test_payment_create_non_owner(api):
+    """Test payment.py lines 137-138: Only PAPS owner can create payments."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"paynonown{suffix}"
+    worker = f"paynonownwork{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+    api.setPass(worker, pswd)
+
+    # Register users
+    for usr in [owner, worker]:
+        api.post("/register", 201, json={
+            "username": usr, "email": f"{usr}@test.com", "password": pswd
+        }, login=None)
+        api.setToken(usr, api.get("/login", 200, login=usr).json.get("token"))
+
+    start_dt = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).isoformat()
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Payment Non-Owner Test",
+        "description": "Testing payment creation by non-owner.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "published",
+        "start_datetime": start_dt
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Get owner's user_id
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    owner_id = res.json["user_id"]
+
+    # Get worker's user_id
+    res = api.get(f"/user/{worker}/profile", 200, login=None)
+    worker_id = res.json["user_id"]
+
+    # Lines 137-138: Worker (non-owner) tries to create payment
+    api.post(f"/paps/{paps_id}/payments", 403, json={
+        "payee_id": owner_id,
+        "amount": 100.00,
+        "currency": "USD"
+    }, login=worker)
+
+    # Owner can create payment
+    res = api.post(f"/paps/{paps_id}/payments", 201, json={
+        "payee_id": worker_id,
+        "amount": 100.00,
+        "currency": "USD"
+    }, login=owner)
+    payment_id = res.json.get("payment_id")
+
+    # Cleanup
+    api.delete(f"/payments/{payment_id}", 204, login=owner)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    for usr in [owner, worker]:
+        res = api.get(f"/user/{usr}/profile", 200, login=None)
+        api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+        api.setToken(usr, None)
+        api.setPass(usr, None)
+
+
+def test_user_put_login_mismatch(api):
+    """Test user.py line 135: PUT user with login not matching user_id."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    user = f"userputmis{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(user, pswd)
+
+    api.post("/register", 201, json={
+        "username": user, "email": f"{user}@test.com", "password": pswd
+    }, login=None)
+    api.setToken(user, api.get("/login", 200, login=user).json.get("token"))
+
+    # Line 135: PUT with auth.login not matching user
+    api.put(f"/users/{user}", 400, json={
+        "auth": {"login": "wronguser", "password": "newpass"}
+    }, login=ADMIN)
+
+    # Correct usage - matching login
+    api.put(f"/users/{user}", 204, json={
+        "auth": {"login": user, "password": "NewPass123!"}
+    }, login=ADMIN)
+
+    # Cleanup
+    res = api.get(f"/user/{user}/profile", 200, login=None)
+    api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+    api.setToken(user, None)
+    api.setPass(user, None)
+
+
+# ============================================================================
+# ADDITIONAL COVERAGE TESTS - Targeting specific unreachable or edge case lines
+# ============================================================================
+
+def test_schedule_paps_not_found_scenarios(api):
+    """Test schedule.py lines 138, 177, 261: PAPS not found for schedule operations."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"schedpapsnf{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+
+    api.post("/register", 201, json={
+        "username": owner, "email": f"{owner}@test.com", "password": pswd
+    }, login=None)
+    api.setToken(owner, api.get("/login", 200, login=owner).json.get("token"))
+
+    # Create PAPS to get a valid schedule ID
+    res = api.post("/paps", 201, json={
+        "title": "Schedule PAPS Not Found Test",
+        "description": "Testing schedule with non-existent PAPS.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "draft"
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Create schedule
+    res = api.post(f"/paps/{paps_id}/schedules", 201, json={
+        "recurrence_rule": "daily",
+        "start_date": "2025-01-01"
+    }, login=owner)
+    schedule_id = res.json.get("schedule_id")
+
+    # Non-existent PAPS ID
+    fake_paps = "00000000-0000-0000-0000-000000000001"
+
+    # Line 138: GET schedule for non-existent PAPS
+    api.get(f"/paps/{fake_paps}/schedules/{schedule_id}", 404, login=owner)
+
+    # Line 177: PUT schedule for non-existent PAPS
+    api.put(f"/paps/{fake_paps}/schedules/{schedule_id}", 404, json={
+        "is_active": False
+    }, login=owner)
+
+    # Line 261: DELETE schedule for non-existent PAPS
+    api.delete(f"/paps/{fake_paps}/schedules/{schedule_id}", 404, login=owner)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}/schedules/{schedule_id}", 204, login=owner)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+
+
+def test_schedule_update_cron_without_expression(api):
+    """Test schedule.py line 207: Update to CRON without cron_expression."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"schedcronupd{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+
+    api.post("/register", 201, json={
+        "username": owner, "email": f"{owner}@test.com", "password": pswd
+    }, login=None)
+    api.setToken(owner, api.get("/login", 200, login=owner).json.get("token"))
+
+    # Create PAPS
+    res = api.post("/paps", 201, json={
+        "title": "Schedule CRON Update Test",
+        "description": "Testing schedule update to CRON without expression.",
+        "payment_type": "fixed",
+        "payment_amount": 500.00,
+        "status": "draft"
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Create daily schedule (not CRON)
+    res = api.post(f"/paps/{paps_id}/schedules", 201, json={
+        "recurrence_rule": "daily",
+        "start_date": "2025-01-01"
+    }, login=owner)
+    schedule_id = res.json.get("schedule_id")
+
+    # Line 207: Update to CRON without providing cron_expression
+    api.put(f"/paps/{paps_id}/schedules/{schedule_id}", 400, json={
+        "recurrence_rule": "cron"
+    }, login=owner)
+
+    # Valid update with cron_expression
+    api.put(f"/paps/{paps_id}/schedules/{schedule_id}", 204, json={
+        "recurrence_rule": "cron",
+        "cron_expression": "0 8 * * *"
+    }, login=owner)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}/schedules/{schedule_id}", 204, login=owner)
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+
+
+def test_payment_invalid_uuid(api):
+    """Test payment.py lines 137-138: Invalid UUID format for payee_id."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"payuuid{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+
+    api.post("/register", 201, json={
+        "username": owner, "email": f"{owner}@test.com", "password": pswd
+    }, login=None)
+    api.setToken(owner, api.get("/login", 200, login=owner).json.get("token"))
+
+    # Create PAPS first
+    res = api.post("/paps", 201, json={
+        "title": "Payment Invalid UUID Test",
+        "description": "Testing payment with invalid payee_id UUID.",
+        "payment_type": "fixed",
+        "payment_amount": 100.00,
+        "status": "draft"
+    }, login=owner)
+    paps_id = res.json.get("paps_id")
+
+    # Invalid UUID format for payee_id - should trigger ValueError
+    api.post(f"/paps/{paps_id}/payments", 400, json={
+        "payee_id": "not-a-valid-uuid",
+        "amount": 100.00
+    }, login=owner)
+
+    # Also test: invalid paps_id UUID format
+    api.post("/paps/not-a-uuid/payments", 400, json={
+        "payee_id": "00000000-0000-0000-0000-000000000001",
+        "amount": 100.00
+    }, login=owner)
+
+    # Cleanup
+    api.delete(f"/paps/{paps_id}", 204, login=owner)
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
+
+
+def test_comment_nonexistent(api):
+    """Test comment.py line 175, 208: Comment not found."""
+    suffix = uuid_mod.uuid4().hex[:8]
+    owner = f"cmtne{suffix}"
+    pswd = "test123!ABC"
+    api.setPass(owner, pswd)
+
+    api.post("/register", 201, json={
+        "username": owner, "email": f"{owner}@test.com", "password": pswd
+    }, login=None)
+    api.setToken(owner, api.get("/login", 200, login=owner).json.get("token"))
+
+    # Non-existent comment ID
+    fake_comment = "00000000-0000-0000-0000-000000000001"
+
+    # Line 175: Get replies for non-existent comment
+    api.get(f"/comments/{fake_comment}/replies", 404, login=owner)
+
+    # Line 208: Reply to non-existent comment
+    api.post(f"/comments/{fake_comment}/replies", 404, json={
+        "content": "This should fail"
+    }, login=owner)
+
+    # Line 248: Get thread for non-existent comment
+    api.get(f"/comments/{fake_comment}/thread", 404, login=owner)
+
+    # Line 243-244: Invalid UUID format for thread
+    api.get("/comments/not-a-uuid/thread", 400, login=owner)
+
+    # Cleanup
+    res = api.get(f"/user/{owner}/profile", 200, login=None)
+    api.delete(f"/users/{res.json['user_id']}", 204, login=ADMIN)
+    api.setToken(owner, None)
+    api.setPass(owner, None)
