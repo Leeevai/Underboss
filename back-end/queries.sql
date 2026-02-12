@@ -461,7 +461,7 @@ WHERE p.id = :id::uuid
   AND p.deleted_at IS NULL
   AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP);
 
--- Get single paps by ID for authenticated user (their own + published public)
+-- Get single paps by ID for authenticated user (their own + published public + applicants + participants)
 -- name: get_paps_by_id_for_user(id, user_id)^
 SELECT 
     p.*,
@@ -476,7 +476,9 @@ WHERE p.id = :id::uuid
   AND p.deleted_at IS NULL
   AND (
     p.owner_id = :user_id::uuid
-    OR ( p.is_public = TRUE AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP))
+    OR EXISTS (SELECT 1 FROM SPAP s WHERE s.paps_id = p.id AND s.applicant_id = :user_id::uuid)
+    OR EXISTS (SELECT 1 FROM ASAP a WHERE a.paps_id = p.id AND a.accepted_user_id = :user_id::uuid)
+    OR (p.status = 'published' AND p.is_public = TRUE AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP))
   );
 
 -- Get single paps by ID for admin (see everything)
@@ -636,6 +638,8 @@ LEFT JOIN (
 WHERE p.deleted_at IS NULL
   AND (
     p.owner_id = :user_id::uuid
+    OR EXISTS (SELECT 1 FROM SPAP s WHERE s.paps_id = p.id AND s.applicant_id = :user_id::uuid)
+    OR EXISTS (SELECT 1 FROM ASAP a WHERE a.paps_id = p.id AND a.accepted_user_id = :user_id::uuid)
     OR (p.status = 'published' AND p.is_public = TRUE AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP))
   )
   AND (:status::text IS NULL OR p.status = :status::text)
