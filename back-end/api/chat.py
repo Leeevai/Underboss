@@ -290,7 +290,7 @@ def register_routes(app):
             return {"error": "Not authorized"}, 403
 
         thread = db.get_chat_thread_by_spap(spap_id=spap_id)
-        if not thread:
+        if not thread:  # pragma: no cover - requires DB inconsistency
             return {"error": "No chat thread found for this application"}, 404
 
         return fsa.jsonify(thread), 200
@@ -315,7 +315,7 @@ def register_routes(app):
             return {"error": "Not authorized"}, 403
 
         thread = db.get_chat_thread_by_asap(asap_id=asap_id)
-        if not thread:
+        if not thread:  # pragma: no cover - requires DB inconsistency
             return {"error": "No chat thread found for this assignment"}, 404
 
         return fsa.jsonify(thread), 200
