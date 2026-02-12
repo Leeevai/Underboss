@@ -23,6 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import { serv, getMediaUrl, getCurrentUser } from '../serve';
 import type { Paps, PapsDetail } from '../serve/paps';
 import type { MediaItem } from '../serve/common/types';
@@ -134,6 +135,8 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
   // Apply modal state
   const [applyModalVisible, setApplyModalVisible] = useState(false);
   const [applicationMessage, setApplicationMessage] = useState('');
+  const [applicationMedia, setApplicationMedia] = useState<Asset[]>([]);
+  const [uploadingApplicationMedia, setUploadingApplicationMedia] = useState(false);
 
   // Status change modal state
   const [statusChangeModalVisible, setStatusChangeModalVisible] = useState(false);
@@ -224,32 +227,93 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
   // Handle apply - show apply modal
   const openApplyModal = useCallback(() => {
     setApplicationMessage('');
+    setApplicationMedia([]);
     setApplyModalVisible(true);
+  }, []);
+
+  // Pick media for application
+  const pickApplicationMedia = useCallback(async () => {
+    if (applicationMedia.length >= 5) {
+      Alert.alert('Limit Reached', 'Maximum 5 files allowed');
+      return;
+    }
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'mixed',
+        selectionLimit: 5 - applicationMedia.length,
+        quality: 0.8,
+      });
+      if (result.assets && result.assets.length > 0) {
+        setApplicationMedia(prev => [...prev, ...result.assets!]);
+      }
+    } catch (err) {
+      console.error('Failed to pick media:', err);
+    }
+  }, [applicationMedia.length]);
+
+  // Remove media from application
+  const removeApplicationMedia = useCallback((index: number) => {
+    setApplicationMedia(prev => prev.filter((_, i) => i !== index));
   }, []);
   
   // Submit application
   const handleSubmitApplication = useCallback(async () => {
+    console.log('[Apply] handleSubmitApplication called', { paps_id: pap.id, message: applicationMessage, mediaCount: applicationMedia.length });
     setApplying(true);
     try {
-      await serv('spap.apply', {
+      console.log('[Apply] Calling serv spap.apply...');
+      const response = await serv('spap.apply', {
         paps_id: pap.id,
         message: applicationMessage.trim() || 'I am interested in this job opportunity.',
       });
+      console.log('[Apply] Application created:', response);
+      
+      // Upload media if any
+      if (applicationMedia.length > 0 && response.spap_id) {
+        setUploadingApplicationMedia(true);
+        console.log('[Apply] Uploading media...');
+        try {
+          // Prepare files array for upload
+          const files = applicationMedia
+            .filter(asset => asset.uri)
+            .map(asset => ({
+              uri: asset.uri!,
+              type: asset.type || 'image/jpeg',
+              name: asset.fileName || `media_${Date.now()}.jpg`,
+            }));
+          
+          if (files.length > 0) {
+            await serv('spap.media.upload', {
+              spap_id: response.spap_id,
+              files,
+            });
+            console.log('[Apply] Media uploaded successfully');
+          }
+        } catch (mediaError) {
+          console.error('[Apply] Media upload failed:', mediaError);
+          // Don't fail the whole application if media upload fails
+        } finally {
+          setUploadingApplicationMedia(false);
+        }
+      }
+      
       setHasApplied(true);
       setApplyModalVisible(false);
+      setApplicationMedia([]);
       Alert.alert('Success', 'Your application has been submitted!', [
         { text: 'OK' },
       ]);
     } catch (error: any) {
+      console.error('[Apply] Error:', error);
       Alert.alert(
         'Error',
-        error?.getUserMessage?.() || 'Failed to submit application.',
+        error?.getUserMessage?.() || error?.message || 'Failed to submit application.',
         [{ text: 'OK' }]
       );
     } finally {
       setApplying(false);
     }
-  }, [pap.id, applicationMessage]);
+  }, [pap.id, applicationMessage, applicationMedia]);
 
   // Handle status change
   const handleStatusChange = useCallback(async (newStatus: string) => {
@@ -782,7 +846,7 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
               </TouchableOpacity>
             </View>
             
-            <View style={styles.applyModalBody}>
+            <ScrollView style={styles.applyModalBody}>
               <Text style={[styles.applyJobTitle, { color: colors.text }]} numberOfLines={2}>{pap.title}</Text>
               <Text style={[styles.applyInputLabel, { color: colors.textSecondary }]}>Your Message</Text>
               <TextInput
@@ -798,22 +862,64 @@ export default function PapsPost({ pap, variant = 'standard', onPress }: PapsPos
               <Text style={[styles.applicationCharCount, { color: colors.textMuted }]}>
                 {applicationMessage.length}/1000
               </Text>
-            </View>
+
+              {/* Media Section */}
+              <Text style={[styles.applyInputLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+                Attachments (optional)
+              </Text>
+              <Text style={[styles.applyMediaHint, { color: colors.textMuted }]}>
+                Add photos or documents to support your application ({applicationMedia.length}/5)
+              </Text>
+              
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.applyMediaScrollView}>
+                {applicationMedia.map((asset, index) => (
+                  <View key={asset.uri || index} style={styles.applyMediaPreviewContainer}>
+                    <Image
+                      source={{ uri: asset.uri }}
+                      style={styles.applyMediaPreview}
+                      resizeMode="cover"
+                    />
+                    <TouchableOpacity
+                      style={styles.applyMediaRemoveBtn}
+                      onPress={() => removeApplicationMedia(index)}
+                    >
+                      <Text style={styles.applyMediaRemoveText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                
+                {applicationMedia.length < 5 && (
+                  <TouchableOpacity
+                    style={[styles.applyMediaAddBtn, { borderColor: colors.border, backgroundColor: colors.backgroundTertiary }]}
+                    onPress={pickApplicationMedia}
+                  >
+                    <Text style={styles.applyMediaAddIcon}>+</Text>
+                    <Text style={[styles.applyMediaAddText, { color: colors.textSecondary }]}>Add</Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            </ScrollView>
             
             <View style={[styles.applyModalFooter, { borderTopColor: colors.border }]}>
               <TouchableOpacity
                 style={[styles.cancelApplyBtn, { backgroundColor: colors.backgroundTertiary }]}
                 onPress={() => setApplyModalVisible(false)}
+                disabled={applying || uploadingApplicationMedia}
               >
                 <Text style={[styles.cancelApplyBtnText, { color: colors.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.submitApplyBtn, { backgroundColor: colors.primary }, applying && { backgroundColor: colors.textMuted }]}
+                style={[styles.submitApplyBtn, { backgroundColor: colors.primary }, (applying || uploadingApplicationMedia) && { backgroundColor: colors.textMuted }]}
                 onPress={handleSubmitApplication}
-                disabled={applying}
+                disabled={applying || uploadingApplicationMedia}
               >
-                {applying ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                {applying || uploadingApplicationMedia ? (
+                  <View style={styles.submitApplyBtnLoading}>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={[styles.submitApplyBtnText, { marginLeft: 8 }]}>
+                      {uploadingApplicationMedia ? 'Uploading...' : 'Submitting...'}
+                    </Text>
+                  </View>
                 ) : (
                   <Text style={styles.submitApplyBtnText}>Submit Application</Text>
                 )}
@@ -1594,6 +1700,61 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  submitApplyBtnLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applyMediaHint: {
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  applyMediaScrollView: {
+    marginBottom: 16,
+  },
+  applyMediaPreviewContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  applyMediaPreview: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    backgroundColor: '#E2E8F0',
+  },
+  applyMediaRemoveBtn: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#E53E3E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applyMediaRemoveText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  applyMediaAddBtn: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applyMediaAddIcon: {
+    fontSize: 24,
+    color: '#718096',
+  },
+  applyMediaAddText: {
+    fontSize: 11,
+    marginTop: 4,
   },
   changeStatusBtn: {
     flex: 1,
