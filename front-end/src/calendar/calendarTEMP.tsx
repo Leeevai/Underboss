@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useAsapCalendar, AsapWithMedia } from '../cache';
+import { removeThreadFromCacheImperative } from '../cache/chats';
 import { useTheme, BRAND } from '../common/theme';
 import { serv, getMediaUrl, getCurrentUser } from '../serve';
 import UnderbossBar from '../header/underbossbar';
@@ -140,6 +141,10 @@ export default function CalendarScreen() {
     setConfirming(true);
     try {
       const result = await serv('asap.confirm', { asap_id: selectedAsap.asap_id });
+      // Remove deleted chat thread from cache if completion was successful
+      if (result.status === 'completed' && result.deleted_thread_id) {
+        removeThreadFromCacheImperative(result.deleted_thread_id);
+      }
       Alert.alert(
         result.status === 'completed' ? 'Completed!' : 'Confirmed',
         result.message,

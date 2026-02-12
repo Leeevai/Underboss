@@ -165,11 +165,11 @@ export function parseError(error: unknown, endpoint?: string): ApiError {
 }
 
 /**
- * Log error in development mode
+ * Log error in development mode (uses console.warn to avoid LogBox red banner)
  */
 export function logError(error: ApiError): void {
   if (typeof __DEV__ !== 'undefined' && __DEV__) {
-    console.error(`[API Error] ${error.endpoint}: ${error.statusCode} - ${error.message}`);
+    console.warn(`[API Error] ${error.endpoint}: ${error.statusCode} - ${error.message}`);
   }
 }
 

@@ -80,12 +80,12 @@ function RootContent() {
     const initApp = async () => {
       // Fetch app config (default avatar URL, etc.)
       try {
-        const config = await serv('system.config')
+        const config = await serv('system.config', undefined, { silent: true })
         if (config?.default_avatar_url) {
           AppSettings.defaultAvatarUrl = config.default_avatar_url
         }
-      } catch (error) {
-        console.error('Failed to fetch app config:', error)
+      } catch {
+        // Silently ignore config fetch errors - non-critical
       }
 
       // Check if token exists in AppSettings

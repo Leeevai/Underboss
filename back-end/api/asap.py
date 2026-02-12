@@ -246,8 +246,10 @@ def register_routes(app):
 
             # Delete chat thread associated with this ASAP
             chat_thread = db.get_chat_thread_by_asap(asap_id=asap_id)
+            deleted_thread_id = None
             if chat_thread:
-                db.delete_chat_thread(thread_id=str(chat_thread['thread_id']))
+                deleted_thread_id = str(chat_thread['thread_id'])
+                db.delete_chat_thread(thread_id=deleted_thread_id)
 
             # Check if all ASAPs for this PAPS are completed
             paps_id = str(asap['paps_id'])
@@ -258,7 +260,8 @@ def register_routes(app):
 
             return fsa.jsonify({
                 "status": "completed",
-                "message": "Assignment completed successfully"
+                "message": "Assignment completed successfully",
+                "deleted_thread_id": deleted_thread_id
             }), 200
         else:
             # Waiting for other party

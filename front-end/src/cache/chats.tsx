@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { atom, useAtom, useAtomValue } from "jotai";
+import { atom, useAtom, useAtomValue, getDefaultStore } from "jotai";
 import type { 
   ChatThread, 
   ChatMessage, 
@@ -8,6 +8,9 @@ import type {
   ChatCreateRequest,
 } from "../serve/chat";
 import { serv } from "../serve/serv";
+
+// Jotai default store for imperative access
+const store = getDefaultStore();
 
 // =============================================================================
 // BASE ATOMS - stores chat threads and messages
@@ -24,6 +27,30 @@ const messagesLoadingAtom = atom<Map<string, boolean>>(new Map());
 
 // Total unread count
 const totalUnreadAtom = atom<number>(0);
+
+// =============================================================================
+// IMPERATIVE CACHE FUNCTIONS (can be called outside of React components)
+// =============================================================================
+
+/**
+ * Remove a thread from cache imperatively (no hook needed).
+ * Use this after actions that delete a thread on the backend.
+ */
+export function removeThreadFromCacheImperative(threadId: string | null | undefined): void {
+  if (!threadId) return;
+  
+  // Remove from threads list
+  const currentThreads = store.get(threadsAtom);
+  store.set(threadsAtom, currentThreads.filter((t) => t.id !== threadId));
+  
+  // Remove messages for this thread
+  const currentMessages = store.get(messagesByThreadAtom);
+  const newMessages = new Map(currentMessages);
+  newMessages.delete(threadId);
+  store.set(messagesByThreadAtom, newMessages);
+  
+  console.log(`[Chat] Removed thread ${threadId} from cache`);
+}
 
 // =============================================================================
 // DERIVED ATOMS
@@ -139,6 +166,12 @@ export const useChats = () => {
     }
   }, [setThreads]);
 
+  // Remove a thread from cache (used when thread is deleted on backend)
+  const removeThreadFromCache = useCallback((threadId: string) => {
+    // Use the imperative function for consistency
+    removeThreadFromCacheImperative(threadId);
+  }, []);
+
   // Update thread in cache (e.g., after receiving new message)
   const updateThread = useCallback((threadId: string, updates: Partial<ChatThread>) => {
     setThreads((prev) =>
@@ -177,12 +210,13 @@ export const useChats = () => {
     leaveThread,
     updateThread,
     markThreadRead,
+    removeThreadFromCache,
   };
 };
 
 // Hook for sorted threads
 export const useSortedChats = () => {
-  const { loading, error, fetchThreads, markThreadRead, leaveThread, totalUnread } = useChats();
+  const { loading, error, fetchThreads, markThreadRead, leaveThread, removeThreadFromCache, totalUnread } = useChats();
   const threads = useAtomValue(sortedThreadsAtom);
   
   console.log('[useSortedChats] threads from atom:', threads.length, 'loading:', loading);
@@ -195,6 +229,7 @@ export const useSortedChats = () => {
     refresh: fetchThreads,
     markThreadRead,
     leaveThread,
+    removeThreadFromCache,
   };
 };
 
@@ -226,13 +261,17 @@ export const useChatMessages = (threadId: string) => {
   // Fetch messages for a thread
   const fetchMessages = useCallback(async (options?: { before?: string; after?: string; limit?: number }) => {
     if (!threadId) return [];
-    setLoadingMap((prev) => new Map(prev).set(threadId, true));
+    
+    // Don't show loading for polling refreshes
+    if (!options) {
+      setLoadingMap((prev) => new Map(prev).set(threadId, true));
+    }
     
     try {
       const response: MessageListResponse = await serv("chat.messages.list", {
         thread_id: threadId,
         ...options,
-      });
+      }, { silent: true });
       
       // Normalize message_id to id (backend returns message_id, frontend expects id)
       const fetchedMessages = (response.messages || []).map((msg: any) => ({
@@ -256,10 +295,11 @@ export const useChatMessages = (threadId: string) => {
       
       return fetchedMessages;
     } catch (err: any) {
-      // Only log if not a "not found" error (happens during polling when thread is deleted)
-      if (!err?.message?.includes('not found')) {
-        console.error("Failed to fetch messages:", err);
+      // Return null for 404 (thread not found) to signal polling should stop
+      if (err?.statusCode === 404 || err?.code === 'not_found') {
+        return null;
       }
+      // Other errors: return empty array (polling can continue)
       return [];
     } finally {
       setLoadingMap((prev) => new Map(prev).set(threadId, false));

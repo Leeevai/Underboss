@@ -35,6 +35,7 @@ export default function ChatDetail({ thread, onBack }: ChatDetailProps) {
   const [sending, setSending] = useState(false);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [participants, setParticipants] = useState<ChatParticipant[]>(thread.participants || []);
+  const [canPoll, setCanPoll] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   
   const currentUser = getCurrentUser();
@@ -77,25 +78,35 @@ export default function ChatDetail({ thread, onBack }: ChatDetailProps) {
   // Fetch messages on mount
   useEffect(() => {
     if (!threadId) return;
-    fetchMessages();
+    fetchMessages().then((msgs) => {
+      // Only enable polling if initial fetch succeeded (not null = not 404)
+      if (msgs !== null) {
+        setCanPoll(true);
+      } else {
+        // Thread was deleted - navigate back
+        onBack?.();
+      }
+    });
     if (thread?.unread_count && thread.unread_count > 0) {
       markThreadRead(threadId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]);
 
-  // Poll for new messages every 1 second (silently catch errors)
+  // Poll for new messages every 5 seconds (only if initial fetch succeeded)
   useEffect(() => {
-    if (!threadId) return;
+    if (!threadId || !canPoll) return;
     const intervalId = setInterval(async () => {
-      try {
-        await fetchMessages();
-      } catch {
-        // Silently ignore polling errors (e.g., thread not found)
+      const result = await fetchMessages();
+      // Stop polling if thread was deleted (fetchMessages returns null for 404)
+      if (result === null) {
+        setCanPoll(false);
+        // Thread was deleted during chat - navigate back
+        onBack?.();
       }
-    }, 1000);
+    }, 5000);
     return () => clearInterval(intervalId);
-  }, [threadId, fetchMessages]);
+  }, [threadId, fetchMessages, canPoll, onBack]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

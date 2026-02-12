@@ -247,7 +247,11 @@ function isBlobEndpoint(endpoint: string): boolean {
  * // Get PAPS list
  * const { paps, total } = await serv("paps.list", { status: "published" });
  */
-export async function serv<T = any>(endpoint: string, data?: Record<string, any>): Promise<T> {
+export async function serv<T = any>(
+  endpoint: string, 
+  data?: Record<string, any>,
+  options?: { silent?: boolean }
+): Promise<T> {
   const config = ENDPOINTS[endpoint];
   
   if (!config) {
@@ -321,7 +325,9 @@ export async function serv<T = any>(endpoint: string, data?: Record<string, any>
     return result as T;
   } catch (error) {
     const apiError = parseError(error, endpoint);
-    logError(apiError);
+    if (!options?.silent) {
+      logError(apiError);
+    }
     throw apiError;
   }
 }

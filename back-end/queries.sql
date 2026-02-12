@@ -1402,7 +1402,7 @@ WHERE cm.id = :message_id::uuid;
 -- Insert message
 -- name: insert_chat_message(thread_id, sender_id, content, message_type, attachment_url)$
 INSERT INTO CHAT_MESSAGE (thread_id, sender_id, content, message_type, attachment_url)
-VALUES (:thread_id::uuid, :sender_id::uuid, :content, :message_type, :attachment_url)
+VALUES (:thread_id::uuid, NULLIF(:sender_id, '')::uuid, :content, :message_type, :attachment_url)
 RETURNING id::text;
 
 -- Update chat message content

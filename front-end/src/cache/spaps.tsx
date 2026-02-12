@@ -2,6 +2,7 @@ import { useCallback, useRef } from "react";
 import { atom, useAtom, useAtomValue } from "jotai";
 import type { Spap, SpapDetail } from "../serve/spap";
 import { serv, getCurrentUser } from "../serve/serv";
+import { removeThreadFromCacheImperative } from "./chats";
 
 // =============================================================================
 // BASE ATOMS - stores all spaps (my applications)
@@ -241,7 +242,11 @@ export const useReceivedSpaps = () => {
 
   // Reject an application
   const rejectSpap = useCallback(async (spapId: string) => {
-    await serv("spap.reject", { spap_id: spapId });
+    const response = await serv("spap.reject", { spap_id: spapId });
+    // Remove the deleted chat thread from cache
+    if (response?.deleted_thread_id) {
+      removeThreadFromCacheImperative(response.deleted_thread_id);
+    }
     // Force refresh to get updated data
     fetchReceivedSpaps(true);
   }, [fetchReceivedSpaps]);
@@ -272,7 +277,11 @@ export const withdrawSpap = async (
   spapId: string,
   removeFromCache: (id: string) => void
 ): Promise<void> => {
-  await serv("spap.withdraw", { spap_id: spapId });
+  const response = await serv("spap.withdraw", { spap_id: spapId });
+  // Remove the deleted chat thread from cache
+  if (response?.deleted_thread_id) {
+    removeThreadFromCacheImperative(response.deleted_thread_id);
+  }
   removeFromCache(spapId);
 };
 

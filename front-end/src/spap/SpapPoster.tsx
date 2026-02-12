@@ -6,6 +6,7 @@ import { serv, getMediaUrl, ApiError } from '../serve';
 import type { Spap } from '../serve/spap';
 import type { MediaItem } from '../serve/common/types';
 import { useTheme, BRAND } from '../common/theme';
+import { removeThreadFromCacheImperative } from '../cache/chats';
 
 // Get screen width for responsive design
 const { width } = Dimensions.get('window')
@@ -98,7 +99,11 @@ export default function SpapPoster({ spap, onWithdraw }: SpapPosterProps) {
           onPress: async () => {
             setWithdrawing(true);
             try {
-              await serv('spap.withdraw', { spap_id: spap.id });
+              const response = await serv('spap.withdraw', { spap_id: spap.id });
+              // Remove the deleted chat thread from cache
+              if (response?.deleted_thread_id) {
+                removeThreadFromCacheImperative(response.deleted_thread_id);
+              }
               setModalVisible(false);
               onWithdraw?.(spap.id);
             } catch (err) {
