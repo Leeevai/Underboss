@@ -95,7 +95,7 @@ def register_routes(app):
         from utils import print
         print("generating pool stats…")
         pool = db._pool
-        if pool is None:
+        if pool is None:  # pragma: no cover
             return {"error": "No database pool"}, 500
         return pool.stats()
 
