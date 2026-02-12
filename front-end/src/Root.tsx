@@ -81,9 +81,10 @@ function RootContent() {
     const checkAuthStatus = async () => {
       // Check if token exists in AppSettings
       if (AppSettings.token) {
-        setIsAuthenticated(true)
-        // Check if profile is complete
+        // Check if profile is complete BEFORE setting authenticated
+        // This prevents the flash of ProfileSetupScreen
         await checkProfileStatus()
+        setIsAuthenticated(true)
       }
       setIsLoading(false)
     }
