@@ -37,6 +37,9 @@ export default function CalendarScreen() {
   const [selectedAsap, setSelectedAsap] = useState<AsapWithMedia | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [ratingScore, setRatingScore] = useState<number>(0);
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [canRate, setCanRate] = useState(false);
   
   const {
     allAsaps,
@@ -87,10 +90,46 @@ export default function CalendarScreen() {
   const openAsapDetail = async (asap: AsapWithMedia) => {
     setSelectedAsap(asap);
     setModalVisible(true);
+    setRatingScore(0);
+    setCanRate(false);
     
     // Fetch media if not loaded
     if (!asap.mediaLoaded) {
-      await fetchMedia(asap.asap_id);
+      const media = await fetchMedia(asap.asap_id);
+      // Update selectedAsap with the fetched media
+      setSelectedAsap(prev => prev && prev.asap_id === asap.asap_id 
+        ? { ...prev, media: media || [], mediaLoaded: true } 
+        : prev
+      );
+    }
+    
+    // Check if user can rate (only for completed ASAPs)
+    if (asap.status === 'completed') {
+      try {
+        const result = await serv('asap.canRate', { asap_id: asap.asap_id });
+        setCanRate(result.can_rate);
+      } catch {
+        setCanRate(false);
+      }
+    }
+  };
+
+  // Handle submit rating
+  const handleSubmitRating = async () => {
+    if (!selectedAsap || ratingScore === 0) return;
+    
+    setSubmittingRating(true);
+    try {
+      await serv('asap.rate', { 
+        asap_id: selectedAsap.asap_id, 
+        score: ratingScore as 1 | 2 | 3 | 4 | 5 
+      });
+      Alert.alert('Rating Submitted', 'Thank you for your rating!');
+      setCanRate(false);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to submit rating');
+    } finally {
+      setSubmittingRating(false);
     }
   };
 
@@ -116,7 +155,38 @@ export default function CalendarScreen() {
     }
   };
 
+  // Handle starting the job
+  const handleStartJob = async () => {
+    if (!selectedAsap) return;
+    
+    setConfirming(true);
+    try {
+      await serv('asap.updateStatus', { asap_id: selectedAsap.asap_id, status: 'in_progress' });
+      Alert.alert(
+        'Job Started',
+        'The job is now in progress. Once completed, both parties need to confirm.',
+        [{ text: 'OK', onPress: () => {
+          setModalVisible(false);
+          refresh(true);
+        }}]
+      );
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to start job');
+    } finally {
+      setConfirming(false);
+    }
+  };
 
+  // Check if current user can start the job
+  const canStartJob = (asap: AsapWithMedia): boolean => {
+    const currentUser = getCurrentUser();
+    if (!currentUser) return false;
+    
+    const isWorker = asap.accepted_user_id === currentUser.userId;
+    const isOwner = asap.owner_id === currentUser.userId;
+    
+    return asap.status === 'active' && (isWorker || isOwner);
+  };
 
   // Check if current user can confirm
   const canConfirm = (asap: AsapWithMedia): { canConfirm: boolean; alreadyConfirmed: boolean; isWorker: boolean; isOwner: boolean } => {
@@ -254,126 +324,127 @@ export default function CalendarScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <UnderbossBar />
-      {/* HEADER SECTION */}
-      <View style={styles.headerContainer}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Schedule</Text>
-        <Text style={[styles.headerSubtitle, { color: BRAND.primary }]}>
-          {asWorker.length} jobs • {asOwner.length} hires
-        </Text>
-      </View>
+      <FlatList
+        data={filteredAsaps}
+        keyExtractor={(item) => item.asap_id}
+        renderItem={renderAsapCard}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        contentContainerStyle={[styles.listContent, filteredAsaps.length === 0 && { flex: 1 }]}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <>
+            {/* HEADER SECTION */}
+            <View style={styles.headerContainer}>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>Schedule</Text>
+              <Text style={[styles.headerSubtitle, { color: BRAND.primary }]}>
+                {asWorker.length} jobs • {asOwner.length} hires
+              </Text>
+            </View>
 
-      {/* VIEW MODE TOGGLE */}
-      <View style={[styles.viewModeContainer, { backgroundColor: colors.inputBg }]}>
-        <TouchableOpacity
-          style={[styles.viewModeTab, viewMode === 'calendar' && [styles.viewModeTabActive, { backgroundColor: colors.card }]]}
-          onPress={() => setViewMode('calendar')}
-        >
-          <Text style={[styles.viewModeText, { color: colors.textSecondary }, viewMode === 'calendar' && { color: colors.text }]}>
-            📅 Calendar
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.viewModeTab, viewMode === 'all' && [styles.viewModeTabActive, { backgroundColor: colors.card }]]}
-          onPress={() => { setViewMode('all'); setSelected(''); }}
-        >
-          <Text style={[styles.viewModeText, { color: colors.textSecondary }, viewMode === 'all' && { color: colors.text }]}>
-            📋 Show All
-          </Text>
-        </TouchableOpacity>
-      </View>
+            {/* VIEW MODE TOGGLE */}
+            <View style={[styles.viewModeContainer, { backgroundColor: colors.inputBg }]}>
+              <TouchableOpacity
+                style={[styles.viewModeTab, viewMode === 'calendar' && [styles.viewModeTabActive, { backgroundColor: colors.card }]]}
+                onPress={() => setViewMode('calendar')}
+              >
+                <Text style={[styles.viewModeText, { color: colors.textSecondary }, viewMode === 'calendar' && { color: colors.text }]}>
+                  📅 Calendar
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.viewModeTab, viewMode === 'all' && [styles.viewModeTabActive, { backgroundColor: colors.card }]]}
+                onPress={() => { setViewMode('all'); setSelected(''); }}
+              >
+                <Text style={[styles.viewModeText, { color: colors.textSecondary }, viewMode === 'all' && { color: colors.text }]}>
+                  📋 Show All
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-      {/* ROLE FILTER TABS */}
-      <View style={styles.roleFilterContainer}>
-        {[
-          { key: 'all' as RoleFilter, label: 'All', icon: '🔄' },
-          { key: 'underboss' as RoleFilter, label: 'Underboss', icon: '👔' },
-          { key: 'under_worker' as RoleFilter, label: 'Under Worker', icon: '🔧' },
-        ].map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.roleTab, { backgroundColor: colors.inputBg }, roleFilter === tab.key && { backgroundColor: BRAND.primary }]}
-            onPress={() => setRoleFilter(tab.key)}
-          >
-            <Text style={[styles.roleTabText, { color: colors.textSecondary }, roleFilter === tab.key && { color: '#fff' }]}>
-              {tab.icon} {tab.label}
+            {/* ROLE FILTER TABS */}
+            <View style={styles.roleFilterContainer}>
+              {[
+                { key: 'all' as RoleFilter, label: 'All', icon: '🔄' },
+                { key: 'underboss' as RoleFilter, label: 'Underboss', icon: '👔' },
+                { key: 'under_worker' as RoleFilter, label: 'Under Worker', icon: '🔧' },
+              ].map((tab) => (
+                <TouchableOpacity
+                  key={tab.key}
+                  style={[styles.roleTab, { backgroundColor: colors.inputBg }, roleFilter === tab.key && { backgroundColor: BRAND.primary }]}
+                  onPress={() => setRoleFilter(tab.key)}
+                >
+                  <Text style={[styles.roleTabText, { color: colors.textSecondary }, roleFilter === tab.key && { color: '#fff' }]}>
+                    {tab.icon} {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* CALENDAR (only in calendar mode) */}
+            {viewMode === 'calendar' && (
+              <View style={[styles.calendarCard, { backgroundColor: colors.card }]}>
+                <Calendar
+                  theme={{
+                    backgroundColor: colors.card,
+                    calendarBackground: colors.card,
+                    textSectionTitleColor: colors.textSecondary,
+                    selectedDayBackgroundColor: BRAND.primary,
+                    selectedDayTextColor: '#ffffff',
+                    todayTextColor: BRAND.accent,
+                    dayTextColor: colors.text,
+                    arrowColor: BRAND.primary,
+                    monthTextColor: colors.text,
+                    textDayFontWeight: '400',
+                    textMonthFontWeight: 'bold',
+                    textDayHeaderFontWeight: '600',
+                    textDisabledColor: colors.textSecondary,
+                  }}
+                  onDayPress={(day: DateData) => {
+                    setSelected(day.dateString);
+                  }}
+                  markedDates={markedDates}
+                  markingType="multi-dot"
+                />
+              </View>
+            )}
+
+            {/* SELECTED DATE INFO */}
+            {viewMode === 'calendar' && selected && (
+              <View style={[styles.selectedDateCard, { backgroundColor: BRAND.primary }]}>
+                <Text style={styles.selectedDateText}>
+                  📅 {new Date(selected + 'T00:00:00').toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </Text>
+                <Text style={styles.selectedDateCount}>
+                  {filteredAsaps.length} assignment{filteredAsaps.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+            )}
+          </>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>
+              {viewMode === 'calendar' && selected ? '📅' : '📋'}
             </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* CALENDAR (only in calendar mode) */}
-      {viewMode === 'calendar' && (
-        <View style={[styles.calendarCard, { backgroundColor: colors.card }]}>
-          <Calendar
-            theme={{
-              backgroundColor: colors.card,
-              calendarBackground: colors.card,
-              textSectionTitleColor: colors.textSecondary,
-              selectedDayBackgroundColor: BRAND.primary,
-              selectedDayTextColor: '#ffffff',
-              todayTextColor: BRAND.accent,
-              dayTextColor: colors.text,
-              arrowColor: BRAND.primary,
-              monthTextColor: colors.text,
-              textDayFontWeight: '400',
-              textMonthFontWeight: 'bold',
-              textDayHeaderFontWeight: '600',
-              textDisabledColor: colors.textSecondary,
-            }}
-            onDayPress={(day: DateData) => {
-              setSelected(day.dateString);
-            }}
-            markedDates={markedDates}
-            markingType="multi-dot"
-          />
-        </View>
-      )}
-
-      {/* SELECTED DATE INFO */}
-      {viewMode === 'calendar' && selected && (
-        <View style={[styles.selectedDateCard, { backgroundColor: BRAND.primary }]}>
-          <Text style={styles.selectedDateText}>
-            📅 {new Date(selected + 'T00:00:00').toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
-          </Text>
-          <Text style={styles.selectedDateCount}>
-            {filteredAsaps.length} assignment{filteredAsaps.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
-      )}
-
-      {/* ASAPS LIST */}
-      {filteredAsaps.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>
-            {viewMode === 'calendar' && selected ? '📅' : '📋'}
-          </Text>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            {viewMode === 'calendar' && selected 
-              ? 'No assignments on this date'
-              : 'No assignments yet'}
-          </Text>
-          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-            {viewMode === 'calendar' && selected
-              ? 'Try selecting another date'
-              : 'Accepted jobs will appear here'}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredAsaps}
-          keyExtractor={(item) => item.asap_id}
-          renderItem={renderAsapCard}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              {viewMode === 'calendar' && selected 
+                ? 'No assignments on this date'
+                : 'No assignments yet'}
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              {viewMode === 'calendar' && selected
+                ? 'Try selecting another date'
+                : 'Accepted jobs will appear here'}
+            </Text>
+          </View>
+        }
+      />
 
       {/* ASAP DETAIL MODAL */}
       <Modal
@@ -467,6 +538,21 @@ export default function CalendarScreen() {
                 </View>
               </View>
 
+              {/* Start Job button (when status is 'active') */}
+              {canStartJob(selectedAsap) && (
+                <TouchableOpacity
+                  style={[styles.startJobButton, { backgroundColor: BRAND.primary }]}
+                  onPress={handleStartJob}
+                  disabled={confirming}
+                >
+                  {confirming ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.confirmButtonText}>▶ Start Job</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+
               {/* Confirm button */}
               {confirmStatus.canConfirm && (
                 <TouchableOpacity
@@ -531,7 +617,44 @@ export default function CalendarScreen() {
                 </View>
               )}
 
-              
+              {/* Rating section for completed ASAPs */}
+              {selectedAsap.status === 'completed' && canRate && (
+                <View style={[styles.ratingSection, { backgroundColor: colors.inputBg }]}>
+                  <Text style={[styles.ratingSectionTitle, { color: colors.text }]}>⭐ Rate your experience</Text>
+                  <View style={styles.starsContainer}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <TouchableOpacity
+                        key={star}
+                        onPress={() => setRatingScore(star)}
+                        style={styles.starButton}
+                      >
+                        <Text style={[styles.starIcon, ratingScore >= star && styles.starIconActive]}>
+                          {ratingScore >= star ? '★' : '☆'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {ratingScore > 0 && (
+                    <TouchableOpacity
+                      style={[styles.submitRatingButton, { backgroundColor: BRAND.primary }]}
+                      onPress={handleSubmitRating}
+                      disabled={submittingRating}
+                    >
+                      {submittingRating ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.submitRatingText}>Submit Rating</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {selectedAsap.status === 'completed' && !canRate && (
+                <View style={[styles.ratingSection, { backgroundColor: colors.inputBg }]}>
+                  <Text style={[styles.ratingCompletedText, { color: '#38A169' }]}>✓ You have already rated this job</Text>
+                </View>
+              )}
 
               {/* Media loading indicator */}
               {!selectedAsap.mediaLoaded && (
@@ -989,6 +1112,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  startJobButton: {
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
   confirmButton: {
     borderRadius: 12,
     padding: 16,
@@ -1004,5 +1134,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  ratingSection: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  ratingSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  starButton: {
+    padding: 8,
+  },
+  starIcon: {
+    fontSize: 32,
+    color: '#CBD5E0',
+  },
+  starIconActive: {
+    color: '#F6AD55',
+  },
+  submitRatingButton: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitRatingText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  ratingCompletedText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
