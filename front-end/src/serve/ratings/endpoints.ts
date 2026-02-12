@@ -33,7 +33,7 @@ export const ratingEndpoints: Record<string, EndpointConfig> = {
   'ratings.forUser': {
     method: 'GET',
     path: '/users/{user_id}/rating',
-    auth: false,
+    auth: true,
   },
 
   /**
