@@ -2,9 +2,21 @@
  * PapsApplicationsModal - Modal showing PAPS details with received applications
  * 
  * Displays job details & all applications received for that job with accept/reject actions
+ * 
+ * ASAP Media Upload:
+ * When accepting an application, onAccept returns the new asap_id.
+ * You can then use serv('asap.media.upload', { asap_id, files }) to upload media.
+ * 
+ * Example:
+ * const handleAccept = async (spapId: string) => {
+ *   const asapId = await acceptSpap(spapId);
+ *   if (asapId && selectedMedia.length > 0) {
+ *     await serv('asap.media.upload', { asap_id: asapId, files: selectedMedia });
+ *   }
+ * };
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,12 +27,15 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import type { ReceivedApplication } from '../cache/spaps';
+import type { MediaItem } from '../serve/common/types';
 import { useTheme, BRAND, createShadow } from '../common/theme';
-import { getMediaUrl } from '../serve';
+import { getMediaUrl, serv } from '../serve';
 
 interface PapsApplicationsModalProps {
   visible: boolean;
@@ -28,7 +43,7 @@ interface PapsApplicationsModalProps {
   papsTitle: string;
   papsId: string;
   applications: ReceivedApplication[];
-  onAccept: (spapId: string) => Promise<void>;
+  onAccept: (spapId: string) => Promise<string | null>; // Returns asap_id
   onReject: (spapId: string) => Promise<void>;
 }
 
@@ -45,8 +60,115 @@ export default function PapsApplicationsModal({
   const navigation = useNavigation<any>();
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  
+  // SPAP media state - map of spap_id to media items
+  const [spapMediaMap, setSpapMediaMap] = useState<Record<string, MediaItem[]>>({});
+  const [loadingMediaMap, setLoadingMediaMap] = useState<Record<string, boolean>>({});
+  
+  // Fetch SPAP media for all applications when modal opens
+  useEffect(() => {
+    if (!visible || applications.length === 0) return;
+    
+    const fetchAllMedia = async () => {
+      for (const app of applications) {
+        // Skip if already loaded
+        if (spapMediaMap[app.id] !== undefined) continue;
+        
+        setLoadingMediaMap(prev => ({ ...prev, [app.id]: true }));
+        try {
+          const response = await serv('spap.media.list', { spap_id: app.id });
+          setSpapMediaMap(prev => ({ ...prev, [app.id]: response?.media || [] }));
+        } catch (err) {
+          console.error('Failed to fetch SPAP media:', err);
+          setSpapMediaMap(prev => ({ ...prev, [app.id]: [] }));
+        } finally {
+          setLoadingMediaMap(prev => ({ ...prev, [app.id]: false }));
+        }
+      }
+    };
+    
+    fetchAllMedia();
+  }, [visible, applications]);
+  
+  // Accept with media modal
+  const [acceptModalVisible, setAcceptModalVisible] = useState(false);
+  const [selectedSpapForAccept, setSelectedSpapForAccept] = useState<ReceivedApplication | null>(null);
+  const [acceptMedia, setAcceptMedia] = useState<Asset[]>([]);
+  const [uploadingAcceptMedia, setUploadingAcceptMedia] = useState(false);
 
-  const handleAccept = async (spapId: string) => {
+  const openAcceptModal = (spap: ReceivedApplication) => {
+    setSelectedSpapForAccept(spap);
+    setAcceptMedia([]);
+    setAcceptModalVisible(true);
+  };
+
+  const pickAcceptMedia = async () => {
+    if (acceptMedia.length >= 5) {
+      Alert.alert('Limit Reached', 'Maximum 5 files allowed');
+      return;
+    }
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'mixed',
+        selectionLimit: 5 - acceptMedia.length,
+        quality: 0.8,
+      });
+      if (result.assets && result.assets.length > 0) {
+        setAcceptMedia(prev => [...prev, ...result.assets!]);
+      }
+    } catch (err) {
+      console.error('Failed to pick media:', err);
+    }
+  };
+
+  const removeAcceptMedia = (index: number) => {
+    setAcceptMedia(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const confirmAccept = async () => {
+    if (!selectedSpapForAccept) return;
+    
+    setAcceptingId(selectedSpapForAccept.id);
+    try {
+      const asapId = await onAccept(selectedSpapForAccept.id);
+      
+      // Upload media if any
+      if (asapId && acceptMedia.length > 0) {
+        setUploadingAcceptMedia(true);
+        try {
+          const files = acceptMedia
+            .filter(asset => asset.uri)
+            .map(asset => ({
+              uri: asset.uri!,
+              type: asset.type || 'image/jpeg',
+              name: asset.fileName || `media_${Date.now()}.jpg`,
+            }));
+          
+          if (files.length > 0) {
+            await serv('asap.media.upload', { asap_id: asapId, files });
+          }
+        } catch (mediaError) {
+          console.error('ASAP media upload failed:', mediaError);
+          // Media upload failure is non-critical
+        } finally {
+          setUploadingAcceptMedia(false);
+        }
+      }
+      
+      setAcceptModalVisible(false);
+      setSelectedSpapForAccept(null);
+      setAcceptMedia([]);
+    } finally {
+      setAcceptingId(null);
+    }
+  };
+
+  const handleAccept = async (spapId: string, spap: ReceivedApplication) => {
+    // Show modal for media attachment option
+    openAcceptModal(spap);
+  };
+
+  const handleQuickAccept = async (spapId: string) => {
     setAcceptingId(spapId);
     try {
       await onAccept(spapId);
@@ -217,6 +339,29 @@ export default function PapsApplicationsModal({
                             </View>
                           )}
 
+                          {/* Attached Media */}
+                          {(loadingMediaMap[app.id] || (spapMediaMap[app.id] && spapMediaMap[app.id].length > 0)) && (
+                            <View style={styles.appMediaSection}>
+                              <Text style={[styles.messageLabel, { color: colors.textSecondary }]}>
+                                Attached Media {spapMediaMap[app.id]?.length ? `(${spapMediaMap[app.id].length})` : ''}
+                              </Text>
+                              {loadingMediaMap[app.id] ? (
+                                <ActivityIndicator size="small" color={BRAND.primary} style={{ marginTop: 8 }} />
+                              ) : (
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.appMediaScroll}>
+                                  {spapMediaMap[app.id]?.map((media, idx) => (
+                                    <Image
+                                      key={media.media_id || idx}
+                                      source={{ uri: getMediaUrl(media.media_url) }}
+                                      style={styles.appMediaThumb}
+                                      resizeMode="cover"
+                                    />
+                                  ))}
+                                </ScrollView>
+                              )}
+                            </View>
+                          )}
+
                           {/* Action Buttons */}
                           {isPending ? (
                             <View style={styles.actionButtons}>
@@ -233,7 +378,7 @@ export default function PapsApplicationsModal({
                               </TouchableOpacity>
                               <TouchableOpacity
                                 style={[styles.acceptBtn, { backgroundColor: BRAND.accent }]}
-                                onPress={() => handleAccept(app.id)}
+                                onPress={() => handleAccept(app.id, app)}
                                 disabled={acceptingId === app.id || rejectingId === app.id}
                               >
                                 {acceptingId === app.id ? (
@@ -273,6 +418,82 @@ export default function PapsApplicationsModal({
           </SafeAreaView>
         </View>
       </View>
+
+      {/* Accept with Media Modal */}
+      <Modal
+        visible={acceptModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setAcceptModalVisible(false)}
+      >
+        <View style={styles.acceptModalOverlay}>
+          <View style={[styles.acceptModalBox, { backgroundColor: colors.card }]}>
+            <Text style={[styles.acceptModalTitle, { color: colors.text }]}>Accept Application</Text>
+            
+            {selectedSpapForAccept && (
+              <Text style={[styles.acceptModalSubtitle, { color: colors.textSecondary }]}>
+                Accept {selectedSpapForAccept.applicant_display_name || selectedSpapForAccept.applicant_username}?
+              </Text>
+            )}
+
+            {/* Media Section */}
+            <View style={styles.acceptMediaSection}>
+              <Text style={[styles.acceptMediaLabel, { color: colors.textSecondary }]}>
+                Attach media (optional)
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.acceptMediaScroll}>
+                {acceptMedia.map((asset, index) => (
+                  <View key={index} style={styles.acceptMediaItem}>
+                    <Image source={{ uri: asset.uri }} style={styles.acceptMediaThumb} />
+                    <TouchableOpacity
+                      style={styles.acceptMediaRemove}
+                      onPress={() => removeAcceptMedia(index)}
+                    >
+                      <Text style={styles.acceptMediaRemoveText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {acceptMedia.length < 5 && (
+                  <TouchableOpacity
+                    style={[styles.acceptMediaAdd, { borderColor: colors.border }]}
+                    onPress={pickAcceptMedia}
+                  >
+                    <Text style={[styles.acceptMediaAddText, { color: colors.textTertiary }]}>+</Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            </View>
+
+            {/* Buttons */}
+            <View style={styles.acceptModalButtons}>
+              <TouchableOpacity
+                style={[styles.acceptModalCancelBtn, { borderColor: colors.border }]}
+                onPress={() => {
+                  setAcceptModalVisible(false);
+                  setSelectedSpapForAccept(null);
+                  setAcceptMedia([]);
+                }}
+              >
+                <Text style={[styles.acceptModalCancelText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.acceptModalConfirmBtn, { backgroundColor: BRAND.accent }]}
+                onPress={confirmAccept}
+                disabled={acceptingId !== null || uploadingAcceptMedia}
+              >
+                {acceptingId !== null || uploadingAcceptMedia ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.acceptModalConfirmText}>
+                    {acceptMedia.length > 0 ? `Accept (${acceptMedia.length})` : 'Accept'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -487,6 +708,19 @@ const styles = StyleSheet.create({
     color: '#4A5568',
     lineHeight: 18,
   },
+  appMediaSection: {
+    marginBottom: 12,
+  },
+  appMediaScroll: {
+    marginTop: 8,
+  },
+  appMediaThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    marginRight: 8,
+    backgroundColor: '#E2E8F0',
+  },
   actionButtons: {
     flexDirection: 'row',
     gap: 8,
@@ -552,5 +786,104 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#4A5568',
+  },
+
+  // Accept with Media Modal
+  acceptModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  acceptModalBox: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 16,
+    padding: 20,
+  },
+  acceptModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  acceptModalSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  acceptMediaSection: {
+    marginBottom: 20,
+  },
+  acceptMediaLabel: {
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  acceptMediaScroll: {
+    flexDirection: 'row',
+  },
+  acceptMediaItem: {
+    position: 'relative',
+    marginRight: 8,
+  },
+  acceptMediaThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+  },
+  acceptMediaRemove: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#E53E3E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  acceptMediaRemoveText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  acceptMediaAdd: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  acceptMediaAddText: {
+    fontSize: 24,
+  },
+  acceptModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  acceptModalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  acceptModalCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  acceptModalConfirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  acceptModalConfirmText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
