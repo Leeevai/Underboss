@@ -20,12 +20,12 @@ def register_routes(app):
     # HELPER FUNCTIONS
     # ============================================
 
-    def create_chat_thread_for_spap(paps_id: str, spap_id: str, applicant_id: str, owner_id: str, paps_title: str = None, applicant_username: str = None):
+    def create_chat_thread_for_spap(paps_id: str, spap_id: str, applicant_id: str, owner_id: str, paps_title: str | None = None, applicant_username: str | None = None):
         """Create a chat thread for a new SPAP, add participants, and send automated message."""
         thread_id = db.insert_chat_thread_for_spap(paps_id=paps_id, spap_id=spap_id)
         db.insert_chat_participant(thread_id=thread_id, user_id=applicant_id, role='applicant')
         db.insert_chat_participant(thread_id=thread_id, user_id=owner_id, role='owner')
-        
+
         # Send automated system message about the application
         if paps_title and applicant_username:
             auto_message = f"{applicant_username} has applied to: {paps_title}"
@@ -33,7 +33,7 @@ def register_routes(app):
             auto_message = f"{applicant_username} has applied to your posting"
         else:
             auto_message = "A new application has been submitted"
-        
+
         db.insert_chat_message(
             thread_id=thread_id,
             sender_id='',  # Empty string for system message (converted to NULL in DB)
@@ -41,7 +41,7 @@ def register_routes(app):
             message_type='system',
             attachment_url=None
         )
-        
+
         return thread_id
 
     def accept_application(spap: dict, paps: dict, auth: model.CurrentAuth):
@@ -296,14 +296,12 @@ def register_routes(app):
 
         # Delete the chat thread associated with this SPAP
         chat_thread = db.get_chat_thread_by_spap(spap_id=spap_id)
-        deleted_thread_id = None
         if chat_thread:
-            deleted_thread_id = str(chat_thread['thread_id'])
-            db.delete_chat_thread(thread_id=deleted_thread_id)
+            db.delete_chat_thread(thread_id=str(chat_thread['thread_id']))
 
         # Update status to 'withdrawn' instead of deleting
         db.update_spap_status(spap_id=spap_id, status='withdrawn')
-        return fsa.jsonify({"deleted_thread_id": deleted_thread_id}), 200
+        return "", 204
 
     # PUT /spap/<spap_id>/accept - accept an application (owner only)
     @app.put("/spap/<spap_id>/accept", authz="AUTH")
@@ -375,15 +373,13 @@ def register_routes(app):
 
         # Delete the chat thread associated with this SPAP
         chat_thread = db.get_chat_thread_by_spap(spap_id=spap_id)
-        deleted_thread_id = None
         if chat_thread:
-            deleted_thread_id = str(chat_thread['thread_id'])
-            db.delete_chat_thread(thread_id=deleted_thread_id)
+            db.delete_chat_thread(thread_id=str(chat_thread['thread_id']))
 
         # Update SPAP status to 'rejected'
         db.update_spap_status(spap_id=spap_id, status='rejected')
 
-        return fsa.jsonify({"deleted_thread_id": deleted_thread_id}), 200
+        return "", 204
 
     # ============================================
     # SPAP MEDIA MANAGEMENT

@@ -2,7 +2,6 @@ import { useCallback, useRef } from "react";
 import { atom, useAtom, useAtomValue } from "jotai";
 import type { Spap, SpapDetail } from "../serve/spap";
 import { serv, getCurrentUser } from "../serve/serv";
-import { removeThreadFromCacheImperative } from "./chats";
 
 // =============================================================================
 // BASE ATOMS - stores all spaps (my applications)
@@ -240,14 +239,10 @@ export const useReceivedSpaps = () => {
     return response?.asap_id || null;
   }, [fetchReceivedSpaps]);
 
-  // Reject an application
+  // Reject an application (returns 204 No Content)
   const rejectSpap = useCallback(async (spapId: string) => {
-    const response = await serv("spap.reject", { spap_id: spapId });
-    // Remove the deleted chat thread from cache
-    if (response?.deleted_thread_id) {
-      removeThreadFromCacheImperative(response.deleted_thread_id);
-    }
-    // Force refresh to get updated data
+    await serv("spap.reject", { spap_id: spapId });
+    // Force refresh to get updated data and sync chat threads
     fetchReceivedSpaps(true);
   }, [fetchReceivedSpaps]);
 
@@ -272,16 +267,12 @@ export const usePendingReceivedSpaps = () => {
 // ACTION HELPERS
 // =============================================================================
 
-// Withdraw an application
+// Withdraw an application (returns 204 No Content)
 export const withdrawSpap = async (
   spapId: string,
   removeFromCache: (id: string) => void
 ): Promise<void> => {
-  const response = await serv("spap.withdraw", { spap_id: spapId });
-  // Remove the deleted chat thread from cache
-  if (response?.deleted_thread_id) {
-    removeThreadFromCacheImperative(response.deleted_thread_id);
-  }
+  await serv("spap.withdraw", { spap_id: spapId });
   removeFromCache(spapId);
 };
 
