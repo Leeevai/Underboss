@@ -79,6 +79,8 @@ export default function PaymentPage() {
     completed,
     totalReceived,
     totalSent,
+    pendingReceived,
+    pendingSent,
     loading,
     error,
     refresh,
@@ -186,16 +188,26 @@ export default function PaymentPage() {
       {/* Summary Cards */}
       <View style={styles.summaryContainer}>
         <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total Received</Text>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Received</Text>
           <Text style={[styles.summaryValue, { color: '#38A169' }]}>
             {formatCurrency(totalReceived)}
           </Text>
+          {pendingReceived > 0 && (
+            <Text style={[styles.pendingAmount, { color: '#D97706' }]}>
+              +{formatCurrency(pendingReceived)} pending
+            </Text>
+          )}
         </View>
         <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total Sent</Text>
+          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Sent</Text>
           <Text style={[styles.summaryValue, { color: '#E53E3E' }]}>
             {formatCurrency(totalSent)}
           </Text>
+          {pendingSent > 0 && (
+            <Text style={[styles.pendingAmount, { color: '#D97706' }]}>
+              +{formatCurrency(pendingSent)} pending
+            </Text>
+          )}
         </View>
       </View>
 
@@ -307,6 +319,10 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: FONT_SIZE.xl,
     fontWeight: FONT_WEIGHT.bold,
+  },
+  pendingAmount: {
+    fontSize: FONT_SIZE.xs,
+    marginTop: 2,
   },
   tabContainer: {
     flexDirection: 'row',
