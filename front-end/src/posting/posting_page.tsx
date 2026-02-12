@@ -8,6 +8,7 @@ import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import { useTheme, BRAND, createShadow } from '../common/theme';
 import { useActiveCategories } from '../cache';
 import { Calendar, DateData } from 'react-native-calendars';
+import Geolocation from '@react-native-community/geolocation';
 
 // Geolocation types for React Native
 interface GeolocationPosition {
@@ -28,17 +29,6 @@ interface GeolocationError {
   message: string;
 }
 
-// Global geolocation (polyfilled by React Native)
-declare const navigator: {
-  geolocation: {
-    getCurrentPosition: (
-      success: (position: GeolocationPosition) => void,
-      error?: (error: GeolocationError) => void,
-      options?: { enableHighAccuracy?: boolean; timeout?: number; maximumAge?: number }
-    ) => void;
-  };
-};
-
 // =============================================================================
 // CONSTANTS
 // =============================================================================
@@ -58,6 +48,17 @@ const POST_MODES: { value: 'draft' | 'scheduled' | 'publish'; label: string; ico
 ];
 
 const MAX_MEDIA_FILES = 10;
+
+// Helper to format Date to local ISO string without timezone conversion
+const toLocalISOString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const mins = String(date.getMinutes()).padStart(2, '0');
+  const secs = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${mins}:${secs}`;
+};
 
 const DEFAULT_FORM: Partial<PapsCreateRequest> = {
   payment_amount: 0,
@@ -84,21 +85,30 @@ const Post = () => {
   
   // Calendar popup state
   const [calendarVisible, setCalendarVisible] = useState(false);
-  const [calendarField, setCalendarField] = useState<'start' | 'end'>('start');
+  
+  // Time picker state
+  const [selectedHour, setSelectedHour] = useState(12);
+  const [selectedMinute, setSelectedMinute] = useState(0);
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
   
   // Location loading state
   const [loadingLocation, setLoadingLocation] = useState(false);
+  const [useAutoLocation, setUseAutoLocation] = useState(false);
+  
+  // Schedule extra fields (for scheduled mode)
+  const [applicationDeadline, setApplicationDeadline] = useState<string>('');
+  const [deadlinePickerVisible, setDeadlinePickerVisible] = useState(false);
+  const [remindBefore, setRemindBefore] = useState<number>(0); // hours before start
   
   // Categories from cache
   const { categories } = useActiveCategories();
 
-  // Open calendar for a specific field
-  const openCalendar = (field: 'start' | 'end') => {
-    setCalendarField(field);
+  // Open calendar for start date
+  const openCalendar = () => {
     setCalendarVisible(true);
   };
 
-  // Handle date selection
+  // Handle date selection (start date only - end date is auto-calculated)
   const handleDateSelect = (date: DateData) => {
     const now = new Date();
     const selectedDate = new Date(date.dateString);
@@ -109,33 +119,42 @@ const Post = () => {
       return;
     }
     
-    const isoDate = `${date.dateString}T12:00:00`;
-    if (calendarField === 'start') {
+    // Use selected hour and minute
+    const hourStr = selectedHour.toString().padStart(2, '0');
+    const minStr = selectedMinute.toString().padStart(2, '0');
+    const isoDate = `${date.dateString}T${hourStr}:${minStr}:00`;
+    setForm(p => {
+      const updated = { ...p, start_datetime: isoDate };
+      // Auto-calculate end date if duration is set
+      if (p.estimated_duration_minutes && p.estimated_duration_minutes > 0) {
+        const startMs = new Date(isoDate).getTime();
+        const endMs = startMs + p.estimated_duration_minutes * 60 * 1000;
+        updated.end_datetime = toLocalISOString(new Date(endMs));
+      }
+      return updated;
+    });
+    setCalendarVisible(false);
+  };
+
+  // Update time on existing date
+  const handleTimeChange = (hour: number, minute: number) => {
+    setSelectedHour(hour);
+    setSelectedMinute(minute);
+    if (form.start_datetime) {
+      const datePart = form.start_datetime.split('T')[0];
+      const hourStr = hour.toString().padStart(2, '0');
+      const minStr = minute.toString().padStart(2, '0');
+      const newDateTime = `${datePart}T${hourStr}:${minStr}:00`;
       setForm(p => {
-        const updated = { ...p, start_datetime: isoDate };
-        // Auto-calculate end date if duration is set
+        const updated = { ...p, start_datetime: newDateTime };
         if (p.estimated_duration_minutes && p.estimated_duration_minutes > 0) {
-          const startMs = new Date(isoDate).getTime();
+          const startMs = new Date(newDateTime).getTime();
           const endMs = startMs + p.estimated_duration_minutes * 60 * 1000;
-          updated.end_datetime = new Date(endMs).toISOString().slice(0, 19);
-        }
-        return updated;
-      });
-    } else {
-      setForm(p => {
-        const updated = { ...p, end_datetime: isoDate };
-        // Auto-calculate duration if start is set
-        if (p.start_datetime) {
-          const startMs = new Date(p.start_datetime).getTime();
-          const endMs = new Date(isoDate).getTime();
-          if (endMs > startMs) {
-            updated.estimated_duration_minutes = Math.round((endMs - startMs) / 60000);
-          }
+          updated.end_datetime = toLocalISOString(new Date(endMs));
         }
         return updated;
       });
     }
-    setCalendarVisible(false);
   };
 
   // Handle duration change - auto-calculate end date
@@ -145,11 +164,38 @@ const Post = () => {
       if (p.start_datetime && minutes > 0) {
         const startMs = new Date(p.start_datetime).getTime();
         const endMs = startMs + minutes * 60 * 1000;
-        updated.end_datetime = new Date(endMs).toISOString().slice(0, 19);
+        updated.end_datetime = toLocalISOString(new Date(endMs));
       }
       return updated;
     });
   }, []);
+
+  // Reverse geocode to get address from coordinates
+  const reverseGeocode = async (lat: number, lng: number): Promise<string | null> => {
+    try {
+      // Using OpenStreetMap Nominatim API for reverse geocoding (free, no API key needed)
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        { headers: { 'User-Agent': 'Underboss-App/1.0' } }
+      );
+      const data = await response.json();
+      if (data && data.display_name) {
+        // Extract a shorter address (city, state, country)
+        const address = data.address;
+        const parts = [];
+        if (address?.city || address?.town || address?.village) {
+          parts.push(address.city || address.town || address.village);
+        }
+        if (address?.state) parts.push(address.state);
+        if (address?.country) parts.push(address.country);
+        return parts.length > 0 ? parts.join(', ') : data.display_name;
+      }
+      return null;
+    } catch (err) {
+      console.error('Reverse geocoding failed:', err);
+      return null;
+    }
+  };
 
   // Fetch current location from device
   const fetchCurrentLocation = async () => {
@@ -176,18 +222,25 @@ const Post = () => {
       }
       
       // Get current position using React Native Geolocation
-      navigator.geolocation.getCurrentPosition(
-        (position: GeolocationPosition) => {
+      Geolocation.getCurrentPosition(
+        async (position: GeolocationPosition) => {
+          const { latitude, longitude } = position.coords;
+          
+          // Reverse geocode to get address
+          const address = await reverseGeocode(latitude, longitude);
+          
           setForm(p => ({
             ...p,
-            location_lat: position.coords.latitude,
-            location_lng: position.coords.longitude,
+            location_lat: latitude,
+            location_lng: longitude,
+            location_address: address || p.location_address || '',
           }));
+          setUseAutoLocation(true);
           setLoadingLocation(false);
         },
         (error: GeolocationError) => {
           console.error('Location error:', error);
-          Alert.alert('Location Error', 'Could not get your location. Please enter manually.');
+          Alert.alert('Location Error', 'Could not get your location. Please enter address manually.');
           setLoadingLocation(false);
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
@@ -203,6 +256,13 @@ const Post = () => {
     if (!isoDate) return 'Select date';
     const d = new Date(isoDate);
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // Format time for display
+  const formatDisplayTime = (isoDate?: string) => {
+    if (!isoDate) return `${selectedHour.toString().padStart(2, '0')}:${selectedMinute.toString().padStart(2, '0')}`;
+    const d = new Date(isoDate);
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
   };
 
   const syncFormCategories = (next: { id: string; isPrimary: boolean }[]) => {
@@ -332,24 +392,10 @@ const Post = () => {
         Alert.alert('Validation Error', 'Scheduled date cannot be in the past');
         return;
       }
-      if (form.end_datetime) {
-        const endDate = new Date(form.end_datetime);
-        if (endDate <= startDate) {
-          Alert.alert('Validation Error', 'End date must be after start date');
-          return;
-        }
-        
-        // Validate end date doesn't exceed start + duration
-        if (form.estimated_duration_minutes && form.estimated_duration_minutes > 0) {
-          const maxEndDate = new Date(startDate.getTime() + form.estimated_duration_minutes * 60 * 1000);
-          if (endDate > maxEndDate) {
-            Alert.alert('Validation Error', 
-              `End date cannot exceed start date + duration (${form.estimated_duration_minutes} minutes). ` +
-              `Maximum end date: ${maxEndDate.toLocaleString()}`
-            );
-            return;
-          }
-        }
+      // Duration is required for published jobs (end date is auto-calculated)
+      if (!form.estimated_duration_minutes || form.estimated_duration_minutes <= 0) {
+        Alert.alert('Validation Error', 'Duration is required for published jobs');
+        return;
       }
     }
 
@@ -477,11 +523,21 @@ const Post = () => {
 
             {/* CATEGORIES */}
             <View style={[styles.section, { backgroundColor: colors.card }, createShadow(2, isDark)]}>
-              <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Categories</Text>
-              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Select several categories. Tap again to set primary; long-press to remove.</Text>
+              <View style={styles.categoriesHeader}>
+                <Text style={[styles.sectionTitle, { color: BRAND.primary }]}>Categories</Text>
+                {selectedCategories.length > 0 && (
+                  <View style={[styles.categoryCount, { backgroundColor: BRAND.primary }]}>
+                    <Text style={styles.categoryCountText}>{selectedCategories.length} selected</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
+                Tap to select categories. Tap selected to set as primary (★). Long-press to remove.
+              </Text>
 
               <View style={styles.categoriesGrid}>
                 {categories?.map((cat: any) => {
+                  const isSelected = selectedCategories.some(c => c.id === cat.category_id);
                   const isPrimary = selectedCategories.some(c => c.id === cat.category_id && c.isPrimary);
                   return (
                     <TouchableOpacity
@@ -489,12 +545,18 @@ const Post = () => {
                       style={[
                         styles.categoryChip,
                         { borderColor: colors.border, backgroundColor: colors.backgroundTertiary },
+                        isSelected && { backgroundColor: BRAND.primary + '20', borderColor: BRAND.primary },
                         isPrimary && styles.categoryChipPrimary,
                       ]}
                       onPress={() => toggleCategory(cat.category_id)}
                       onLongPress={() => removeCategory(cat.category_id)}
                     >
-                      <Text style={[styles.categoryChipText, { color: colors.textSecondary }]}>
+                      {isPrimary && <Text style={styles.categoryPrimaryStar}>★ </Text>}
+                      <Text style={[
+                        styles.categoryChipText, 
+                        { color: colors.textSecondary },
+                        isSelected && { color: BRAND.primary, fontWeight: '600' },
+                      ]}>
                         {cat.name}
                       </Text>
                     </TouchableOpacity>
@@ -665,6 +727,73 @@ const Post = () => {
                   </TouchableOpacity>
                 ))}
               </View>
+
+              {/* Extra Schedule Options - Only when scheduled mode */}
+              {postMode === 'scheduled' && (
+                <View style={styles.scheduleExtras}>
+                  <View style={[styles.scheduleExtraDivider, { backgroundColor: colors.border }]} />
+                  
+                  {/* Application Deadline */}
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>Application Deadline</Text>
+                    <Text style={[styles.sectionHint, { color: colors.textMuted, marginBottom: 8 }]}>
+                      Last date to accept applications (before start date)
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.datePickerButton, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
+                      onPress={() => setDeadlinePickerVisible(true)}
+                    >
+                      <Text style={styles.datePickerIcon}>⏰</Text>
+                      <Text style={[styles.datePickerText, { color: applicationDeadline ? colors.inputText : colors.inputPlaceholder }]}>
+                        {applicationDeadline ? formatDisplayDate(applicationDeadline) + ' ' + formatDisplayTime(applicationDeadline) : 'No deadline (accept until start)'}
+                      </Text>
+                      {applicationDeadline && (
+                        <TouchableOpacity
+                          style={styles.clearDeadlineBtn}
+                          onPress={() => setApplicationDeadline('')}
+                        >
+                          <Text style={[styles.clearDeadlineText, { color: colors.textMuted }]}>✕</Text>
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Reminder Options */}
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>Reminder</Text>
+                    <Text style={[styles.sectionHint, { color: colors.textMuted, marginBottom: 8 }]}>
+                      Get notified before the scheduled start time
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reminderScroll}>
+                      {[
+                        { value: 0, label: 'None' },
+                        { value: 1, label: '1h' },
+                        { value: 2, label: '2h' },
+                        { value: 6, label: '6h' },
+                        { value: 24, label: '24h' },
+                        { value: 48, label: '48h' },
+                      ].map((opt) => (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[
+                            styles.reminderOption,
+                            { backgroundColor: colors.inputBg, borderColor: colors.border },
+                            remindBefore === opt.value && { backgroundColor: BRAND.primary + '20', borderColor: BRAND.primary },
+                          ]}
+                          onPress={() => setRemindBefore(opt.value)}
+                        >
+                          <Text style={[
+                            styles.reminderText,
+                            { color: remindBefore === opt.value ? BRAND.primary : colors.textSecondary },
+                          ]}>
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* SCHEDULE */}
@@ -676,7 +805,7 @@ const Post = () => {
                   <Text style={[styles.label, { color: colors.textSecondary }]}>Start Date</Text>
                   <TouchableOpacity
                     style={[styles.datePickerButton, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
-                    onPress={() => openCalendar('start')}
+                    onPress={() => openCalendar()}
                   >
                     <Text style={styles.datePickerIcon}>📅</Text>
                     <Text style={[styles.datePickerText, { color: form.start_datetime ? colors.inputText : colors.inputPlaceholder }]}>
@@ -686,16 +815,42 @@ const Post = () => {
                 </View>
 
                 <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>End Date</Text>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>Start Time</Text>
                   <TouchableOpacity
                     style={[styles.datePickerButton, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder }]}
-                    onPress={() => openCalendar('end')}
+                    onPress={() => setTimePickerVisible(true)}
                   >
-                    <Text style={styles.datePickerIcon}>📅</Text>
-                    <Text style={[styles.datePickerText, { color: form.end_datetime ? colors.inputText : colors.inputPlaceholder }]}>
-                      {formatDisplayDate(form.end_datetime)}
+                    <Text style={styles.datePickerIcon}>🕐</Text>
+                    <Text style={[styles.datePickerText, { color: colors.inputText }]}>
+                      {formatDisplayTime(form.start_datetime)}
                     </Text>
                   </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.rowInputs}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>End Date (auto)</Text>
+                  <View
+                    style={[styles.datePickerButton, { backgroundColor: colors.backgroundTertiary, borderColor: colors.border }]}
+                  >
+                    <Text style={styles.datePickerIcon}>📅</Text>
+                    <Text style={[styles.datePickerText, { color: form.end_datetime ? colors.textMuted : colors.inputPlaceholder }]}>
+                      {form.end_datetime ? formatDisplayDate(form.end_datetime) : 'Set start + duration'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>End Time</Text>
+                  <View
+                    style={[styles.datePickerButton, { backgroundColor: colors.backgroundTertiary, borderColor: colors.border }]}
+                  >
+                    <Text style={styles.datePickerIcon}>🕐</Text>
+                    <Text style={[styles.datePickerText, { color: form.end_datetime ? colors.textMuted : colors.inputPlaceholder }]}>
+                      {form.end_datetime ? formatDisplayTime(form.end_datetime) : '--:--'}
+                    </Text>
+                  </View>
                 </View>
               </View>
 
@@ -728,7 +883,11 @@ const Post = () => {
                     placeholder="10"
                     placeholderTextColor={colors.inputPlaceholder}
                     value={form.max_applicants?.toString() || ''}
-                    onChangeText={(v) => setForm(p => ({ ...p, max_applicants: parseInt(v, 10) || 10 }))}
+                    onChangeText={(v) => {
+                      const num = parseInt(v, 10)
+                      setForm(p => ({ ...p, max_applicants: isNaN(num) ? undefined : num }))
+                    }}
+                    onBlur={() => setForm(p => ({ ...p, max_applicants: p.max_applicants || 10 }))}
                   />
                 </View>
 
@@ -740,7 +899,11 @@ const Post = () => {
                     placeholder="1"
                     placeholderTextColor={colors.inputPlaceholder}
                     value={form.max_assignees?.toString() || ''}
-                    onChangeText={(v) => setForm(p => ({ ...p, max_assignees: parseInt(v, 10) || 1 }))}
+                    onChangeText={(v) => {
+                      const num = parseInt(v, 10)
+                      setForm(p => ({ ...p, max_assignees: isNaN(num) ? undefined : num }))
+                    }}
+                    onBlur={() => setForm(p => ({ ...p, max_assignees: p.max_assignees || 1 }))}
                   />
                 </View>
               </View>
@@ -752,19 +915,34 @@ const Post = () => {
 
               {/* Use Current Location Button */}
               <TouchableOpacity
-                style={[styles.locationButton, { backgroundColor: BRAND.primary + '15', borderColor: BRAND.primary }]}
+                style={[
+                  styles.locationButton, 
+                  { backgroundColor: BRAND.primary + '15', borderColor: BRAND.primary },
+                  useAutoLocation && { backgroundColor: '#38A16915', borderColor: '#38A169' }
+                ]}
                 onPress={fetchCurrentLocation}
                 disabled={loadingLocation}
               >
                 {loadingLocation ? (
                   <ActivityIndicator size="small" color={BRAND.primary} />
                 ) : (
-                  <Text style={styles.locationButtonIcon}>📍</Text>
+                  <Text style={styles.locationButtonIcon}>{useAutoLocation ? '✓' : '📍'}</Text>
                 )}
-                <Text style={[styles.locationButtonText, { color: BRAND.primary }]}>
-                  {loadingLocation ? 'Getting location...' : 'Use my current location'}
+                <Text style={[styles.locationButtonText, { color: useAutoLocation ? '#38A169' : BRAND.primary }]}>
+                  {loadingLocation ? 'Getting location...' : useAutoLocation ? 'Location detected' : 'Use my current location'}
                 </Text>
               </TouchableOpacity>
+
+              {useAutoLocation && form.location_lat && form.location_lng && (
+                <View style={[styles.locationInfo, { backgroundColor: colors.backgroundTertiary }]}>
+                  <Text style={[styles.locationInfoText, { color: colors.textSecondary }]}>
+                    📍 Coordinates: {form.location_lat.toFixed(4)}, {form.location_lng.toFixed(4)}
+                  </Text>
+                  <TouchableOpacity onPress={() => setUseAutoLocation(false)}>
+                    <Text style={[styles.locationInfoEdit, { color: BRAND.primary }]}>Edit manually</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Address</Text>
@@ -777,33 +955,34 @@ const Post = () => {
                 />
               </View>
 
-              <View style={styles.rowInputs}>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>Latitude</Text>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                    keyboardType="numeric"
-                    placeholder="48.8566"
-                    placeholderTextColor={colors.inputPlaceholder}
-                    value={form.location_lat?.toString() || ''}
-                    onChangeText={(v) => setForm(p => ({ ...p, location_lat: parseFloat(v) || undefined }))}
-                    editable={!loadingLocation}
-                  />
-                </View>
+              {/* Only show lat/lng inputs if not using auto-location */}
+              {!useAutoLocation && (
+                <View style={styles.rowInputs}>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>Latitude (optional)</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+                      keyboardType="numeric"
+                      placeholder="48.8566"
+                      placeholderTextColor={colors.inputPlaceholder}
+                      value={form.location_lat?.toString() || ''}
+                      onChangeText={(v) => setForm(p => ({ ...p, location_lat: parseFloat(v) || undefined }))}
+                    />
+                  </View>
 
-                <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>Longitude</Text>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
-                    keyboardType="numeric"
-                    placeholder="2.3522"
-                    placeholderTextColor={colors.inputPlaceholder}
-                    value={form.location_lng?.toString() || ''}
-                    onChangeText={(v) => setForm(p => ({ ...p, location_lng: parseFloat(v) || undefined }))}
-                    editable={!loadingLocation}
-                  />
+                  <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>Longitude (optional)</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.inputBorder, color: colors.inputText }]}
+                      keyboardType="numeric"
+                      placeholder="2.3522"
+                      placeholderTextColor={colors.inputPlaceholder}
+                      value={form.location_lng?.toString() || ''}
+                      onChangeText={(v) => setForm(p => ({ ...p, location_lng: parseFloat(v) || undefined }))}
+                    />
+                  </View>
                 </View>
-              </View>
+              )}
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Timezone</Text>
@@ -863,7 +1042,7 @@ const Post = () => {
             <View style={[styles.calendarContainer, { backgroundColor: colors.card }]}>
               <View style={styles.calendarHeader}>
                 <Text style={[styles.calendarTitle, { color: colors.text }]}>
-                  {calendarField === 'start' ? 'Select Start Date' : 'Select End Date'}
+                  Select Start Date
                 </Text>
                 <TouchableOpacity onPress={() => setCalendarVisible(false)}>
                   <Text style={styles.calendarClose}>✕</Text>
@@ -873,9 +1052,7 @@ const Post = () => {
                 onDayPress={handleDateSelect}
                 markedDates={{
                   [form.start_datetime?.split('T')[0] || '']: { selected: true, selectedColor: BRAND.primary },
-                  [form.end_datetime?.split('T')[0] || '']: { selected: true, selectedColor: BRAND.secondary || '#60A5FA' },
                 }}
-                minDate={calendarField === 'end' && form.start_datetime ? form.start_datetime.split('T')[0] : undefined}
                 theme={{
                   backgroundColor: colors.card,
                   calendarBackground: colors.card,
@@ -889,6 +1066,170 @@ const Post = () => {
                   monthTextColor: colors.text,
                 }}
               />
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Time Picker Modal */}
+        <Modal
+          visible={timePickerVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setTimePickerVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.calendarOverlay}
+            activeOpacity={1}
+            onPress={() => setTimePickerVisible(false)}
+          >
+            <View style={[styles.timePickerContainer, { backgroundColor: colors.card }]}>
+              <View style={styles.calendarHeader}>
+                <Text style={[styles.calendarTitle, { color: colors.text }]}>
+                  Select Start Time
+                </Text>
+                <TouchableOpacity onPress={() => setTimePickerVisible(false)}>
+                  <Text style={styles.calendarClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.timePickerContent}>
+                {/* Hour Picker */}
+                <View style={styles.timeColumn}>
+                  <Text style={[styles.timeColumnLabel, { color: colors.textSecondary }]}>Hour</Text>
+                  <ScrollView style={styles.timeScrollView} showsVerticalScrollIndicator={false}>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={[
+                          styles.timeOption,
+                          selectedHour === i && { backgroundColor: BRAND.primary }
+                        ]}
+                        onPress={() => handleTimeChange(i, selectedMinute)}
+                      >
+                        <Text style={[
+                          styles.timeOptionText,
+                          { color: colors.text },
+                          selectedHour === i && { color: '#fff' }
+                        ]}>
+                          {i.toString().padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+                <Text style={[styles.timeSeparator, { color: colors.text }]}>:</Text>
+                {/* Minute Picker */}
+                <View style={styles.timeColumn}>
+                  <Text style={[styles.timeColumnLabel, { color: colors.textSecondary }]}>Minute</Text>
+                  <ScrollView style={styles.timeScrollView} showsVerticalScrollIndicator={false}>
+                    {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
+                      <TouchableOpacity
+                        key={m}
+                        style={[
+                          styles.timeOption,
+                          selectedMinute === m && { backgroundColor: BRAND.primary }
+                        ]}
+                        onPress={() => handleTimeChange(selectedHour, m)}
+                      >
+                        <Text style={[
+                          styles.timeOptionText,
+                          { color: colors.text },
+                          selectedMinute === m && { color: '#fff' }
+                        ]}>
+                          {m.toString().padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.timeConfirmButton, { backgroundColor: BRAND.primary }]}
+                onPress={() => setTimePickerVisible(false)}
+              >
+                <Text style={styles.timeConfirmText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Deadline Picker Modal */}
+        <Modal
+          visible={deadlinePickerVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setDeadlinePickerVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.calendarOverlay}
+            activeOpacity={1}
+            onPress={() => setDeadlinePickerVisible(false)}
+          >
+            <View style={[styles.calendarContainer, { backgroundColor: colors.card }]}>
+              <View style={styles.calendarHeader}>
+                <Text style={[styles.calendarTitle, { color: colors.text }]}>
+                  Application Deadline
+                </Text>
+                <TouchableOpacity onPress={() => setDeadlinePickerVisible(false)}>
+                  <Text style={styles.calendarClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <Calendar
+                onDayPress={(date: DateData) => {
+                  // Set deadline to selected date at noon by default
+                  const isoDate = `${date.dateString}T12:00:00`;
+                  setApplicationDeadline(isoDate);
+                }}
+                markedDates={{
+                  ...(applicationDeadline ? { [applicationDeadline.split('T')[0]]: { selected: true, selectedColor: BRAND.primary } } : {}),
+                }}
+                minDate={new Date().toISOString().split('T')[0]}
+                maxDate={form.start_datetime ? form.start_datetime.split('T')[0] : undefined}
+                theme={{
+                  backgroundColor: colors.card,
+                  calendarBackground: colors.card,
+                  textSectionTitleColor: colors.textSecondary,
+                  dayTextColor: colors.text,
+                  todayTextColor: BRAND.primary,
+                  selectedDayBackgroundColor: BRAND.primary,
+                  monthTextColor: colors.text,
+                  arrowColor: BRAND.primary,
+                }}
+              />
+              <View style={styles.deadlineTimeRow}>
+                <Text style={[styles.deadlineTimeLabel, { color: colors.textSecondary }]}>Time:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.deadlineTimeScroll}>
+                  {['09:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00'].map((time) => {
+                    const currentTime = applicationDeadline ? applicationDeadline.split('T')[1]?.slice(0, 5) : '';
+                    const isSelected = currentTime === time;
+                    return (
+                      <TouchableOpacity
+                        key={time}
+                        style={[
+                          styles.deadlineTimeOption,
+                          { borderColor: colors.border },
+                          isSelected && { backgroundColor: BRAND.primary, borderColor: BRAND.primary },
+                        ]}
+                        onPress={() => {
+                          if (applicationDeadline) {
+                            const datePart = applicationDeadline.split('T')[0];
+                            setApplicationDeadline(`${datePart}T${time}:00`);
+                          }
+                        }}
+                      >
+                        <Text style={[styles.deadlineTimeText, isSelected && { color: '#fff' }]}>
+                          {time}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+              <TouchableOpacity
+                style={[styles.timeConfirmButton, { backgroundColor: BRAND.primary }]}
+                onPress={() => setDeadlinePickerVisible(false)}
+              >
+                <Text style={styles.timeConfirmText}>Done</Text>
+              </TouchableOpacity>
             </View>
           </TouchableOpacity>
         </Modal>
@@ -975,12 +1316,30 @@ const styles = StyleSheet.create({
   },
 
   // Categories
+  categoriesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  categoryCount: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  categoryCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+  },
   categoriesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginHorizontal: -4,
   },
   categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
@@ -995,6 +1354,10 @@ const styles = StyleSheet.create({
   categoryChipText: {
     fontSize: 13,
     fontWeight: '500',
+  },
+  categoryPrimaryStar: {
+    fontSize: 12,
+    color: '#4867bb',
   },
 
   // Toggle buttons (payment type, visibility)
@@ -1300,6 +1663,134 @@ const styles = StyleSheet.create({
   locationButtonText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  locationInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  locationInfoText: {
+    fontSize: 12,
+  },
+  locationInfoEdit: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Time picker
+  timePickerContainer: {
+    borderRadius: 16,
+    padding: 16,
+    maxWidth: 300,
+    width: '80%',
+  },
+  timePickerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+  },
+  timeColumn: {
+    alignItems: 'center',
+    width: 80,
+  },
+  timeColumnLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  timeScrollView: {
+    maxHeight: 200,
+  },
+  timeOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  timeOptionText: {
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  timeSeparator: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginHorizontal: 8,
+  },
+  timeConfirmButton: {
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  timeConfirmText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  
+  // Schedule Extra Fields
+  scheduleExtras: {
+    marginTop: 20,
+  },
+  scheduleExtraDivider: {
+    height: 1,
+    marginBottom: 16,
+  },
+  reminderScroll: {
+    flexGrow: 0,
+  },
+  reminderOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  reminderText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  clearDeadlineBtn: {
+    marginLeft: 'auto',
+    padding: 4,
+  },
+  clearDeadlineText: {
+    fontSize: 16,
+  },
+  
+  // Deadline Picker
+  deadlineTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  deadlineTimeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 12,
+  },
+  deadlineTimeScroll: {
+    flexGrow: 0,
+  },
+  deadlineTimeOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  deadlineTimeText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 
