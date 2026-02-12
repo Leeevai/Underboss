@@ -1,7 +1,8 @@
 /**
  * ProfileSetupScreen - Requires users to complete their profile before accessing the app
  * 
- * Required fields: first_name, last_name, display_name, bio, avatar
+ * Required fields: first_name, last_name, display_name, bio
+ * Optional: avatar (uses default if not provided)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -22,7 +23,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
-import { serv, ApiError } from '../serve';
+import { serv, ApiError, getFullMediaUrl } from '../serve';
+import AppSettings from '../AppSettings';
 import { useActiveCategories } from '../cache';
 import { useTheme, BRAND, SPACING, RADIUS, FONT_SIZE, createShadow } from '../common/theme';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -109,9 +111,7 @@ export default function ProfileSetupScreen({ onComplete }: ProfileSetupScreenPro
     if (!form.bio.trim()) {
       newErrors.bio = 'Bio is required';
     }
-    if (!avatar && !avatarUrl) {
-      newErrors.avatar = 'Profile photo is required';
-    }
+    // Avatar is optional - will use default if not provided
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -336,6 +336,7 @@ export default function ProfileSetupScreen({ onComplete }: ProfileSetupScreenPro
 
   const renderAvatarPicker = () => {
     const imageUri = avatar?.uri;
+    const defaultAvatarUri = getFullMediaUrl(AppSettings.defaultAvatarUrl);
     
     return (
       <TouchableOpacity 
@@ -346,11 +347,14 @@ export default function ProfileSetupScreen({ onComplete }: ProfileSetupScreenPro
         {imageUri ? (
           <Image source={{ uri: imageUri }} style={styles.avatarImage} />
         ) : (
-          <View style={[styles.avatarPlaceholder, { backgroundColor: colors.backgroundSecondary }]}>
-            <Text style={styles.avatarIcon}>📷</Text>
-            <Text style={[styles.avatarText, { color: colors.textSecondary }]}>
-              Add Photo
-            </Text>
+          <View style={styles.avatarWithOverlay}>
+            <Image source={{ uri: defaultAvatarUri }} style={styles.avatarImage} />
+            <View style={[styles.avatarOverlay, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
+              <Text style={styles.avatarIcon}>📷</Text>
+              <Text style={[styles.avatarText, { color: '#fff' }]}>
+                Tap to change
+              </Text>
+            </View>
           </View>
         )}
         {uploadingAvatar && (
@@ -720,6 +724,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  avatarWithOverlay: {
+    flex: 1,
+    position: 'relative',
+  },
+  avatarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   formCard: {
     borderRadius: RADIUS.lg,
