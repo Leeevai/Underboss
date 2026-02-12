@@ -518,7 +518,7 @@ check.mypy: $(PYTHON_DEV) $(F.py) $(F.gen)
 	#
 	# report syntax and type errors
 	source $(PYTHON_VENV)/bin/activate
-	mypy --ignore-missing-imports --implicit-optional $(F.py) $(F.gen) test.py
+	mypy --ignore-missing-imports --implicit-optional $(F.py) $(F.gen) test.py api/*.py
 
 .PHONY: check.pytype
 check.pytype: $(PYTHON_DEV) $(F.py) $(F.gen)
@@ -540,7 +540,7 @@ check.black: $(PYTHON_DEV) $(F.py)
 	# Checking style with black
 	#
 	source $(PYTHON_VENV)/bin/activate
-	black --check --diff --verbose -l 100 $(F.py) test.py
+	black --check --diff --verbose -l 100 $(F.py) test.py api/*.py
 
 # flake8/ruff rules to ignore
 IGNORE  = E227,E302,E305,F401,E402,E501,F811
@@ -606,7 +606,7 @@ counts:
 	# queries: $(shell egrep "^\\s*--\\s*name\\s*:" $(F.sql) | wc -l)
 	# tables: $(shell egrep -i "^\\s*create\\s+table" $(F.sql) | wc -l)
 	# routes: $(shell egrep -i "^\\s*@app\.(route|get|post|patch|put|delete)" $(F.py) | wc -l)
-	cloc --by-file-by-lang $(F.py) test.py $(F.sql)
+	cloc --by-file-by-lang $(F.py) test.py $(F.sql) api/*.py
 
 .PHONY: commits
 commits:
