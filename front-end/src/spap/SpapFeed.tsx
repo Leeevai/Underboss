@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { View, FlatList, ActivityIndicator, Text, StyleSheet, RefreshControl, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRefreshOnFocus } from '../common/useRefreshOnFocus';
@@ -36,6 +36,10 @@ export default function SpapFeed() {
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Track if we've already fetched for each tab
+  const hasFetchedMyApps = useRef(false);
+  const hasFetchedReceived = useRef(false);
+  
   // Modal state
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedPapsId, setSelectedPapsId] = useState<string | null>(null);
@@ -43,17 +47,19 @@ export default function SpapFeed() {
 
   // Fetch my applications on mount
   useEffect(() => {
-    if (mainTab === 'my-applications' && spaps.length === 0 && !loading && !error) {
+    if (mainTab === 'my-applications' && !hasFetchedMyApps.current && !loading) {
+      hasFetchedMyApps.current = true;
       fetchSpaps();
     }
-  }, [mainTab, spaps.length, loading, error, fetchSpaps]);
+  }, [mainTab, loading, fetchSpaps]);
 
   // Fetch received applications when switching to that tab
   useEffect(() => {
-    if (mainTab === 'received' && receivedSpaps.length === 0 && !receivedLoading && !receivedError) {
+    if (mainTab === 'received' && !hasFetchedReceived.current && !receivedLoading) {
+      hasFetchedReceived.current = true;
       fetchReceivedSpaps();
     }
-  }, [mainTab, receivedSpaps.length, receivedLoading, receivedError, fetchReceivedSpaps]);
+  }, [mainTab, receivedLoading, fetchReceivedSpaps]);
 
   // Auto-refresh when screen comes into focus
   useRefreshOnFocus(
